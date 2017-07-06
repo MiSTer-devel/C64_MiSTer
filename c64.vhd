@@ -132,6 +132,7 @@ constant CONF_STR : string :=
 	"O6,Audio filter,On,Off;" &
 	"-;" &
 	"T5,Reset;" &
+	"J,Fire;" &
 	"V0,v0.27.32";
 
 ---------

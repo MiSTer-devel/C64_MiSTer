@@ -36,8 +36,8 @@ module hps_io #(parameter STRLEN=0, PS2DIV=1000, WIDE=0) // WIDE=1 for 16 bit fi
 	// parameter STRLEN and the actual length of conf_str have to match
 	input [(8*STRLEN)-1:0] conf_str,
 
-	output reg  [7:0] joystick_0,
-	output reg  [7:0] joystick_1,
+	output reg [15:0] joystick_0,
+	output reg [15:0] joystick_1,
 	output reg [15:0] joystick_analog_0,
 	output reg [15:0] joystick_analog_1,
 
@@ -73,6 +73,7 @@ module hps_io #(parameter STRLEN=0, PS2DIV=1000, WIDE=0) // WIDE=1 for 16 bit fi
 	output reg               ioctl_wr,
 	output reg        [24:0] ioctl_addr,         // in WIDE mode address will be incremented by 2
 	output reg [FIODWIDTH:0] ioctl_dout,
+	input                    ioctl_wait,
 
 	// ps2 keyboard emulation
 	output            ps2_kbd_clk,
@@ -87,7 +88,7 @@ module hps_io #(parameter STRLEN=0, PS2DIV=1000, WIDE=0) // WIDE=1 for 16 bit fi
 localparam FIODWIDTH = (WIDE) ? 15 : 7;
 localparam FIOAWIDTH = (WIDE) ?  7 : 8;
 
-wire        io_wait  = 0;
+wire        io_wait  = ioctl_wait;
 wire        io_enable= |HPS_BUS[35:34];
 wire        io_strobe= HPS_BUS[33];
 wire        io_wide  = (WIDE) ? 1'b1 : 1'b0;
@@ -149,8 +150,8 @@ always@(posedge clk_sys) begin
 				case(cmd)
 					// buttons and switches
 					'h01: cfg        <= io_din[7:0]; 
-					'h02: joystick_0 <= io_din[7:0];
-					'h03: joystick_1 <= io_din[7:0];
+					'h02: joystick_0 <= io_din;
+					'h03: joystick_1 <= io_din;
 
 					// store incoming ps2 mouse bytes 
 					'h04: begin
