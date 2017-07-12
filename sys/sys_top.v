@@ -173,7 +173,7 @@ cyclonev_hps_interface_mpu_general_purpose h2f_gp
 reg [15:0] cfg;
 
 reg  cfg_ready = 0;
-wire audio_48k = cfg[6];
+wire audio_96k = cfg[6];
 wire ypbpr_en  = cfg[5];
 wire csync     = cfg[3];
 `ifndef LITE
@@ -464,7 +464,7 @@ hdmi_config hdmi_config
 	.I2C_SCL(HDMI_I2C_SCL),
 	.I2C_SDA(HDMI_I2C_SDA),
 
-	.audio_48k(audio_48k),
+	.audio_48k(~audio_96k),
 	.iRES(4), // 720p
 	.iAR(1)   // Aspect Ratio
 );
@@ -489,7 +489,7 @@ i2s i2s
 (
 	.reset(~cfg_ready),
 	.clk_sys(FPGA_CLK1_50),
-	.half_rate(audio_48k),
+	.half_rate(~audio_96k),
 
 	.sclk(HDMI_SCLK),
 	.lrclk(HDMI_LRCLK),
@@ -526,7 +526,7 @@ vga_out vga_out
 	.ypbpr_en(ypbpr_en),
 	.dout(vga_o),
 `ifdef LITE
-	.din(vga_q),
+	.din(vga_q)
 `else
 	.din(vga_scaler ? HDMI_TX_D : vga_q)
 `endif
