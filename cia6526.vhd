@@ -11,6 +11,7 @@
 --
 -- 6526 Complex Interface Adapter
 --
+-- rev 1 - june17 / TOD alarms
 -- -----------------------------------------------------------------------
 
 library IEEE;
@@ -83,6 +84,8 @@ architecture Behavioral of cia6526 is
 	signal forceTimerB : std_logic;
 	signal loadTimerB : std_logic;
 	signal clkTimerB : std_logic; -- internal timer clock
+	
+	signal WR_Delay_offset : std_logic; -- adjustable WR signal delay - LCA jun17
 
 	-- Config register A
 	signal cra_start : std_logic;
@@ -114,7 +117,7 @@ architecture Behavioral of cia6526 is
 	signal tod_10ths: unsigned(3 downto 0);
 	signal tod_secs: unsigned(6 downto 0);
 	signal tod_mins: unsigned(6 downto 0);
-	signal tod_hrs: unsigned(4 downto 0);
+	signal tod_hrs: unsigned(7 downto 0);
 	signal tod_pm: std_logic;
 	
 	-- TOD latches
@@ -122,17 +125,26 @@ architecture Behavioral of cia6526 is
 	signal tod_latch_10ths: unsigned(3 downto 0);
 	signal tod_latch_secs: unsigned(6 downto 0);
 	signal tod_latch_mins: unsigned(6 downto 0);
-	signal tod_latch_hrs: unsigned(4 downto 0);
+	signal tod_latch_hrs: unsigned(7 downto 0);
 	constant tod_latch_pm: std_logic := '0';
 
+	-- TOD alarms - LCA
+	signal tod_10ths_alarm: unsigned(3 downto 0);
+	signal tod_secs_alarm: unsigned(6 downto 0);
+	signal tod_mins_alarm: unsigned(6 downto 0);
+	signal tod_hrs_alarm: unsigned(7 downto 0);
+	signal tod_pm_alarm: std_logic;
+	
 	-- Interrupt processing
 	signal resetIrq : boolean;
 	signal intr_flagn : std_logic;
 	signal intr_serial : std_logic;
+	signal intr_alarm : std_logic; -- LCA
 	signal intr_timerA : std_logic;
 	signal intr_timerB : std_logic;
 	signal mask_timerA : std_logic;
 	signal mask_timerB : std_logic;
+	signal mask_alarm : std_logic; -- LCA
 	signal mask_serial : std_logic;
 	signal mask_flagn : std_logic;
 	signal ir: std_logic;
@@ -242,6 +254,7 @@ begin
 		variable new_minsH : unsigned(2 downto 0);
 		variable new_hrsL : unsigned(3 downto 0);
 		variable new_hrsH : std_logic;
+		variable new_hrs_byte : unsigned(7 downto 0); -- LCA am/pm and hours
 	begin
 		if rising_edge(clk) then
 			new_10ths := tod_10ths;
@@ -249,8 +262,10 @@ begin
 			new_secsH := tod_secs(6 downto 4);
 			new_minsL := tod_mins(3 downto 0);
 			new_minsH := tod_mins(6 downto 4);
-			new_hrsL := tod_hrs(3 downto 0);
-			new_hrsH := tod_hrs(4);
+--			new_hrsL := tod_hrs(3 downto 0);
+--			new_hrsH := tod_hrs(4);
+			new_hrs_byte := tod_hrs (7 downto 0); -- LCA am/pm and hours
+--			new_hrs_byte := new_hrsH & new_hrsL;
 			
 			if enable = '1'
 			and todTick = '1' then
@@ -274,6 +289,66 @@ begin
 									new_minsH := new_minsH + 1;
 								else
 									new_minsH := "000";
+									-- hrs were missing jun17 LCA
+									-- I mean completely absent from code :) !!!!!!
+									-- case to lookup then handles oddities in others
+									-- retarded am/pm flag flip madness handled at register load below (REG B)
+									
+									case tod_hrs is											-- case state to set hours and am/pm 
+										when "00010010" =>
+											new_hrs_byte := "00000001";					-- 1 am set
+										when "00000001" => 
+											new_hrs_byte := "00000010";
+										when "00000010" => 
+											new_hrs_byte := "00000011";
+										when "00000011" => 
+											new_hrs_byte := "00000100";
+										when "00000100" => 
+											new_hrs_byte := "00000101";
+										when "00000101" => 
+											new_hrs_byte := "00000110";
+										when "00000110" => 
+											new_hrs_byte := "00000111";
+										when "00000111" => 
+											new_hrs_byte := "00001000";
+										when "00001000" => 
+											new_hrs_byte := "00001001";
+										when "00001001" => 
+											new_hrs_byte := "00010000";
+										when "00010000" => 
+											new_hrs_byte := "00010001";					-- 11am set
+										when "00010001" => 
+											new_hrs_byte := "10010010";					-- 12pm set
+										when "10010010" => 
+											new_hrs_byte := "10000001";					-- 1 pm set
+										
+										when "10000001" => 
+											new_hrs_byte := "10000010";
+										when "10000010" => 
+											new_hrs_byte := "10000011";
+										when "10000011" => 
+											new_hrs_byte := "10000100";
+										when "10000100" => 
+											new_hrs_byte := "10000101";
+										when "10000101" => 
+											new_hrs_byte := "10000110";
+										when "10000110" => 
+											new_hrs_byte := "10000111";
+										when "10000111" => 
+											new_hrs_byte := "10001000";
+										when "10001000" => 
+											new_hrs_byte := "10001001";
+										when "10001001" => 
+											new_hrs_byte := "10010000";					-- 10pm set
+										when "10010000" => 
+											new_hrs_byte := "10010001";					-- 11pm set
+										when "10010001" => 
+											new_hrs_byte := "00010010";					-- 12am set (midnight)
+										when others =>
+											new_hrs_byte (3 downto 0) := new_hrs_byte (3 downto 0) + 1;
+											--null;
+									end case;
+										
 								end if;
 							end if;
 						end if;
@@ -294,9 +369,29 @@ begin
 						new_minsL := di(3 downto 0);
 						new_minsH := di(6 downto 4);
 					when X"B" =>
-						new_hrsL := di(3 downto 0);
-						new_hrsH := di(4);
+						new_hrs_byte := di(7) & "00" & di(4 downto 0); 			-- LCA
 						tod_running <= '0';
+						if di(7 downto 0) = "10010010" or di(7 downto 0) = "00010010" then  -- super bodge because cbm flips am/pm flag at 12 am or pm (its retarded!!!!!)
+							new_hrs_byte(7) := not new_hrs_byte(7);								  -- This P.O.S. now mimics real commodore 64 !!!!! LCA
+						end if;
+					when others =>
+						null;
+					end case;
+				else -- TOD ALARM UPDATE
+					case addr is
+					when X"8" =>
+						tod_10ths_alarm <= di(3 downto 0);
+					when X"9" =>
+						tod_secs_alarm <= di(6 downto 0);
+					when X"A" =>
+						tod_mins_alarm <= di(6 downto 0);
+					when X"B" =>
+--						tod_hrs_alarm <= di(4 downto 0);
+--						tod_pm_alarm <= di(7);
+						tod_hrs_alarm <= di(7) & "00" & di(4 downto 0); 		-- LCA
+						if di(7 downto 0) = "10010010" or di(7 downto 0) = "00010010" then  -- super bodge because cbm flips am/pm flag at 12 am or pm (its retarded!!!!!)
+							tod_hrs_alarm(7) <= not tod_hrs_alarm(7);								  -- This P.O.S. now mimics real commodore 64 !!!!! LCA
+						end if;
 					when others =>
 						null;
 					end case;
@@ -307,16 +402,35 @@ begin
 			tod_10ths <= new_10ths;
 			tod_secs <= new_secsH & new_secsL;
 			tod_mins <= new_minsH & new_minsL;
-			tod_hrs <= new_hrsH & new_hrsL;
+			tod_hrs <= new_hrs_byte; 								-- LCA
+			
 			if tod_latched = '0' then
 				tod_latch_10ths <= new_10ths;
 				tod_latch_secs <= new_secsH & new_secsL;
 				tod_latch_mins <= new_minsH & new_minsL;
-				tod_latch_hrs <= new_hrsH & new_hrsL;
+				tod_latch_hrs <= new_hrs_byte;					-- LCA
 			end if;
-
+			
+			-- TOD ALARM test for match - LCA
+			if (tod_10ths = tod_10ths_alarm) and
+				(tod_secs = tod_secs_alarm) and
+				(tod_mins = tod_mins_alarm) and
+				(tod_hrs = tod_hrs_alarm) and
+				(crb_alarm = '1') then
+				intr_alarm <= '1' ;
+			end if;
+			
 			if reset = '1' then
 				tod_running <= '0';
+				tod_10ths_alarm <= "0000" ;
+				tod_secs_alarm <= "0000000" ;
+				tod_mins_alarm <= "0000000" ;
+				tod_hrs_alarm <= "00000000" ;
+				tod_pm_alarm <= '0' ;
+			end if;
+			
+			if resetIrq then 
+				intr_alarm <= '0' ;
 			end if;
 		end if;		
 	end process;
@@ -342,6 +456,34 @@ begin
 -- -----------------------------------------------------------------------
 -- Timer A and B
 -- -----------------------------------------------------------------------
+
+
+-- adjustable time delay jun17 - LCA
+
+-- -----------------------------------------------------------------------
+-- -----------------------------------------------------------------------
+
+	process(clk)
+		variable WR_delay : unsigned(15 downto 0);
+	begin
+		if rising_edge(clk) then
+			if (myWr = '0' or reset =  '1') then
+				WR_delay := "0000000000000000";
+				WR_Delay_offset <= '0';
+--			end if;
+			elsif (myWr = '1' and (WR_delay < 31)) then
+				WR_delay := WR_delay + 1;
+--			end if;
+			elsif (WR_delay > 8) then               -- adds a (1/32mhz * value) qualifier to WR signal in timers - LCA jun17
+				WR_Delay_offset <= '1';
+				else
+				WR_Delay_offset <= '0';
+			end if;
+		end if;		
+	end process;
+	
+-- -----------------------------------------------------------------------
+
 	process(clk)
 		variable newTimerA : unsigned(15 downto 0);
 		variable nextClkTimerA : std_logic;
@@ -363,6 +505,7 @@ begin
 			end if;
 
 			if myWr = '1' then
+--			if (myWr = '1' and WR_Delay_offset = '1') then         -- x/32mhz offset to qualify WR signal LCA jun17
 				case addr is
 				when X"4" =>
 					talo <= di;
@@ -496,6 +639,7 @@ begin
 				ir <= ir
 				or (intr_timerA and mask_timerA)
 				or (intr_timerB and mask_timerB)
+				or (intr_alarm and mask_alarm)
 				or (intr_serial and mask_serial)
 				or (intr_flagn and mask_flagn);
 			end if;
@@ -506,11 +650,13 @@ begin
 					if di(7) ='0' then
 						mask_timerA <= mask_timerA and (not di(0));
 						mask_timerB <= mask_timerB and (not di(1));
+						mask_alarm <= mask_alarm and (not di(2)); -- LCA
 						mask_serial <= mask_serial and (not di(3));
 						mask_flagn <= mask_flagn and (not di(4));
 					else
 						mask_timerA <= mask_timerA or di(0);
 						mask_timerB <= mask_timerB or di(1);
+						mask_alarm <= mask_alarm or di(2); -- LCA
 						mask_serial <= mask_serial or di(3);
 						mask_flagn <= mask_flagn or di(4);
 					end if;
@@ -526,6 +672,7 @@ begin
 			if reset = '1' then
 				mask_timerA <= '0';
 				mask_timerB <= '0';
+				mask_alarm <= '0' ;
 				mask_serial <= '0';
 				mask_flagn <= '0';
 			end if;
@@ -622,9 +769,10 @@ begin
 			when X"8" => do <= "0000" & tod_latch_10ths;
 			when X"9" => do <= "0" & tod_latch_secs;
 			when X"A" => do <= "0" & tod_latch_mins;
-			when X"B" => do <= tod_latch_pm & "00" & tod_latch_hrs;
+--			when X"B" => do <= tod_latch_pm & "00" & tod_latch_hrs;
+			when X"B" => do <= tod_latch_hrs; -- LCA
 			when X"C" => do <= (others => '0');
-			when X"D" => do <= ir & "00" & intr_flagn & intr_serial & "0" & intr_timerB & intr_timerA;
+			when X"D" => do <= ir & "00" & intr_flagn & intr_serial & intr_alarm & intr_timerB & intr_timerA;
 			when X"E" => do <= cra_todin & cra_spmode & cra_inmode & '0' & cra_runmode & cra_outmode & cra_pbon & cra_start;
 			when X"F" => do <= crb_alarm & crb_inmode6 & crb_inmode5 & '0' & crb_runmode & crb_outmode & crb_pbon & crb_start;
 			when others => do <= (others => '-');
