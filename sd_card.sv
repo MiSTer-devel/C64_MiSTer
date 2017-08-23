@@ -34,6 +34,7 @@ module sd_card
 	output  [7:0] sd_buff_din,
 	input         sd_buff_wr,
 
+	input         save_track,
 	input         change,
 	input   [5:0] track,
 	input   [4:0] sector,
@@ -72,7 +73,8 @@ reg [12:0] sd_buff_base;
 always @(posedge clk) begin
 	reg old_ack;
 	reg [5:0] cur_track = 0;
-	reg old_change, ready;
+	reg old_change, ready = 0;
+	reg saving = 0;
 
 	old_change <= change;
 	if(~old_change & change) ready <= 1;
@@ -85,21 +87,44 @@ always @(posedge clk) begin
 		busy  <= 0;
 		sd_rd <= 0;
 		sd_wr <= 0;
-		ready <= 0;
+		saving<= 0;
 	end
-
+	else
 	if(busy) begin
 		if(old_ack && ~sd_ack) begin
 			if(sd_buff_base < 'h1800) begin
 				sd_buff_base <= sd_buff_base + 13'd512;
 				lba <= lba + 1'd1;
+				if(saving) sd_wr <= 1;
+					else sd_rd <= 1;
+			end
+			else
+			if(saving && (cur_track != track)) begin
+				saving <= 0;
+				cur_track <= track;
+				sd_buff_base <= 0;
+				base_fix <= start_sectors[track][0] ? 13'h1F00 : 13'h0000;
+				lba <= start_sectors[track][9:1];
 				sd_rd <= 1;
-			end else begin
+			end
+			else
+			begin
 				busy <= 0;
 			end
 		end
-	end else begin
-		if(((cur_track != track) | (old_change & ~change)) & ready) begin
+	end
+	else
+	if(ready) begin
+		if(save_track && cur_track != 'b111111) begin
+			saving <= 1;
+			sd_buff_base <= 0;
+			lba <= start_sectors[cur_track][9:1];
+			sd_wr <= 1;
+			busy <= 1;
+		end
+		else
+		if((cur_track != track) || (old_change && ~change)) begin
+			saving <= 0;
 			cur_track <= track;
 			sd_buff_base <= 0;
 			base_fix <= start_sectors[track][0] ? 13'h1F00 : 13'h0000;

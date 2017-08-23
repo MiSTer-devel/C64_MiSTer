@@ -133,7 +133,7 @@ constant CONF_STR : string :=
 	"-;" &
 	"T5,Reset;" &
 	"J,Fire;" &
-	"V0,v0.27.32";
+	"V0,v0.27.33";
 
 ---------
 -- ARM IO
@@ -186,7 +186,8 @@ component hps_io generic(STRLEN : integer := 0); port
 
 	img_mounted       : out std_logic;
 	img_size          : out std_logic_vector(63 downto 0);
-	
+	img_readonly      : out std_logic;
+
 	ps2_kbd_clk       : out std_logic;
 	ps2_kbd_data      : out std_logic;
 
@@ -265,6 +266,7 @@ end component video_mixer;
 	signal sd_buff_din    : std_logic_vector(7 downto 0);
 	signal sd_buff_wr     : std_logic;
 	signal sd_change      : std_logic;
+	signal disk_readonly  : std_logic;
 	
 	signal ps2_clk        : std_logic;
 	signal ps2_dat        : std_logic;
@@ -353,6 +355,7 @@ begin
 		sd_buff_din => sd_buff_din,
 		sd_buff_wr => sd_buff_wr,
 		img_mounted => sd_change,
+		img_readonly => disk_readonly,
 
 		ps2_kbd_clk => ps2_clk,
 		ps2_kbd_data => ps2_dat,
@@ -557,6 +560,7 @@ begin
 		c1541rom_wr => c1541rom_wr,
 
 		disk_change => sd_change, 
+		disk_readonly => disk_readonly,
 
 		iec_atn_i  => c1541_iec_atn_i,
 		iec_data_i => c1541_iec_data_i,

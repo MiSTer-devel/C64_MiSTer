@@ -9,7 +9,7 @@ use IEEE.numeric_std.all;
 -- Model 1541B
 --
 
-entity c1541_logic is generic(DEVICE_SELECT : std_logic_vector(1 downto 0));
+entity c1541_logic is
 port
 (
 	clk_32M         : in std_logic;
@@ -180,7 +180,7 @@ begin
 	sb_clk_oe <=    '1' when (uc1_pb_o(3) = '1' and uc1_pb_oe_n(3) = '0') else '0';
 		
 	atna <= uc1_pb_o(4); -- when uc1_pc_oe = '1'
-	uc1_pb_i(6 downto 5) <= DEVICE_SELECT xor ds;     -- allows override
+	uc1_pb_i(6 downto 5) <= ds;     -- allows override
 	uc1_pb_i(7) <= not sb_atn_in;
 
 	--
