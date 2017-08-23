@@ -532,7 +532,7 @@
    type="conduit"
    dir="end" />
  <module name="Controller" kind="avalon_combiner" version="1.0" enabled="1" />
- <module name="Frame_Buffer" kind="alt_vip_cl_vfb" version="16.1" enabled="1">
+ <module name="Frame_Buffer" kind="alt_vip_cl_vfb" version="17.0" enabled="1">
   <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
   <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
   <parameter name="BITS_PER_SYMBOL" value="8" />
@@ -784,7 +784,7 @@
   <parameter name="usb_mp_clk_div" value="0" />
   <parameter name="use_default_mpu_clk" value="true" />
  </module>
- <module name="Mixer" kind="alt_vip_cl_mixer" version="16.1" enabled="1">
+ <module name="Mixer" kind="alt_vip_cl_mixer" version="17.0" enabled="1">
   <parameter name="ALPHA_ENABLE" value="0" />
   <parameter name="ALPHA_STREAMS_ENABLE" value="0" />
   <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
@@ -809,7 +809,7 @@
   <parameter name="USER_PACKET_SUPPORT" value="DISCARD" />
  </module>
  <module name="Reset_Source" kind="reset_source" version="1.0" enabled="1" />
- <module name="Scaler" kind="alt_vip_cl_scl" version="16.1" enabled="1">
+ <module name="Scaler" kind="alt_vip_cl_scl" version="17.0" enabled="1">
   <parameter name="ALGORITHM_NAME" value="BICUBIC" />
   <parameter name="ALWAYS_DOWNSCALE" value="0" />
   <parameter name="ARE_IDENTICAL" value="0" />
@@ -857,7 +857,7 @@
   <parameter name="V_SYMMETRIC" value="0" />
   <parameter name="V_TAPS" value="4" />
  </module>
- <module name="Video_Input" kind="alt_vip_cl_cvi" version="16.1" enabled="1">
+ <module name="Video_Input" kind="alt_vip_cl_cvi" version="17.0" enabled="1">
   <parameter name="ACCEPT_COLOURS_IN_SEQ" value="0" />
   <parameter name="ANC_DEPTH" value="1" />
   <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
@@ -887,7 +887,7 @@
   <parameter name="V_ACTIVE_LINES_F0" value="1080" />
   <parameter name="V_ACTIVE_LINES_F1" value="480" />
  </module>
- <module name="Video_Output" kind="alt_vip_cl_cvo" version="16.1" enabled="1">
+ <module name="Video_Output" kind="alt_vip_cl_cvo" version="17.0" enabled="1">
   <parameter name="ACCEPT_COLOURS_IN_SEQ" value="0" />
   <parameter name="ANC_LINE" value="0" />
   <parameter name="AP_LINE" value="0" />
@@ -934,7 +934,7 @@
  </module>
  <connection
    kind="avalon"
-   version="16.1"
+   version="17.0"
    start="Controller.ctl_mixer"
    end="Mixer.control">
   <parameter name="arbitrationPriority" value="1" />
@@ -943,7 +943,7 @@
  </connection>
  <connection
    kind="avalon"
-   version="16.1"
+   version="17.0"
    start="Controller.ctl_scaler"
    end="Scaler.control">
   <parameter name="arbitrationPriority" value="1" />
@@ -952,7 +952,7 @@
  </connection>
  <connection
    kind="avalon"
-   version="16.1"
+   version="17.0"
    start="Controller.ctl_video"
    end="Video_Output.control">
   <parameter name="arbitrationPriority" value="1" />
@@ -961,7 +961,7 @@
  </connection>
  <connection
    kind="avalon"
-   version="16.1"
+   version="17.0"
    start="Frame_Buffer.mem_master_rd"
    end="HPS.f2h_sdram0_data">
   <parameter name="arbitrationPriority" value="1" />
@@ -970,7 +970,7 @@
  </connection>
  <connection
    kind="avalon"
-   version="16.1"
+   version="17.0"
    start="Frame_Buffer.mem_master_wr"
    end="HPS.f2h_sdram0_data">
   <parameter name="arbitrationPriority" value="1" />
@@ -979,117 +979,117 @@
  </connection>
  <connection
    kind="avalon_streaming"
-   version="16.1"
+   version="17.0"
    start="Frame_Buffer.dout"
    end="Video_Output.din" />
  <connection
    kind="avalon_streaming"
-   version="16.1"
+   version="17.0"
    start="Mixer.dout"
    end="Frame_Buffer.din" />
  <connection
    kind="avalon_streaming"
-   version="16.1"
+   version="17.0"
    start="Scaler.dout"
    end="Mixer.din0" />
  <connection
    kind="avalon_streaming"
-   version="16.1"
+   version="17.0"
    start="Video_Input.dout_0"
    end="Scaler.din" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Reset_Source.clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Controller.clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="HPS.f2h_sdram0_clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Video_Input.main_clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Scaler.main_clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Mixer.main_clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Video_Output.main_clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Frame_Buffer.main_clock" />
  <connection
    kind="clock"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_user0_clock"
    end="Frame_Buffer.mem_clock" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="HPS.h2f_reset"
    end="Reset_Source.reset_hps" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_cold"
    end="HPS.f2h_cold_reset_req" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_sys"
    end="Video_Input.main_reset" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_sys"
    end="Scaler.main_reset" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_sys"
    end="Mixer.main_reset" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_sys"
    end="Frame_Buffer.main_reset" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_sys"
    end="Video_Output.main_reset" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_sys"
    end="Frame_Buffer.mem_reset" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_sys"
    end="Controller.reset" />
  <connection
    kind="reset"
-   version="16.1"
+   version="17.0"
    start="Reset_Source.reset_warm"
    end="HPS.f2h_warm_reset_req" />
  <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />
