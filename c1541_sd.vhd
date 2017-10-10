@@ -124,15 +124,14 @@ begin
 	process(clk32) begin
 		if rising_edge(clk32) then
 			prev_change <= disk_change;
-			if prev_change = '0' and disk_change = '1' then
-				ch_timeout <= 15000000;
-			end if;
-			
 			if ch_timeout > 0 then
 				ch_timeout <= ch_timeout - 1;
 				ch_state <= '1';
 			else
 				ch_state <= '0';
+			end if;
+			if prev_change = '0' and disk_change = '1' then
+				ch_timeout <= 15000000;
 			end if;
 		end if;
 	end process;
