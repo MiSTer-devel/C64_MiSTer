@@ -114,9 +114,28 @@ architecture struct of c1541_sd is
 	signal save_track       : std_logic;
 	signal track_modified   : std_logic;
 
+	signal ch_timeout : integer := 0;
+	signal prev_change : std_logic := '0';
+	signal ch_state : std_logic := '0';
 begin
 	
 	tr00_sense_n <= '1' when (track > "000000") else '0';
+	
+	process(clk32) begin
+		if rising_edge(clk32) then
+			prev_change <= disk_change;
+			if prev_change = '0' and disk_change = '1' then
+				ch_timeout <= 15000000;
+			end if;
+			
+			if ch_timeout > 0 then
+				ch_timeout <= ch_timeout - 1;
+				ch_state <= '1';
+			else
+				ch_state <= '0';
+			end if;
+		end if;
+	end process;
 
 	c1541 : entity work.c1541_logic
 	port map
@@ -147,7 +166,7 @@ begin
 		freq          => open,   -- motor frequency
 		sync_n        => sync_n, -- reading SYNC bytes
 		byte_n        => byte_n, -- byte ready
-		wps_n         => not disk_readonly, -- write-protect sense
+		wps_n         => (not disk_readonly) xor ch_state, -- write-protect sense
 		tr00_sense_n  => tr00_sense_n, -- track 0 sense
 		act           => act     -- activity LED
 	);
