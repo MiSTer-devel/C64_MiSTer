@@ -18,6 +18,7 @@ module hdmi_config
 	input       iAR,
 	
 	input       audio_48k,
+        input       dvi,
 
 	//	I2C Side
 	output		I2C_SCL,
@@ -193,7 +194,7 @@ wire [15:0] init_data[58] =
 	16'hAA00,					// ADI required Write.
 	16'hAB40,					// ADI required Write.
 	
-	{8'hAF, 8'b0001_0110},	// [7]=0 HDCP Disabled.
+	{8'hAF,  6'b0001_01,~dvi,1'b0},	// [7]=0 HDCP Disabled.
 									// [6:5] must be b00!
 									// [4]=1 Current frame IS HDCP encrypted!??? (HDCP disabled anyway?)
 									// [3:2] must be b01!

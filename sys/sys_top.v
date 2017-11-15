@@ -173,6 +173,7 @@ cyclonev_hps_interface_mpu_general_purpose h2f_gp
 reg [15:0] cfg;
 
 reg  cfg_ready = 0;
+wire dvi       = cfg[7];
 wire audio_96k = cfg[6];
 wire ypbpr_en  = cfg[5];
 wire csync     = cfg[3];
@@ -463,6 +464,8 @@ hdmi_config hdmi_config
 	.iRST_N(cfg_ready),
 	.I2C_SCL(HDMI_I2C_SCL),
 	.I2C_SDA(HDMI_I2C_SDA),
+
+        .dvi(dvi),
 
 	.audio_48k(~audio_96k),
 	.iRES(4), // 720p
