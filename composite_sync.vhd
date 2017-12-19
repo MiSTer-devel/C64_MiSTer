@@ -69,7 +69,7 @@ process(clk32)
 				if dot_count  = 096 then    hblank <= '0'; end if;
 
 				if line_count = 000 then    vblank <= '1'; end if;
-				if line_count = 002 then vsync_out <= '1'; end if;
+				if line_count = 004 then vsync_out <= '1'; end if;
 				if line_count = 010 then vsync_out <= '0'; end if;
 				if line_count = 012 then    vblank <= '0'; end if;
 			else
