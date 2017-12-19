@@ -55,7 +55,7 @@ entity fpga64_sid_iec is
 		idle        : out std_logic;
 
 		-- VGA/SCART interface
-		ntscInitMode: in  std_logic;
+		ntscMode    : in  std_logic;
 		hsync       : out std_logic;
 		vsync       : out std_logic;
 		r           : out unsigned(7 downto 0);
@@ -229,9 +229,6 @@ architecture rtl of fpga64_sid_iec is
    signal scanline : std_logic;
 	
 	-- config
-	signal videoKey : std_logic;
-	signal ntscMode : std_logic;
-	signal ntscModeInvert : std_logic := '0' ;
 	signal restore_key : std_logic;
 
 	signal clk_1MHz     : std_logic_vector(31 downto 0);
@@ -647,7 +644,6 @@ begin
 			pao => cia1_pai,
 			pbo => cia1_pbi,
 			
-			videoKey => videoKey,
 			traceKey => open,
 			trace2Key => trace2Key,
 			reset_key => reset_key,
@@ -679,17 +675,6 @@ begin
 		end if;
 	end process;
 	
-	-- Video modes
-	ntscMode <= ntscInitMode xor ntscModeInvert;
-	process(clk32)
-	begin
-		if rising_edge(clk32) then
-			if videoKey = '1' then
-				ntscModeInvert <= not ntscModeInvert;
-			end if;
-		end if;
-	end process;
-
 	iec_data_o <= cia2_pao(5);
 	iec_clk_o <= cia2_pao(4);
 	iec_atn_o <= cia2_pao(3);

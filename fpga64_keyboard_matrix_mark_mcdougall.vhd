@@ -49,7 +49,6 @@ entity fpga64_keyboard_matrix is
 		
 		reset_key : out std_logic;
 		restore_key : out std_logic;
-		videoKey : out std_logic;
 		traceKey : out std_logic;
 		trace2Key : out std_logic;
 		disk_num : out std_logic_vector(7 downto 0);
@@ -356,7 +355,6 @@ begin
 
 			traceKey <= '0';
 			trace2Key <= '0';
-			videoKey <= '0';
 			joySelKey <= '0';
 			diskChgKey <= '0';
 			if newScanCode = '1' then

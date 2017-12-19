@@ -33,36 +33,36 @@ use IEEE.numeric_std.all;
 entity emu is port
 (
 	-- Master input clock
-   CLK_50M          : in    std_logic;
+	CLK_50M          : in    std_logic;
 
-   -- Async reset from top-level module.
-   -- Can be used as initial reset.
-   RESET            : in    std_logic;
+	-- Async reset from top-level module.
+	-- Can be used as initial reset.
+	RESET            : in    std_logic;
 
 	-- Must be passed to hps_io module
-	HPS_BUS          : inout std_logic_vector(37 downto 0);
+	HPS_BUS          : inout std_logic_vector(43 downto 0);
 
-   -- Base video clock. Usually equals to CLK_SYS.
-   CLK_VIDEO        : out   std_logic;
+	-- Base video clock. Usually equals to CLK_SYS.
+	CLK_VIDEO        : out   std_logic;
 
-   -- Multiple resolutions are supported using different CE_PIXEL rates.
-   -- Must be based on CLK_VIDEO
-   CE_PIXEL         : out   std_logic;
+	-- Multiple resolutions are supported using different CE_PIXEL rates.
+	-- Must be based on CLK_VIDEO
+	CE_PIXEL         : out   std_logic;
 
-   -- Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-   VIDEO_ARX        : out   std_logic_vector(7 downto 0);
-   VIDEO_ARY        : out   std_logic_vector(7 downto 0);
+	-- Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
+	VIDEO_ARX        : out   std_logic_vector(7 downto 0);
+	VIDEO_ARY        : out   std_logic_vector(7 downto 0);
 
-   -- VGA
-   VGA_R            : out   std_logic_vector(7 downto 0);
-   VGA_G            : out   std_logic_vector(7 downto 0);
-   VGA_B            : out   std_logic_vector(7 downto 0);
-   VGA_HS           : out   std_logic; -- positive pulse!
-   VGA_VS           : out   std_logic; -- positive pulse!
-   VGA_DE           : out   std_logic; -- = not (VBlank or HBlank)
+	-- VGA
+	VGA_R            : out   std_logic_vector(7 downto 0);
+	VGA_G            : out   std_logic_vector(7 downto 0);
+	VGA_B            : out   std_logic_vector(7 downto 0);
+	VGA_HS           : out   std_logic; -- positive pulse!
+	VGA_VS           : out   std_logic; -- positive pulse!
+	VGA_DE           : out   std_logic; -- = not (VBlank or HBlank)
 
-   -- LED
-   LED_USER         : out   std_logic; -- 1 - ON, 0 - OFF.
+	-- LED
+	LED_USER         : out   std_logic; -- 1 - ON, 0 - OFF.
 
 	-- b[1]: 0 - LED status is system status ORed with b[0]
 	--       1 - LED status is controled solely by b[0]
@@ -70,11 +70,17 @@ entity emu is port
 	LED_POWER        : out   std_logic_vector(1 downto 0);
 	LED_DISK         : out   std_logic_vector(1 downto 0);
 
-   -- AUDIO
-   AUDIO_L          : out   std_logic_vector(15 downto 0);
-   AUDIO_R          : out   std_logic_vector(15 downto 0);
-   AUDIO_S          : out   std_logic; -- 1 - signed audio samples, 0 - unsigned
-   TAPE_IN          : in    std_logic;
+	-- AUDIO
+	AUDIO_L          : out   std_logic_vector(15 downto 0);
+	AUDIO_R          : out   std_logic_vector(15 downto 0);
+	AUDIO_S          : out   std_logic; -- 1 - signed audio samples, 0 - unsigned
+	TAPE_IN          : in    std_logic;
+
+	-- SD-SPI
+	SD_SCK           : out   std_logic := 'Z';
+	SD_MOSI          : out   std_logic := 'Z';
+	SD_MISO          : in    std_logic;
+	SD_CS            : out   std_logic := 'Z';
 
 	-- High latency DDR3 RAM interface
 	-- Use for non-critical time purposes
@@ -89,18 +95,18 @@ entity emu is port
 	DDRAM_BE         : out   std_logic_vector(7 downto 0);
 	DDRAM_WE         : out   std_logic;
 
-   -- SDRAM interface with lower latency
-   SDRAM_CLK        : out   std_logic;
-   SDRAM_CKE        : out   std_logic;
-   SDRAM_A          : out   std_logic_vector(12 downto 0);
-   SDRAM_BA         : out   std_logic_vector(1 downto 0);
-   SDRAM_DQ         : inout std_logic_vector(15 downto 0);
-   SDRAM_DQML       : out   std_logic;
-   SDRAM_DQMH       : out   std_logic;
-   SDRAM_nCS        : out   std_logic;
-   SDRAM_nCAS       : out   std_logic;
-   SDRAM_nRAS       : out   std_logic;
-   SDRAM_nWE        : out   std_logic
+	-- SDRAM interface with lower latency
+	SDRAM_CLK        : out   std_logic;
+	SDRAM_CKE        : out   std_logic;
+	SDRAM_A          : out   std_logic_vector(12 downto 0);
+	SDRAM_BA         : out   std_logic_vector(1 downto 0);
+	SDRAM_DQ         : inout std_logic_vector(15 downto 0);
+	SDRAM_DQML       : out   std_logic;
+	SDRAM_DQMH       : out   std_logic;
+	SDRAM_nCS        : out   std_logic;
+	SDRAM_nCAS       : out   std_logic;
+	SDRAM_nRAS       : out   std_logic;
+	SDRAM_nWE        : out   std_logic
 );
 end emu;
 
@@ -155,19 +161,26 @@ begin
   return rval; 
 end function; 
 
-
-component hps_io generic(STRLEN : integer := 0); port
+component hps_io generic
+(
+	STRLEN : integer := 0;
+	PS2DIV : integer := 1000;
+	WIDE   : integer := 0;
+	VDNUM  : integer := 1;
+	PS2WE  : integer := 0
+);
+port
 (
 	CLK_SYS           : in  std_logic;
-	HPS_BUS           : inout std_logic_vector(37 downto 0);
+	HPS_BUS           : inout std_logic_vector(43 downto 0);
 
 	conf_str          : in  std_logic_vector(8*STRLEN-1 downto 0);
 
 	buttons           : out std_logic_vector(1 downto 0);
-	forced_scandoubler : out std_logic;
+	forced_scandoubler: out std_logic;
 
-	joystick_0        : out std_logic_vector(7 downto 0);
-	joystick_1        : out std_logic_vector(7 downto 0);
+	joystick_0        : out std_logic_vector(15 downto 0);
+	joystick_1        : out std_logic_vector(15 downto 0);
 	joystick_analog_0 : out std_logic_vector(15 downto 0);
 	joystick_analog_1 : out std_logic_vector(15 downto 0);
 	status            : out std_logic_vector(31 downto 0);
@@ -188,22 +201,30 @@ component hps_io generic(STRLEN : integer := 0); port
 	img_size          : out std_logic_vector(63 downto 0);
 	img_readonly      : out std_logic;
 
-	ps2_kbd_clk       : out std_logic;
-	ps2_kbd_data      : out std_logic;
-
-	ps2_mouse_clk     : out std_logic;
-	ps2_mouse_data    : out std_logic;
-	ps2_kbd_led_use   : in  std_logic_vector(2 downto 0);
-	ps2_kbd_led_status: in  std_logic_vector(2 downto 0);
-
-	ioctl_force_erase : in  std_logic;
-	ioctl_erasing     : out std_logic;
-
 	ioctl_download    : out std_logic;
 	ioctl_index       : out std_logic_vector(7 downto 0);
 	ioctl_wr          : out std_logic;
 	ioctl_addr        : out std_logic_vector(24 downto 0);
-	ioctl_dout        : out std_logic_vector(7 downto 0)
+	ioctl_dout        : out std_logic_vector(7 downto 0);
+	
+	RTC               : out std_logic_vector(64 downto 0);
+	TIMESTAMP         : out std_logic_vector(32 downto 0);
+
+	ps2_kbd_clk_out   : out std_logic;
+	ps2_kbd_data_out  : out std_logic;
+	ps2_kbd_clk_in    : in  std_logic;
+	ps2_kbd_data_in   : in  std_logic;
+
+	ps2_kbd_led_use   : in  std_logic_vector(2 downto 0);
+	ps2_kbd_led_status: in  std_logic_vector(2 downto 0);
+
+	ps2_mouse_clk_out : out std_logic;
+	ps2_mouse_data_out: out std_logic;
+	ps2_mouse_clk_in  : in  std_logic;
+	ps2_mouse_data_in : in  std_logic;
+
+	ps2_key           : out std_logic_vector(10 downto 0);
+	ps2_mouse         : out std_logic_vector(24 downto 0)
 );
 end component hps_io;
 
@@ -238,17 +259,20 @@ end component video_mixer;
 	signal ioctl_addr       : std_logic_vector(24 downto 0);
 	signal ioctl_data       : std_logic_vector(7 downto 0);
 	signal ioctl_index      : std_logic_vector(7 downto 0);
-	signal ioctl_force_erase: std_logic;
-	signal ioctl_erasing    : std_logic;
 	signal ioctl_download   : std_logic;
 	signal ioctl_wr         : std_logic;
-	signal ioctl_we         : std_logic;
+
+	signal force_erase    : std_logic;
+	signal erasing        : std_logic;
+	signal down_addr      : std_logic_vector(15 downto 0);
+	signal down_data      : std_logic_vector(7 downto 0);
+	signal down_we        : std_logic;
 
 	signal c1541rom_wr    : std_logic;
 	signal c64rom_wr      : std_logic;
 
-	signal joyA           : std_logic_vector(7 downto 0);
-	signal joyB           : std_logic_vector(7 downto 0);
+	signal joyA           : std_logic_vector(15 downto 0);
+	signal joyB           : std_logic_vector(15 downto 0);
 	signal joyA_int       : std_logic_vector(5 downto 0);
 	signal joyB_int       : std_logic_vector(5 downto 0);
 	signal joyA_c64       : std_logic_vector(5 downto 0);
@@ -304,7 +328,6 @@ end component video_mixer;
 
 	signal scandoubler : std_logic;
 	signal forced_scandoubler : std_logic;
-	signal ntsc_init_mode : std_logic;
 	signal ce_pix    : std_logic;
 	signal r,g,b     : unsigned(7 downto 0);
 	signal hsync     : std_logic;
@@ -336,7 +359,7 @@ begin
 
 		joystick_0 => joyA,
 		joystick_1 => joyB,
-					 
+
 		conf_str => to_slv(CONF_STR),
 
 		status => status,
@@ -347,7 +370,6 @@ begin
 		sd_rd => sd_rd,
 		sd_wr => sd_wr,
 		sd_ack => sd_ack,
-		sd_ack_conf => open,
 		sd_conf => '0',
 
 		sd_buff_addr => sd_buff_addr,
@@ -357,13 +379,15 @@ begin
 		img_mounted => sd_change,
 		img_readonly => disk_readonly,
 
-		ps2_kbd_clk => ps2_clk,
-		ps2_kbd_data => ps2_dat,
+		ps2_kbd_clk_out => ps2_clk,
+		ps2_kbd_data_out => ps2_dat,
+		ps2_kbd_clk_in => '1',
+		ps2_kbd_data_in => '1',
 		ps2_kbd_led_use => "000",
 		ps2_kbd_led_status => "000",
 
-		ioctl_force_erase => ioctl_force_erase,
-		ioctl_erasing => ioctl_erasing,
+		ps2_mouse_clk_in => '1',
+		ps2_mouse_data_in => '1',
 
 		ioctl_download => ioctl_download,
 		ioctl_index => ioctl_index,
@@ -372,7 +396,7 @@ begin
 		ioctl_dout => ioctl_data
 	);
 
-	-- rearrange joystick contacta for c64
+	-- rearrange joystick contacts for c64
 	joyA_int <= "0" & joyA(4) & joyA(0) & joyA(1) & joyA(2) & joyA(3);
 	joyB_int <= "0" & joyB(4) & joyB(0) & joyB(1) & joyB(2) & joyB(3);
 
@@ -401,14 +425,49 @@ begin
 		end if;
 	end process;
 
+	process(clk32) begin
+		if rising_edge(clk32) then
+			down_we <= '0';
+			if down_we = '1' then
+				down_addr <= down_addr + "1";
+			end if;
+
+			if ioctl_download = '1' and ioctl_wr = '1' and ioctl_index = X"1" then
+				if ioctl_addr = X"0" then
+					down_addr(7 downto 0) <= ioctl_data;
+				elsif ioctl_addr = X"1" then
+					down_addr(15 downto 8) <= ioctl_data;
+				else
+					down_data <= ioctl_data;
+					down_we <= '1';
+				end if;
+			end if;
+			
+			if erasing='0' and force_erase = '1' then
+				erasing <='1';
+				down_addr <= (others => '0');
+				down_data <= (others => '0');
+				down_we <= '1';
+			end if;
+			
+			if erasing = '1' and down_we = '0' then
+				if down_addr = X"0" then
+					erasing <= '0';
+				else
+					down_we <= '1';
+				end if;
+			end if;
+		end if;
+	end process;
+
 	ram: entity work.dpram
 	port map
 	(
 		clk    => clk32,
 
-		addr_a => unsigned(ioctl_addr(15 downto 0)),
-		data_a => unsigned(ioctl_data),
-		we_a   => ioctl_we,
+		addr_a => unsigned(down_addr),
+		data_a => unsigned(down_data),
+		we_a   => down_we,
 		q_a    => open,
 
 		addr_b => c64_addr,
@@ -417,7 +476,6 @@ begin
 		q_b    => c64_data_in_raw
 	);
 
-	ioctl_we    <= ioctl_wr when (ioctl_index /= X"00") else '0';
 	c64rom_wr   <= ioctl_wr when (ioctl_index = X"00") and (ioctl_addr(14) = '0') and (ioctl_download = '1') else '0';
 	c1541rom_wr <= ioctl_wr when (ioctl_index = X"00") and (ioctl_addr(14) = '1') and (ioctl_download = '1') else '0';
 
@@ -437,8 +495,6 @@ begin
 			end if;
 		end if;
 	end process;
-
-	ntsc_init_mode <= status(2);
 
    -- second  to generate 64mhz clock and phase shifted ram clock	
 	mainpll : pll
@@ -462,15 +518,15 @@ begin
 				reset_counter <= 255;
 				reset_n <= '0';
 			elsif ioctl_download ='1' then
-			elsif ioctl_erasing ='1' then
-				ioctl_force_erase <= '0';
+			elsif erasing ='1' then
+				force_erase <= '0';
 			else
 				if reset_counter = 0 then
 					reset_n <= '1';
 				else
 					reset_counter <= reset_counter - 1;
 					if reset_counter = 100 then
-						ioctl_force_erase <='1';
+						force_erase <='1';
 					end if;
 				end if;
 			end if;
@@ -488,7 +544,7 @@ begin
 		ramDataIn => c64_data_in,
 		ramCE => ram_ce,
 		ramWe => ram_we,
-		ntscInitMode => ntsc_init_mode,
+		ntscMode => status(2),
 		hsync => hsync,
 		vsync => vsync,
 		r => r,
@@ -589,7 +645,7 @@ begin
 		clk32 => clk32,
 		hsync => hsync,
 		vsync => vsync,
-		ntsc  => ntsc_init_mode,
+		ntsc  => status(2),
 		hsync_out => hsync_out,
 		vsync_out => vsync_out,
 		hblank => hblank,
@@ -644,8 +700,8 @@ begin
 		VGA_DE => VGA_DE
 	);
 
-	VIDEO_ARX  <= "00000100" when (status(4) = '0') else "00010000";
-	VIDEO_ARY  <= "00000011" when (status(4) = '0') else "00001001";
+	VIDEO_ARX  <= X"04" when (status(4) = '0') else X"10";
+	VIDEO_ARY  <= X"03" when (status(4) = '0') else X"09";
 
 	AUDIO_L <= audio_data(17 downto 2);
 	AUDIO_R <= audio_data(17 downto 2);
@@ -673,4 +729,7 @@ begin
 	DDRAM_BE       <= (others => '0');
 	DDRAM_WE       <= '0';
 
+	SD_SCK         <= 'Z';
+	SD_MOSI        <= 'Z';
+	SD_CS          <= 'Z';
 end struct;
