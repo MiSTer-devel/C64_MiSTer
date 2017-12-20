@@ -40,8 +40,7 @@ entity fpga64_sid_iec is
 		reset_n     : in  std_logic;
 
 		-- keyboard interface (use any ordinairy PS2 keyboard)
-		kbd_clk     : in  std_logic;
-		kbd_dat     : in  std_logic;
+		ps2_key     : in std_logic_vector(10 downto 0);
 		reset_key   : out std_logic;
 
 		-- external memory
@@ -71,8 +70,8 @@ entity fpga64_sid_iec is
 		ba          : out std_logic;
 
 		-- joystick interface
-		joyA        : in  unsigned(5 downto 0);
-		joyB        : in  unsigned(5 downto 0);
+		joyA        : in  unsigned(4 downto 0);
+		joyB        : in  unsigned(4 downto 0);
 
 		-- serial port, for connection to pheripherals
 		serioclk    : out std_logic;
@@ -92,8 +91,6 @@ entity fpga64_sid_iec is
 		iec_atn_o	: out std_logic;
 		iec_atn_i	: in  std_logic;
 		
-		disk_num    : out std_logic_vector(7 downto 0);
-
 		c64rom_addr : in std_logic_vector(13 downto 0);
 		c64rom_data : in std_logic_vector(7 downto 0);
 		c64rom_wr   : in std_logic
@@ -208,10 +205,6 @@ architecture rtl of fpga64_sid_iec is
 	signal colorQ : unsigned(3 downto 0);
 	signal colorData : unsigned(3 downto 0);
 
-	signal cpuStep : std_logic;
-	signal traceKey : std_logic;
-	signal trace2Key : std_logic;
-
 	-- video
 	signal vicColorIndex : unsigned(3 downto 0);
 	signal vicHSync : std_logic;
@@ -224,8 +217,6 @@ architecture rtl of fpga64_sid_iec is
 	signal vgaB : unsigned(7 downto 0);
 	signal vgaVSync : std_logic;
 	signal vgaHSync : std_logic;
-	signal debuggerOn : std_logic;
-	signal traceStep : std_logic;
    signal scanline : std_logic;
 	
 	-- config
@@ -622,35 +613,21 @@ begin
 -- -----------------------------------------------------------------------
 -- Keyboard
 -- -----------------------------------------------------------------------
-	myKeyboard: entity work.io_ps2_keyboard
+	myKeyboardMatrix: entity work.fpga64_keyboard
 		port map (
 			clk => clk32,
-			kbd_clk => kbd_clk,
-			kbd_dat => kbd_dat,
-			interrupt => newScanCode,
-			scanCode => theScanCode
-		);
+			ps2_key => ps2_key,
 
-	myKeyboardMatrix: entity work.fpga64_keyboard_matrix
-		port map (
-			clk => clk32,
-			theScanCode => theScanCode,
-			newScanCode => newScanCode,
-
-			joyA => (not joyA(4 downto 0)),
-			joyB => (not joyB(4 downto 0)),
+			joyA => not joyA,
+			joyB => not joyB,
 			pai => cia1_pao,
 			pbi => cia1_pbo,
 			pao => cia1_pai,
 			pbo => cia1_pbi,
-			
-			traceKey => open,
-			trace2Key => trace2Key,
+
 			reset_key => reset_key,
 			restore_key => restore_key,
 
-			disk_num => disk_num,
-			
 			backwardsReadingEnabled => '1'
 		);
 
@@ -740,15 +717,6 @@ begin
 		if rising_edge(clk32) then
 			if phi0_vic = '1' then
 				lastVicDi <= vicDi;
-			end if;
-		end if;
-	end process;
-
-	process(clk32)
-	begin
-		if rising_edge(clk32) then
-			if trace2Key = '1' then
-				debuggerOn <= not debuggerOn;
 			end if;
 		end if;
 	end process;

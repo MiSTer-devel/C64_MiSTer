@@ -273,10 +273,10 @@ end component video_mixer;
 
 	signal joyA           : std_logic_vector(15 downto 0);
 	signal joyB           : std_logic_vector(15 downto 0);
-	signal joyA_int       : std_logic_vector(5 downto 0);
-	signal joyB_int       : std_logic_vector(5 downto 0);
-	signal joyA_c64       : std_logic_vector(5 downto 0);
-	signal joyB_c64       : std_logic_vector(5 downto 0);
+	signal joyA_int       : std_logic_vector(4 downto 0);
+	signal joyB_int       : std_logic_vector(4 downto 0);
+	signal joyA_c64       : std_logic_vector(4 downto 0);
+	signal joyB_c64       : std_logic_vector(4 downto 0);
 	signal reset_key      : std_logic;
 	
 	signal status         : std_logic_vector(31 downto 0);
@@ -292,8 +292,7 @@ end component video_mixer;
 	signal sd_change      : std_logic;
 	signal disk_readonly  : std_logic;
 	
-	signal ps2_clk        : std_logic;
-	signal ps2_dat        : std_logic;
+	signal ps2_key        : std_logic_vector(10 downto 0);
 	
 	signal c64_iec_atn_i  : std_logic;
 	signal c64_iec_clk_o  : std_logic;
@@ -379,13 +378,12 @@ begin
 		img_mounted => sd_change,
 		img_readonly => disk_readonly,
 
-		ps2_kbd_clk_out => ps2_clk,
-		ps2_kbd_data_out => ps2_dat,
-		ps2_kbd_clk_in => '1',
-		ps2_kbd_data_in => '1',
+		ps2_key => ps2_key,
 		ps2_kbd_led_use => "000",
 		ps2_kbd_led_status => "000",
 
+		ps2_kbd_clk_in => '1',
+		ps2_kbd_data_in => '1',
 		ps2_mouse_clk_in => '1',
 		ps2_mouse_data_in => '1',
 
@@ -397,8 +395,8 @@ begin
 	);
 
 	-- rearrange joystick contacts for c64
-	joyA_int <= "0" & joyA(4) & joyA(0) & joyA(1) & joyA(2) & joyA(3);
-	joyB_int <= "0" & joyB(4) & joyB(0) & joyB(1) & joyB(2) & joyB(3);
+	joyA_int <= joyA(4) & joyA(0) & joyA(1) & joyA(2) & joyA(3);
+	joyB_int <= joyB(4) & joyB(0) & joyB(1) & joyB(2) & joyB(3);
 
 	-- swap joysticks if requested
 	joyA_c64 <= joyB_int when status(3)='1' else joyA_int;
@@ -496,7 +494,6 @@ begin
 		end if;
 	end process;
 
-   -- second  to generate 64mhz clock and phase shifted ram clock	
 	mainpll : pll
 	port map(
 		refclk   => CLK_50M,
@@ -537,8 +534,7 @@ begin
 	port map(
 		clk32 => clk32,
 		reset_n => reset_n,
-		kbd_clk => not ps2_clk,
-		kbd_dat => ps2_dat,
+		ps2_key => ps2_key,
 		ramAddr => c64_addr,
 		ramDataOut => c64_data_out,
 		ramDataIn => c64_data_in,
@@ -571,7 +567,6 @@ begin
 		iec_data_i => not c64_iec_data_i,
 		iec_clk_i  => not c64_iec_clk_i,
 		iec_atn_i  => not c64_iec_atn_i,
-		disk_num => open,
 		c64rom_addr => ioctl_addr(13 downto 0),
 		c64rom_data => ioctl_data,
 		c64rom_wr => c64rom_wr,
@@ -721,15 +716,15 @@ begin
 	SDRAM_nRAS <= '1';
 	SDRAM_nCS  <= '1';
 
-	DDRAM_CLK      <= '0';
+	DDRAM_CLK  <= '0';
 	DDRAM_BURSTCNT <= (others => '0');
-	DDRAM_ADDR     <= (others => '0');
-	DDRAM_RD       <= '0';
-	DDRAM_DIN      <= (others => '0');
-	DDRAM_BE       <= (others => '0');
-	DDRAM_WE       <= '0';
+	DDRAM_ADDR <= (others => '0');
+	DDRAM_RD   <= '0';
+	DDRAM_DIN  <= (others => '0');
+	DDRAM_BE   <= (others => '0');
+	DDRAM_WE   <= '0';
 
-	SD_SCK         <= 'Z';
-	SD_MOSI        <= 'Z';
-	SD_CS          <= 'Z';
+	SD_SCK     <= 'Z';
+	SD_MOSI    <= 'Z';
+	SD_CS      <= 'Z';
 end struct;

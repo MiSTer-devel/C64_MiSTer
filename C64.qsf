@@ -49,7 +49,7 @@ set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS OFF
 set_global_assignment -name OPTIMIZE_POWER_DURING_FITTING OFF
 set_global_assignment -name FINAL_PLACEMENT_OPTIMIZATION ALWAYS
 set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
-set_global_assignment -name OPTIMIZATION_MODE BALANCED
+set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
 set_global_assignment -name SEED 1
 
 #============================================================
@@ -362,13 +362,12 @@ set_global_assignment -name VHDL_FILE rom_C1541.vhd
 set_global_assignment -name VHDL_FILE rom_c64_chargen.vhd
 set_global_assignment -name VHDL_FILE rom_C64.vhd
 set_global_assignment -name VHDL_FILE m6522.vhd
-set_global_assignment -name VHDL_FILE io_ps2_keyboard.vhd
 set_global_assignment -name VHDL_FILE spram.vhd
 set_global_assignment -name VHDL_FILE dpram.vhd
 set_global_assignment -name VHDL_FILE gcr_floppy.vhd
 set_global_assignment -name VHDL_FILE composite_sync.vhd
 set_global_assignment -name VHDL_FILE fpga64_rgbcolor.vhd
-set_global_assignment -name VHDL_FILE fpga64_keyboard_matrix_mark_mcdougall.vhd
+set_global_assignment -name VHDL_FILE fpga64_keyboard.vhd
 set_global_assignment -name VHDL_FILE fpga64_bustiming.vhd
 set_global_assignment -name VHDL_FILE fpga64_buslogic_roms_mmu.vhd
 set_global_assignment -name VHDL_FILE cpu65xx_fast.vhd
