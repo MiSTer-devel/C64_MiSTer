@@ -364,6 +364,7 @@ set_global_assignment -name VHDL_FILE rom_C64.vhd
 set_global_assignment -name VHDL_FILE m6522.vhd
 set_global_assignment -name VHDL_FILE spram.vhd
 set_global_assignment -name VHDL_FILE dpram.vhd
+set_global_assignment -name VERILOG_FILE sdram.v
 set_global_assignment -name VHDL_FILE gcr_floppy.vhd
 set_global_assignment -name VHDL_FILE composite_sync.vhd
 set_global_assignment -name VHDL_FILE fpga64_rgbcolor.vhd

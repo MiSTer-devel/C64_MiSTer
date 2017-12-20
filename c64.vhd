@@ -114,11 +114,12 @@ architecture struct of emu is
 
 component pll is
 	port (
-		refclk   : in  std_logic := 'X'; -- clk
-		rst      : in  std_logic := 'X'; -- reset
-		outclk_0 : out std_logic;        -- clk
-		outclk_1 : out std_logic;        -- clk
-		locked   : out std_logic         -- export
+		refclk   : in  std_logic; -- clk
+		rst      : in  std_logic; -- reset
+		outclk_0 : out std_logic; -- clk
+		outclk_1 : out std_logic; -- clk
+		outclk_2 : out std_logic; -- clk
+		locked   : out std_logic  -- export
 	);
 end component pll;
 
@@ -206,6 +207,7 @@ port
 	ioctl_wr          : out std_logic;
 	ioctl_addr        : out std_logic_vector(24 downto 0);
 	ioctl_dout        : out std_logic_vector(7 downto 0);
+	ioctl_wait        : in  std_logic;
 	
 	RTC               : out std_logic_vector(64 downto 0);
 	TIMESTAMP         : out std_logic_vector(32 downto 0);
@@ -228,6 +230,27 @@ port
 );
 end component hps_io;
 
+component sdram is port
+(
+   -- interface to the MT48LC16M16 chip
+   sd_addr    : out   std_logic_vector(12 downto 0);
+   sd_cs      : out   std_logic;
+   sd_ba      : out   std_logic_vector(1 downto 0);
+   sd_we      : out   std_logic;
+   sd_ras     : out   std_logic;
+   sd_cas     : out   std_logic;
+
+   -- system interface
+   clk        : in    std_logic;
+   init       : in    std_logic;
+
+   -- cpu/chipset interface
+   addr       : in    std_logic_vector(15 downto 0);
+   refresh    : in    std_logic;
+   we         : in    std_logic;
+   ce         : in    std_logic
+);
+end component;
 
 component video_mixer generic ( LINE_LENGTH : integer := 512; HALF_DEPTH : integer := 0 ); port
 (
@@ -252,21 +275,36 @@ component video_mixer generic ( LINE_LENGTH : integer := 512; HALF_DEPTH : integ
 end component video_mixer;
 
 
-	signal c1541_reset : std_logic;
-	signal buttons     : std_logic_vector(1 downto 0);
-	
+	signal c1541_reset      : std_logic;
+	signal idle             : std_logic;
+	signal ces              : std_logic_vector(3 downto 0);
+	signal iec_cycle        : std_logic;
+	signal iec_cycleD       : std_logic;
+	signal buttons          : std_logic_vector(1 downto 0);
+
 	-- signals to connect "data_io" for direct PRG injection
+	signal ioctl_wr         : std_logic;
 	signal ioctl_addr       : std_logic_vector(24 downto 0);
 	signal ioctl_data       : std_logic_vector(7 downto 0);
 	signal ioctl_index      : std_logic_vector(7 downto 0);
+	signal ioctl_ram_addr   : std_logic_vector(15 downto 0);
+	signal ioctl_ram_data   : std_logic_vector(7 downto 0);
+	signal ioctl_load_addr  : std_logic_vector(15 downto 0);
+	signal ioctl_ram_wr     : std_logic;
+	signal ioctl_iec_cycle_used: std_logic;
 	signal ioctl_download   : std_logic;
-	signal ioctl_wr         : std_logic;
+	signal ioctl_wait       : std_logic := '0';
+	signal c64_addr         : std_logic_vector(15 downto 0);
+	signal c64_data_in      : std_logic_vector(7 downto 0);
+	signal c64_data_out     : std_logic_vector(7 downto 0);
+	signal sdram_addr       : std_logic_vector(15 downto 0);
+	signal sdram_data_out   : std_logic_vector(7 downto 0);
+	signal sdram_we         : std_logic;
+	signal sdram_ce         : std_logic;
 
 	signal force_erase    : std_logic;
 	signal erasing        : std_logic;
-	signal down_addr      : std_logic_vector(15 downto 0);
-	signal down_data      : std_logic_vector(7 downto 0);
-	signal down_we        : std_logic;
+	signal erase_to       : std_logic_vector(4 downto 0) := (others => '0');
 
 	signal c1541rom_wr    : std_logic;
 	signal c64rom_wr      : std_logic;
@@ -308,6 +346,10 @@ end component video_mixer;
 	signal c1541_iec_data_i : std_logic;
 	signal c1541_iec_clk_i  : std_logic;
 
+	alias  c64_addr_int : unsigned is unsigned(c64_addr);
+	alias  c64_data_in_int   : unsigned is unsigned(c64_data_in);
+	signal c64_data_in16: std_logic_vector(15 downto 0);
+	alias  c64_data_out_int   : unsigned is unsigned(c64_data_out);
 	signal pll_locked: std_logic;
 	signal clk32     : std_logic;
 	signal clk64     : std_logic;
@@ -320,10 +362,6 @@ end component video_mixer;
 	signal ram_ce           : std_logic;
 	signal ram_ceD          : std_logic;
 	signal ram_we           : std_logic;
-	signal c64_addr         : unsigned(15 downto 0);
-	signal c64_data_in_raw  : unsigned(7 downto 0);
-	signal c64_data_in      : unsigned(7 downto 0);
-	signal c64_data_out     : unsigned(7 downto 0);
 
 	signal scandoubler : std_logic;
 	signal forced_scandoubler : std_logic;
@@ -348,6 +386,7 @@ begin
 
 	LED_DISK  <= "00";
 	LED_POWER <= "00";
+	iec_cycle <= '1' when ces = "1011" else '0';
 
 	-- User io
 	hps : hps_io
@@ -391,7 +430,8 @@ begin
 		ioctl_index => ioctl_index,
 		ioctl_wr => ioctl_wr,
 		ioctl_addr => ioctl_addr,
-		ioctl_dout => ioctl_data
+		ioctl_dout => ioctl_data,
+		ioctl_wait => ioctl_wait
 	);
 
 	-- rearrange joystick contacts for c64
@@ -402,80 +442,143 @@ begin
 	joyA_c64 <= joyB_int when status(3)='1' else joyA_int;
 	joyB_c64 <= joyA_int when status(3)='1' else joyB_int;
 
+--	process(clk32)
+--	begin
+--		if rising_edge(clk32) then
+--			ram_ceD <= ram_ce;
+--	
+--			sysram_ce <= '0';
+--			if(ram_ceD = '1' and ram_ce = '0') then
+--				sysram_ce <= '1';
+--			end if;
+--			
+--			if(sysram_ce = '1') then
+--				if(ram_we = '0') then
+--					c64_data_in <= c64_data_out; -- short cut
+--				else
+--					c64_data_in <= c64_data_in_raw;
+--				end if;
+--			end if;
+--
+--		end if;
+--	end process;
+--
+--	process(clk32) begin
+--		if rising_edge(clk32) then
+--			down_we <= '0';
+--			if down_we = '1' then
+--				down_addr <= down_addr + "1";
+--			end if;
+--
+--			if ioctl_download = '1' and ioctl_wr = '1' and ioctl_index = X"1" then
+--				if ioctl_addr = X"0" then
+--					down_addr(7 downto 0) <= ioctl_data;
+--				elsif ioctl_addr = X"1" then
+--					down_addr(15 downto 8) <= ioctl_data;
+--				else
+--					down_data <= ioctl_data;
+--					down_we <= '1';
+--				end if;
+--			end if;
+--			
+--			if erasing='0' and force_erase = '1' then
+--				erasing <='1';
+--				down_addr <= (others => '0');
+--				down_data <= (others => '0');
+--				down_we <= '1';
+--			end if;
+--			
+--			if erasing = '1' and down_we = '0' then
+--				if down_addr = X"0" then
+--					erasing <= '0';
+--				else
+--					down_we <= '1';
+--				end if;
+--			end if;
+--		end if;
+--	end process;
+--
+--	ram: entity work.dpram
+--	port map
+--	(
+--		clk    => clk32,
+--
+--		addr_a => unsigned(down_addr),
+--		data_a => unsigned(down_data),
+--		we_a   => down_we,
+--		q_a    => open,
+--
+--		addr_b => c64_addr,
+--		data_b => c64_data_out,
+--		we_b   => (not ram_we) and sysram_ce,
+--		q_b    => c64_data_in_raw
+--	);
+
+	-- multiplex ram port between c64 core and data_io (io controller dma)
+	sdram_addr <= c64_addr when iec_cycle='0' else ioctl_ram_addr;
+	sdram_data_out <= c64_data_out when iec_cycle='0' else ioctl_ram_data;
+	-- ram_we and ce are active low
+	sdram_ce <= not ram_ce when iec_cycle='0' else ioctl_iec_cycle_used;
+	sdram_we <= not ram_we when iec_cycle='0' else ioctl_iec_cycle_used;
+
+   -- address
 	process(clk32)
 	begin
-		if rising_edge(clk32) then
-			ram_ceD <= ram_ce;
-	
-			sysram_ce <= '0';
-			if(ram_ceD = '1' and ram_ce = '0') then
-				sysram_ce <= '1';
-			end if;
-			
-			if(sysram_ce = '1') then
-				if(ram_we = '0') then
-					c64_data_in <= c64_data_out; -- short cut
+		if falling_edge(clk32) then
+			iec_cycleD <= iec_cycle;
+
+			if(iec_cycle='1' and iec_cycleD='0' and ioctl_ram_wr='1') then
+				ioctl_ram_wr <= '0';
+				ioctl_iec_cycle_used <= '1';
+				ioctl_wait <= '0';
+				if erasing = '1' then
+					ioctl_ram_addr  <= ioctl_load_addr;
+					ioctl_ram_data  <= (others => '0');
+					ioctl_load_addr <= ioctl_load_addr + "1";
 				else
-					c64_data_in <= c64_data_in_raw;
+					ioctl_ram_addr <= std_logic_vector(unsigned(ioctl_load_addr) + unsigned(ioctl_addr(15 downto 0)) - 2);
+					ioctl_ram_data <= ioctl_data;
+				end if;
+			else 
+				if(iec_cycle='0') then
+					ioctl_iec_cycle_used <= '0';
 				end if;
 			end if;
 
-		end if;
-	end process;
-
-	process(clk32) begin
-		if rising_edge(clk32) then
-			down_we <= '0';
-			if down_we = '1' then
-				down_addr <= down_addr + "1";
-			end if;
-
-			if ioctl_download = '1' and ioctl_wr = '1' and ioctl_index = X"1" then
-				if ioctl_addr = X"0" then
-					down_addr(7 downto 0) <= ioctl_data;
-				elsif ioctl_addr = X"1" then
-					down_addr(15 downto 8) <= ioctl_data;
-				else
-					down_data <= ioctl_data;
-					down_we <= '1';
+			if ioctl_wr='1' and ((ioctl_index /=X"0") or (erasing = '1')) then
+				if(ioctl_addr = 0) then
+					ioctl_load_addr(7 downto 0) <= ioctl_data;
+				elsif(ioctl_addr = 1) then
+					ioctl_load_addr(15 downto 8) <= ioctl_data;
+				else 
+					-- io controller sent a new byte. Store it until it can be
+					--	saved in RAM
+					ioctl_ram_wr <= '1';
+					ioctl_wait <= '1';
 				end if;
 			end if;
-			
+
 			if erasing='0' and force_erase = '1' then
 				erasing <='1';
-				down_addr <= (others => '0');
-				down_data <= (others => '0');
-				down_we <= '1';
+				ioctl_load_addr <= (others => '0');
 			end if;
-			
-			if erasing = '1' and down_we = '0' then
-				if down_addr = X"0" then
-					erasing <= '0';
-				else
-					down_we <= '1';
+
+			if erasing = '1' and ioctl_ram_wr = '0' then
+				erase_to <= erase_to + "1";
+				if erase_to = "11111" then
+					if ioctl_load_addr < X"FFFF" then 
+						ioctl_ram_wr <= '1';
+					else
+						erasing <= '0';
+					end if;
 				end if;
 			end if;
+
 		end if;
 	end process;
 
-	ram: entity work.dpram
-	port map
-	(
-		clk    => clk32,
-
-		addr_a => unsigned(down_addr),
-		data_a => unsigned(down_data),
-		we_a   => down_we,
-		q_a    => open,
-
-		addr_b => c64_addr,
-		data_b => c64_data_out,
-		we_b   => (not ram_we) and sysram_ce,
-		q_b    => c64_data_in_raw
-	);
-
-	c64rom_wr   <= ioctl_wr when (ioctl_index = X"00") and (ioctl_addr(14) = '0') and (ioctl_download = '1') else '0';
-	c1541rom_wr <= ioctl_wr when (ioctl_index = X"00") and (ioctl_addr(14) = '1') and (ioctl_download = '1') else '0';
+	c64rom_wr   <= ioctl_wr when (ioctl_index = 0) and (ioctl_addr(14) = '0') and (ioctl_download = '1') else '0';
+	c1541rom_wr <= ioctl_wr when (ioctl_index = 0) and (ioctl_addr(14) = '1') and (ioctl_download = '1') else '0';
 
 	process(clk32)
 	begin
@@ -498,8 +601,9 @@ begin
 	port map(
 		refclk   => CLK_50M,
 		rst      => '0',
-		outclk_0 => clk32,
-		outclk_1 => clk64,
+		outclk_0 => clk64,
+		outclk_1 => SDRAM_CLK,
+		outclk_2 => clk32,
 		locked   => pll_locked
 	);
 
@@ -530,14 +634,41 @@ begin
 		end if;
 	end process;
 
+	SDRAM_DQ(15 downto 8) <= (others => 'Z') when sdram_we='0' else (others => '0');
+	SDRAM_DQ(7 downto 0) <= (others => 'Z') when sdram_we='0' else sdram_data_out;
+
+	-- read from sdram
+	c64_data_in <= SDRAM_DQ(7 downto 0);
+	-- clock is always enabled and memory is never masked as we only
+	-- use one byte
+	SDRAM_CKE <= '1';
+	SDRAM_DQML <= '0';
+	SDRAM_DQMH <= '0';
+
+	sdr: sdram port map(
+		sd_addr => SDRAM_A,
+		sd_ba => SDRAM_BA,
+		sd_cs => SDRAM_nCS,
+		sd_we => SDRAM_nWE,
+		sd_ras => SDRAM_nRAS,
+		sd_cas => SDRAM_nCAS,
+
+		clk => clk64,
+		addr => sdram_addr,
+		init => not pll_locked,
+		we => sdram_we,
+		refresh => idle,       -- refresh ram in idle state
+		ce => sdram_ce
+	);
+
 	fpga64 : entity work.fpga64_sid_iec
 	port map(
 		clk32 => clk32,
 		reset_n => reset_n,
 		ps2_key => ps2_key,
-		ramAddr => c64_addr,
-		ramDataOut => c64_data_out,
-		ramDataIn => c64_data_in,
+		ramAddr => c64_addr_int,
+		ramDataOut => c64_data_out_int,
+		ramDataIn => c64_data_in_int,
 		ramCE => ram_ce,
 		ramWe => ram_we,
 		ntscMode => status(2),
@@ -555,10 +686,10 @@ begin
 		joyA => unsigned(joyA_c64),
 		joyB => unsigned(joyB_c64),
 		serioclk => open,
-		ces => open,
+		ces => ces,
 		SIDclk => open,
 		still => open,
-		idle => open,
+		idle => idle,
 		audio_data => audio_data,
 		extfilter_en => not status(6),
 		iec_data_o => c64_iec_data_o,
@@ -703,18 +834,6 @@ begin
 	AUDIO_S <= '1';
 
 	CLK_VIDEO  <= clk64;
-
-	SDRAM_CLK  <= '1';
-	SDRAM_CKE  <= '0';
-	SDRAM_A    <= (others => '0');
-	SDRAM_BA   <= (others => '0');
-	SDRAM_DQ   <= (others => 'Z');
-	SDRAM_DQML <= '1';
-	SDRAM_DQMH <= '1';
-	SDRAM_nWE  <= '1';
-	SDRAM_nCAS <= '1';
-	SDRAM_nRAS <= '1';
-	SDRAM_nCS  <= '1';
 
 	DDRAM_CLK  <= '0';
 	DDRAM_BURSTCNT <= (others => '0');
