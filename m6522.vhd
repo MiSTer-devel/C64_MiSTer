@@ -343,7 +343,7 @@
  	  end process;
  	
  	  p_read : process(cs, I_RW_L, I_RS, r_irb, r_ira, r_ddrb, r_ddra, t1c, r_t1l_l,
- 	                   r_t1l_h, t2c, r_sr, r_acr, r_pcr, r_ifr, r_ier, r_orb)
+ 	                   r_t1l_h, t2c, r_sr, r_acr, r_pcr, r_ifr, r_ier, r_ora, r_orb)
  	  begin
  	    t1_r_reset_int <= false;
  	    t2_r_reset_int <= false;
