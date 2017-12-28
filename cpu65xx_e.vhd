@@ -30,6 +30,7 @@ entity cpu65xx is
 		enable : in std_logic;
 		reset : in std_logic;
 		nmi_n : in std_logic;
+		nmi_ack : out std_logic;
 		irq_n : in std_logic;
 		so_n : in std_logic := '1';
 

@@ -640,6 +640,9 @@ architecture fast of cpu65xx is
 	signal indexOut : unsigned(8 downto 0);
 
 begin
+
+nmi_ack <= nmiReg;
+
 processAluInput: process(clk, opcInfo, A, X, Y, T, S)
 		variable temp : unsigned(7 downto 0);
 	begin

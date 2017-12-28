@@ -31,6 +31,7 @@ entity cpu_6510 is
 		enable : in std_logic;
 		reset : in std_logic;
 		nmi_n : in std_logic;
+		nmi_ack : out std_logic;
 		irq_n : in std_logic;
 
 		di : in unsigned(7 downto 0);
@@ -75,6 +76,7 @@ begin
 			enable => enable,
 			reset => reset,
 			nmi_n => nmi_n,
+			nmi_ack => nmi_ack,
 			irq_n => irq_n,
 
 			di => localDi,
