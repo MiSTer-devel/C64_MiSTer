@@ -128,8 +128,10 @@ end component pll;
 constant CONF_STR : string := 
 	"C64;;" &
 	"-;" &
-	"F,PRG;" &
-	"S,D64;" &
+	"S,D64,Mount Disk;" &
+	"-;" &
+	"F,PRG,Load File;" &
+	"F,CRT,Load Cartridge;" &
 	"-;" &
 	"O2,Video standard,PAL,NTSC;" &
 	"O4,Aspect ratio,4:3,16:9;" &
@@ -138,9 +140,9 @@ constant CONF_STR : string :=
 	"O3,Joysticks,normal,swapped;" &
 	"O6,Audio filter,On,Off;" &
 	"-;" &
-	"T5,Reset;" &
+	"T5,Reset & Detach cartridge;" &
 	"J,Fire;" &
-	"V0,v0.27.33";
+	"V0,v0.27.43";
 
 ---------
 -- ARM IO
@@ -245,7 +247,7 @@ component sdram is port
    init       : in    std_logic;
 
    -- cpu/chipset interface
-   addr       : in    std_logic_vector(15 downto 0);
+   addr       : in    std_logic_vector(24 downto 0);
    refresh    : in    std_logic;
    we         : in    std_logic;
    ce         : in    std_logic
@@ -274,6 +276,54 @@ component video_mixer generic ( LINE_LENGTH : integer := 512; HALF_DEPTH : integ
 );
 end component video_mixer;
 
+--------------------------
+-- cartridge - LCA mar17 -
+--------------------------
+component cartridge port
+(
+	romL			: in  std_logic;									-- romL signal in
+	romH			: in  std_logic;									-- romH signal in
+	UMAXromH		: in  std_logic;									-- VIC II ultimax read access flag
+	mem_write	: in  std_logic;									-- memory write active
+	mem_ce		: in  std_logic;
+	mem_ce_out  : out std_logic;
+	IOE			: in  std_logic;									-- IOE signal &DE00
+	IOF			: in  std_logic;									-- IOF signal &DF00
+
+	clk32			: in  std_logic;									-- 32mhz clock source
+	reset			: in  std_logic;									-- reset signal
+	reset_out	: out std_logic;									-- reset signal
+
+	cart_id		: in  std_logic_vector(15 downto 0);		-- cart ID or cart type
+	cart_exrom  : in  std_logic_vector(7 downto 0);			-- CRT file EXROM status
+	cart_game   : in  std_logic_vector(7 downto 0);			-- CRT file GAME status
+
+	cart_bank_laddr : in std_logic_vector(15 downto 0);	-- 1st bank loading address
+	cart_bank_size  : in std_logic_vector(15 downto 0);	-- length of each bank
+	cart_bank_num   : in std_logic_vector(15 downto 0);
+	cart_bank_type  : in std_logic_vector(7 downto 0);
+	cart_bank_raddr : in std_logic_vector(24 downto 0);	-- chip packet address
+	cart_bank_wr    : in std_logic;
+
+	cart_attached: in std_logic;									-- FLAG to say cart has been loaded
+	cart_loading : in std_logic;
+
+	c64_mem_address_in: in std_logic_vector(15 downto 0);	-- address from cpu
+	c64_data_out: in std_logic_vector(7 downto 0);			-- data from cpu going to sdram
+
+	sdram_address_out: out std_logic_vector(24 downto 0); -- translated address output
+	exrom       : out std_logic;									-- exrom line
+	game        : out std_logic;									-- game line
+	IOE_ena     : out std_logic;
+	IOF_ena     : out std_logic;
+	max_ram     : out std_logic;
+	freeze_key  : in  std_logic;
+	nmi         : out std_logic;
+	nmi_ack     : in  std_logic
+);
+
+end component cartridge;
+
 
 	signal c1541_reset      : std_logic;
 	signal idle             : std_logic;
@@ -287,24 +337,59 @@ end component video_mixer;
 	signal ioctl_addr       : std_logic_vector(24 downto 0);
 	signal ioctl_data       : std_logic_vector(7 downto 0);
 	signal ioctl_index      : std_logic_vector(7 downto 0);
-	signal ioctl_ram_addr   : std_logic_vector(15 downto 0);
+	signal ioctl_ram_addr   : std_logic_vector(24 downto 0);
 	signal ioctl_ram_data   : std_logic_vector(7 downto 0);
-	signal ioctl_load_addr  : std_logic_vector(15 downto 0);
-	signal ioctl_ram_wr     : std_logic;
+	signal ioctl_load_addr  : std_logic_vector(24 downto 0);						--load address from mist.io LCA
+	signal ioctl_req_wr     : std_logic := '0';
 	signal ioctl_iec_cycle_used: std_logic;
 	signal ioctl_download   : std_logic;
-	signal ioctl_wait       : std_logic := '0';
 	signal c64_addr         : std_logic_vector(15 downto 0);
 	signal c64_data_in      : std_logic_vector(7 downto 0);
 	signal c64_data_out     : std_logic_vector(7 downto 0);
-	signal sdram_addr       : std_logic_vector(15 downto 0);
+	signal sdram_addr       : std_logic_vector(24 downto 0);
 	signal sdram_data_out   : std_logic_vector(7 downto 0);
 	signal sdram_we         : std_logic;
 	signal sdram_ce         : std_logic;
 
-	signal force_erase    : std_logic;
-	signal erasing        : std_logic;
-	signal erase_to       : std_logic_vector(4 downto 0) := (others => '0');
+	signal old_download     : std_logic;
+	signal force_erase      : std_logic;
+	signal erasing          : std_logic;
+	signal erase_to         : std_logic_vector(4 downto 0) := (others => '0');
+	signal erase_cram       : std_logic := '0';
+
+	signal cart_id 			: std_logic_vector(15 downto 0);					-- cart ID or cart type
+	signal cart_bank_laddr 	: std_logic_vector(15 downto 0) := (others => '0'); -- 1st bank loading address
+	signal cart_bank_size 	: std_logic_vector(15 downto 0) := (others => '0'); -- length of each bank
+	signal cart_bank_num 	: std_logic_vector(15 downto 0) := (others => '0'); -- bank number
+	signal cart_bank_type 	: std_logic_vector(7 downto 0) := (others => '0');	 -- bank type
+	signal cart_exrom			: std_logic_vector(7 downto 0);					-- CRT file EXROM status
+	signal cart_game			: std_logic_vector(7 downto 0);					-- CRT file GAME status
+	signal cart_attached		: std_logic;
+	signal game					: std_logic;											-- game line to cpu
+	signal exrom				: std_logic;											-- exrom line to cpu
+	signal IOE_rom 			: std_logic;
+	signal IOF_rom 			: std_logic;
+	signal max_ram 			: std_logic;
+
+	signal defxx				: std_logic;
+	signal IOE					: std_logic;											-- IOE signal
+	signal IOF					: std_logic;											-- IOF signal
+	signal cartridge_reset	: std_logic;											-- FLAG to reset once cart loaded
+	signal c64_addr_temp    : std_logic_vector(24 downto 0);	
+	signal mem_ce           : std_logic;
+	signal reset_crt        : std_logic;
+	signal freeze_key       : std_logic;
+	signal nmi              : std_logic;
+	signal nmi_ack          : std_logic;
+
+	signal cart_loading	   : std_logic;
+	signal cart_hdr_cnt     : std_logic_vector(3 downto 0);
+	signal cart_hdr_wr	   : std_logic;
+	signal cart_blk_len     : std_logic_vector(31 downto 0);
+
+	signal romL				   : std_logic;												-- cart romL from buslogic LCA
+	signal romH				   : std_logic;												-- cart romH from buslogic LCA
+	signal UMAXromH		   : std_logic;												-- VIC II Ultimax access - LCA
 
 	signal c1541rom_wr    : std_logic;
 	signal c64rom_wr      : std_logic;
@@ -431,7 +516,52 @@ begin
 		ioctl_wr => ioctl_wr,
 		ioctl_addr => ioctl_addr,
 		ioctl_dout => ioctl_data,
-		ioctl_wait => ioctl_wait
+		ioctl_wait => ioctl_req_wr
+	);
+
+	cart_loading <= '1' when ioctl_download = '1' and ioctl_index = 3 else '0';
+
+	cart : cartridge
+	port map (
+		romL => romL,		
+		romH => romH,	
+		UMAXromH => UMAXromH,
+		IOE => IOE,
+		IOF => IOF,
+		mem_write => not ram_we,	
+		mem_ce => not ram_ce,
+		mem_ce_out => mem_ce,
+
+	 	clk32 => clk32,			
+		reset => reset_n,
+		reset_out => reset_crt,
+		
+		cart_id => cart_id,		
+		cart_exrom => cart_exrom,
+		cart_game => cart_game,
+
+		cart_bank_laddr => cart_bank_laddr,
+		cart_bank_size => cart_bank_size,
+		cart_bank_num => cart_bank_num,
+		cart_bank_type => cart_bank_type,
+		cart_bank_raddr => ioctl_load_addr,
+		cart_bank_wr => cart_hdr_wr,
+		
+	 	cart_attached => cart_attached,
+		cart_loading => cart_loading,
+		
+		c64_mem_address_in => c64_addr,
+		c64_data_out => c64_data_out,
+		
+		sdram_address_out => c64_addr_temp,
+		exrom	=> exrom,							
+		game => game,
+		IOE_ena => ioE_rom,
+		IOF_ena => ioF_rom,
+		max_ram => max_ram,
+		freeze_key => freeze_key,
+		nmi => nmi,
+		nmi_ack => nmi_ack
 	);
 
 	-- rearrange joystick contacts for c64
@@ -442,101 +572,29 @@ begin
 	joyA_c64 <= joyB_int when status(3)='1' else joyA_int;
 	joyB_c64 <= joyA_int when status(3)='1' else joyB_int;
 
---	process(clk32)
---	begin
---		if rising_edge(clk32) then
---			ram_ceD <= ram_ce;
---	
---			sysram_ce <= '0';
---			if(ram_ceD = '1' and ram_ce = '0') then
---				sysram_ce <= '1';
---			end if;
---			
---			if(sysram_ce = '1') then
---				if(ram_we = '0') then
---					c64_data_in <= c64_data_out; -- short cut
---				else
---					c64_data_in <= c64_data_in_raw;
---				end if;
---			end if;
---
---		end if;
---	end process;
---
---	process(clk32) begin
---		if rising_edge(clk32) then
---			down_we <= '0';
---			if down_we = '1' then
---				down_addr <= down_addr + "1";
---			end if;
---
---			if ioctl_download = '1' and ioctl_wr = '1' and ioctl_index = X"1" then
---				if ioctl_addr = X"0" then
---					down_addr(7 downto 0) <= ioctl_data;
---				elsif ioctl_addr = X"1" then
---					down_addr(15 downto 8) <= ioctl_data;
---				else
---					down_data <= ioctl_data;
---					down_we <= '1';
---				end if;
---			end if;
---			
---			if erasing='0' and force_erase = '1' then
---				erasing <='1';
---				down_addr <= (others => '0');
---				down_data <= (others => '0');
---				down_we <= '1';
---			end if;
---			
---			if erasing = '1' and down_we = '0' then
---				if down_addr = X"0" then
---					erasing <= '0';
---				else
---					down_we <= '1';
---				end if;
---			end if;
---		end if;
---	end process;
---
---	ram: entity work.dpram
---	port map
---	(
---		clk    => clk32,
---
---		addr_a => unsigned(down_addr),
---		data_a => unsigned(down_data),
---		we_a   => down_we,
---		q_a    => open,
---
---		addr_b => c64_addr,
---		data_b => c64_data_out,
---		we_b   => (not ram_we) and sysram_ce,
---		q_b    => c64_data_in_raw
---	);
-
 	-- multiplex ram port between c64 core and data_io (io controller dma)
-	sdram_addr <= c64_addr when iec_cycle='0' else ioctl_ram_addr;
+	sdram_addr <= c64_addr_temp when iec_cycle='0' else ioctl_ram_addr; -- old line lca
 	sdram_data_out <= c64_data_out when iec_cycle='0' else ioctl_ram_data;
 	-- ram_we and ce are active low
-	sdram_ce <= not ram_ce when iec_cycle='0' else ioctl_iec_cycle_used;
+	sdram_ce <=     mem_ce when iec_cycle='0' else ioctl_iec_cycle_used;
 	sdram_we <= not ram_we when iec_cycle='0' else ioctl_iec_cycle_used;
 
-   -- address
 	process(clk32)
 	begin
 		if falling_edge(clk32) then
-			iec_cycleD <= iec_cycle;
 
-			if(iec_cycle='1' and iec_cycleD='0' and ioctl_ram_wr='1') then
-				ioctl_ram_wr <= '0';
+			old_download <= ioctl_download;
+			iec_cycleD <= iec_cycle;
+			cart_hdr_wr <= '0';
+
+			if(iec_cycle='1' and iec_cycleD='0' and ioctl_req_wr='1') then
+				ioctl_req_wr <= '0';
 				ioctl_iec_cycle_used <= '1';
-				ioctl_wait <= '0';
+				ioctl_ram_addr  <= ioctl_load_addr;
+				ioctl_load_addr <= ioctl_load_addr + "1";
 				if erasing = '1' then
-					ioctl_ram_addr  <= ioctl_load_addr;
 					ioctl_ram_data  <= (others => '0');
-					ioctl_load_addr <= ioctl_load_addr + "1";
 				else
-					ioctl_ram_addr <= std_logic_vector(unsigned(ioctl_load_addr) + unsigned(ioctl_addr(15 downto 0)) - 2);
 					ioctl_ram_data <= ioctl_data;
 				end if;
 			else 
@@ -545,35 +603,85 @@ begin
 				end if;
 			end if;
 
-			if ioctl_wr='1' and ((ioctl_index /=X"0") or (erasing = '1')) then
-				if(ioctl_addr = 0) then
-					ioctl_load_addr(7 downto 0) <= ioctl_data;
-				elsif(ioctl_addr = 1) then
-					ioctl_load_addr(15 downto 8) <= ioctl_data;
-				else 
-					-- io controller sent a new byte. Store it until it can be
-					--	saved in RAM
-					ioctl_ram_wr <= '1';
-					ioctl_wait <= '1';
+			if ioctl_wr='1' then
+				if ioctl_index = 2 then
+					if ioctl_addr = 0 then
+						ioctl_load_addr(7 downto 0) <= ioctl_data;
+					elsif(ioctl_addr = 1) then
+						ioctl_load_addr(15 downto 8) <= ioctl_data;
+					else
+						ioctl_req_wr <= '1';
+					end if;
+				end if;
+
+				if ioctl_index = 3 then
+					if ioctl_addr = 0 then
+						ioctl_load_addr <= '0' & X"100000";
+						cart_blk_len <= (others => '0');
+						cart_hdr_cnt <= (others => '0');
+					end if;
+
+					if(ioctl_addr = X"16") then cart_id(15 downto 8)  <= ioctl_data; end if;
+					if(ioctl_addr = X"17") then cart_id(7 downto 0)   <= ioctl_data; end if;
+					if(ioctl_addr = X"18") then cart_exrom(7 downto 0)<= ioctl_data; end if;
+					if(ioctl_addr = X"19") then cart_game(7 downto 0) <= ioctl_data; end if;
+
+					if(ioctl_addr >= X"40") then
+						if cart_blk_len = 0 and cart_hdr_cnt = 0 then
+							cart_hdr_cnt <= X"1";
+							if ioctl_load_addr(12 downto 0) /= 0 then
+							   -- align to 8KB boundary
+								ioctl_load_addr(12 downto 0) <= '0' & X"000";
+								ioctl_load_addr(24 downto 13) <= ioctl_load_addr(24 downto 13) + "1";
+							end if;
+						elsif cart_hdr_cnt /= 0 then
+							cart_hdr_cnt <= cart_hdr_cnt + "1";
+							if(cart_hdr_cnt = 4)  then cart_blk_len(31 downto 24)  <= ioctl_data; end if;
+							if(cart_hdr_cnt = 5)  then cart_blk_len(23 downto 16)  <= ioctl_data; end if;
+							if(cart_hdr_cnt = 6)  then cart_blk_len(15 downto 8)   <= ioctl_data; end if;
+							if(cart_hdr_cnt = 7)  then cart_blk_len(7 downto 0)    <= ioctl_data; end if;
+							if(cart_hdr_cnt = 8)  then cart_blk_len <= cart_blk_len - X"10";		 end if;
+							if(cart_hdr_cnt = 9)  then cart_bank_type              <= ioctl_data; end if;
+							if(cart_hdr_cnt = 10) then cart_bank_num(15 downto 8)  <= ioctl_data; end if;
+							if(cart_hdr_cnt = 11) then cart_bank_num(7 downto 0)   <= ioctl_data; end if;
+							if(cart_hdr_cnt = 12) then cart_bank_laddr(15 downto 8)<= ioctl_data; end if;
+							if(cart_hdr_cnt = 13) then cart_bank_laddr(7 downto 0) <= ioctl_data; end if;
+							if(cart_hdr_cnt = 14) then cart_bank_size(15 downto 8) <= ioctl_data; end if;
+							if(cart_hdr_cnt = 15) then cart_bank_size(7 downto 0)  <= ioctl_data; end if;
+							if(cart_hdr_cnt = 15) then cart_hdr_wr <= '1';                        end if;
+						else
+							cart_blk_len <= cart_blk_len - "1";
+							ioctl_req_wr <= '1';
+						end if;
+					end if;
 				end if;
 			end if;
+			
+			if old_download /= ioctl_download and ioctl_index = 3 then
+				cart_attached <= old_download;
+				erase_cram <= '1';
+			end if;
 
+			if status(5)='1' or buttons(1)='1' then
+				cart_attached <= '0';
+			end if;
+			
 			if erasing='0' and force_erase = '1' then
 				erasing <='1';
 				ioctl_load_addr <= (others => '0');
 			end if;
 
-			if erasing = '1' and ioctl_ram_wr = '0' then
+			if erasing = '1' and ioctl_req_wr = '0' then
 				erase_to <= erase_to + "1";
 				if erase_to = "11111" then
-					if ioctl_load_addr < X"FFFF" then 
-						ioctl_ram_wr <= '1';
+					if ioctl_load_addr < (erase_cram & X"FFFF") then 
+						ioctl_req_wr <= '1';
 					else
 						erasing <= '0';
+						erase_cram <= '0';
 					end if;
 				end if;
 			end if;
-
 		end if;
 	end process;
 
@@ -615,7 +723,7 @@ begin
 			if status(0)='1' or pll_locked = '0' then
 				reset_counter <= 1000000;
 				reset_n <= '0';
-			elsif buttons(1)='1' or status(5)='1' or reset_key = '1' then
+			elsif buttons(1)='1' or status(5)='1' or reset_key = '1' or reset_crt='1' or (ioctl_download='1' and ioctl_index = 3) then
 				reset_counter <= 255;
 				reset_n <= '0';
 			elsif ioctl_download ='1' then
@@ -677,11 +785,22 @@ begin
 		r => r,
 		g => g,
 		b => b,
-		game => '1',
-		exrom => '1',
+		game => game,
+		exrom => exrom,
+		ioE_rom => ioE_rom,
+		ioF_rom => ioF_rom,
+		max_ram => max_ram,
+		UMAXromH => UMAXromH,
+		CPU_hasbus => open,
 		irq_n => '1',
-		nmi_n => '1',
+		nmi_n => not nmi,
+		nmi_ack => nmi_ack,
+		freeze_key => freeze_key,
 		dma_n => '1',
+		romL => romL,			-- cart signals LCA
+		romH => romH,			-- cart signals LCA
+		IOE => IOE,				-- cart signals LCA										
+		IOF => IOF,				-- cart signals LCA
 		ba => open,
 		joyA => unsigned(joyA_c64),
 		joyB => unsigned(joyB_c64),

@@ -36,8 +36,11 @@ entity fpga64_buslogic is
 		bankSwitch: in unsigned(2 downto 0);
 
 		-- From cartridge port
-		game : in std_logic;
-		exrom : in std_logic;
+		game    : in std_logic;
+		exrom   : in std_logic;
+		ioE_rom : in std_logic;
+		ioF_rom : in std_logic;
+		max_ram : in std_logic;
 
 		c64rom_addr: in std_logic_vector(13 downto 0);
 		c64rom_data: in std_logic_vector(7 downto 0);
@@ -70,7 +73,8 @@ entity fpga64_buslogic is
 		cs_ioE: out std_logic;
 		cs_ioF: out std_logic;
 		cs_romL : out std_logic;
-		cs_romH : out std_logic
+		cs_romH : out std_logic;
+		cs_UMAXromH : out std_logic
 	);
 end fpga64_buslogic;
 
@@ -107,6 +111,8 @@ architecture rtl of fpga64_buslogic is
 	signal cs_ioFReg : std_logic;
 	signal cs_romLReg : std_logic;
 	signal cs_romHReg : std_logic;
+	signal cs_UMAXromHReg : std_logic;
+	signal ultimax : std_logic;
 
 	signal currentAddr: unsigned(15 downto 0);
 	
@@ -133,7 +139,12 @@ begin
 	
 	--
 	--begin
-	process(ramData, vicData, sidData, colorData, cia1Data, cia2Data, charData, romData, cs_romHReg, cs_romLReg, cs_romReg, cs_CharReg, cs_ramReg, cs_vicReg, cs_sidReg, cs_colorReg, cs_cia1Reg, cs_cia2Reg, lastVicData)
+	process(ramData, vicData, sidData, colorData,
+           cia1Data, cia2Data, charData, romData,
+			  cs_romHReg, cs_romLReg, cs_romReg, cs_CharReg,
+			  cs_ramReg, cs_vicReg, cs_sidReg, cs_colorReg,
+			  cs_cia1Reg, cs_cia2Reg, lastVicData,
+			  cs_ioEReg, cs_ioFReg, ioE_rom, ioF_rom)
 	begin
 		-- If no hardware is addressed the bus is floating.
 		-- It will contain the last data read by the VIC. (if a C64 is shielded correctly)
@@ -158,123 +169,131 @@ begin
 			dataToCpu <= ramData;
 		elsif cs_romHReg = '1' then
 			dataToCpu <= ramData;
+		elsif cs_ioEReg = '1' and ioE_rom = '1' then
+			dataToCpu <= ramData;
+		elsif cs_ioFReg = '1' and ioF_rom = '1' then
+			dataToCpu <= ramData;
 		end if;
 	end process;
+
+	ultimax <= exrom and (not game);
 
 	process(clk)
 	begin
 		if rising_edge(clk) then
---			if ena = '1' then
-				currentAddr <= (others => '1'); -- Prevent generation of a latch when neither vic or cpu is using the bus.
+			currentAddr <= (others => '1'); -- Prevent generation of a latch when neither vic or cpu is using the bus.
 
-				systemWe <= '0';
-				vicCharReg <= '0';
-				cs_CharReg <= '0';
-				cs_romReg <= '0';
-				cs_ramReg <= '0';
-				cs_vicReg <= '0';
-				cs_sidReg <= '0';
-				cs_colorReg <= '0';
-				cs_cia1Reg <= '0';
-				cs_cia2Reg <= '0';
-				cs_ioEReg <= '0';
-				cs_ioFReg <= '0';
-				cs_romLReg <= '0';
-				cs_romHReg <= '0';
+			systemWe <= '0';
+			vicCharReg <= '0';
+			cs_CharReg <= '0';
+			cs_romReg <= '0';
+			cs_ramReg <= '0';
+			cs_vicReg <= '0';
+			cs_sidReg <= '0';
+			cs_colorReg <= '0';
+			cs_cia1Reg <= '0';
+			cs_cia2Reg <= '0';
+			cs_ioEReg <= '0';
+			cs_ioFReg <= '0';
+			cs_romLReg <= '0';
+			cs_romHReg <= '0';
+			cs_UMAXromHReg <= '0';		-- Ultimax flag for the VIC access - LCA
 
-				if (cpuHasBus = '1') then
-					-- The 6502 CPU has the bus.					
-					currentAddr <= cpuAddr;
-					case cpuAddr(15 downto 12) is
-					when X"E" | X"F" =>
-						if (cpuWe = '0') and (bankSwitch(1) = '1') then
-							-- Read kernal
-							cs_romReg <= '1';
-						else
-							-- 64Kbyte RAM layout
-							cs_ramReg <= '1';
-						end if;
-					when X"D" =>
-						if (bankSwitch(1) = '0') and (bankSwitch(0) = '0') then
-							-- 64Kbyte RAM layout
-							cs_ramReg <= '1';
-						elsif bankSwitch(2) = '1' then
-							case cpuAddr(11 downto 8) is
-								when X"0" | X"1" | X"2" | X"3" =>
-									cs_vicReg <= '1';
-								when X"4" | X"5" | X"6" | X"7" =>
-									cs_sidReg <= '1';
-								when X"8" | X"9" | X"A" | X"B" =>
-									cs_colorReg <= '1';
-								when X"C" =>
-									cs_cia1Reg <= '1';
-								when X"D" =>
-									cs_cia2Reg <= '1';
-								when X"E" =>
-									cs_ioEReg <= '1';
-								when X"F" =>
-									cs_ioFReg <= '1';
-								when others =>
-									null;
-							end case;
-						else
-							-- I/O space turned off. Read from charrom or write to RAM.
-							if cpuWe = '0' then
-							     cs_CharReg <= '1';
-							else
-							     cs_ramReg <= '1';
-							end if;
-						end if;
-					when X"A" | X"B" =>
-						if (cpuWe = '0') and (exrom = '0') and (game = '0') and (bankSwitch(1) = '1') then
-							-- Access cartridge with romH
-							cs_romHReg <= '1';
-						elsif (cpuWe = '0') and (bankSwitch(1) = '1') and (bankSwitch(0) = '1') then
-							-- Access basic rom
-							cs_romReg <= '1';
-						elsif (exrom = '0') or (game = '1') then
-							-- If not in Ultimax mode access ram
-							cs_ramReg <= '1';
-						end if;
-					when X"8" | X"9" =>
-						if exrom = '1' and game = '0' then
-							-- Ultimax access with romL
-							cs_romLReg <= '1';
-						elsif (cpuWe = '0')
-						and (bankSwitch(1) = '1')
-						and (bankSwitch(0) = '1')
-						and (exrom = '0') then
-							-- Access cartridge with romL
-							cs_romLReg <= '1';
-						else
-							cs_ramReg <= '1';
-						end if;
-					when X"0" =>
+			if (cpuHasBus = '1') then
+				-- The 6502 CPU has the bus.					
+				currentAddr <= cpuAddr;
+				case cpuAddr(15 downto 12) is
+				when X"E" | X"F" =>
+					if ultimax = '1' and cpuWe = '0' then
+						-- ULTIMAX MODE - drop out the kernal - LCA
+						cs_romHReg <= '1';
+					elsif cpuWe = '0' and bankSwitch(1) = '1' then
+						-- Read kernal
+						cs_romReg <= '1';
+					else
+						-- 64Kbyte RAM layout
 						cs_ramReg <= '1';
-					when others =>
-						-- If not in Ultimax mode access ram
-						if (exrom = '0') or (game = '1') then
-							cs_ramReg <= '1';
+					end if;
+				when X"D" =>
+					if (ultimax = '0' or max_ram = '1') and bankSwitch(1) = '0' and bankSwitch(0) = '0' then
+						-- 64Kbyte RAM layout
+						cs_ramReg <= '1';
+					elsif ultimax = '1' or bankSwitch(2) = '1' then
+						case cpuAddr(11 downto 8) is
+							when X"0" | X"1" | X"2" | X"3" =>
+								cs_vicReg <= '1';
+							when X"4" | X"5" | X"6" | X"7" =>
+								cs_sidReg <= '1';
+							when X"8" | X"9" | X"A" | X"B" =>
+								cs_colorReg <= '1';
+							when X"C" =>
+								cs_cia1Reg <= '1';
+							when X"D" =>
+								cs_cia2Reg <= '1';
+							when X"E" =>
+								cs_ioEReg <= '1';
+							when X"F" =>
+								cs_ioFReg <= '1';
+							when others =>
+								null;
+						end case;
+					else
+						-- I/O space turned off. Read from charrom or write to RAM.
+						if cpuWe = '0' then
+							  cs_CharReg <= '1';
+						else
+							  cs_ramReg <= '1';
 						end if;
-					end case;
+					end if;
+				when X"A" | X"B" =>
+					if exrom = '0' and game = '0' and cpuWe = '0' and bankSwitch(1) = '1' then
+						-- Access cartridge with romH
+						cs_romHReg <= '1';
+					elsif ultimax = '0' and cpuWe = '0' and bankSwitch(1) = '1' and bankSwitch(0) = '1' then
+						-- Access basic rom
+						-- May need turning off if kernal banked out LCA
+						cs_romReg <= '1';
+					elsif ultimax = '0' or max_ram = '1' then
+						-- If not in Ultimax mode access ram
+						cs_ramReg <= '1';
+					end if;
+				when X"8" | X"9" =>
+					if ultimax = '1' then
+						-- Ultimax access with romL
+						cs_romLReg <= '1';
+					elsif exrom = '0' and bankSwitch(1) = '1' and bankSwitch(0) = '1' then
+						-- Access cartridge with romL
+						cs_romLReg <= '1';
+					else
+						cs_ramReg <= '1';
+					end if;
+				when X"0" =>
+					cs_ramReg <= '1';
+				when others =>
+					-- If not in Ultimax mode access ram
+					if ultimax = '0' or max_ram = '1' then
+						cs_ramReg <= '1';
+					end if;
+				end case;
 
-					systemWe <= cpuWe;
+				systemWe <= cpuWe;
+			else
+				-- The VIC-II has the bus.
+				currentAddr <= vicAddr;
+
+				if ultimax = '0' and vicAddr(14 downto 12)="001" then
+					vicCharReg <= '1';
+				elsif ultimax = '1' and vicAddr(13 downto 12)="11" then
+					-- ultimax mode changes vic addressing - LCA 
+					cs_UMAXromHReg <= '1';
 				else
-					-- The VIC-II has the bus.
-					currentAddr <= vicAddr;
-
-					if vicAddr(14 downto 12)="001" then
- 					   vicCharReg <= '1';
-   				else
-	    				cs_ramReg <= '1';
-		    		end if;
+					cs_ramReg <= '1';
 				end if;
 			end if;
-
---		end if;
+		end if;
 	end process;
-	
-	cs_ram <= cs_ramReg;
+
+	cs_ram <= cs_ramReg or cs_romLReg or cs_romHReg or cs_UMAXromHReg;  -- need to keep ram active for cartridges LCA
 	cs_vic <= cs_vicReg;
 	cs_sid <= cs_sidReg;
 	cs_color <= cs_colorReg;
@@ -284,15 +303,8 @@ begin
 	cs_ioF <= cs_ioFReg;
 	cs_romL <= cs_romLReg;
 	cs_romH <= cs_romHReg;
+	cs_UMAXromH <= cs_UMAXromHReg;
 
-	process(ramData, charData, vicCharReg)
-	begin
-		if vicCharReg = '1' then
-			dataToVic <= charData;
-		else
-	dataToVic <= ramData;
-		end if;
-	end process;
-
+	dataToVic  <= charData when vicCharReg = '1' else ramData;
 	systemAddr <= currentAddr;
 end architecture;

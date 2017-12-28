@@ -34,7 +34,7 @@ module sdram (
 	input 		 		init,			// init signal after FPGA config to initialize RAM
 	input 		 		clk,			// sdram is accessed at up to 128MHz
 	
-	input [15:0]   	addr,       // 25 bit byte address
+	input [24:0]   	addr,       // 25 bit byte address
 	input 		 		refresh,    // refresh cycle
 	input 		 		ce,         // cpu/chipset access
 	input 		 		we          // cpu/chipset requests write
@@ -134,10 +134,9 @@ end
 wire [12:0] reset_addr = (reset == 13)?13'b0010000000000:MODE;
 	
 wire [12:0] run_addr = 
-	(q == STATE_CMD_START)?{ 5'b00000, addr[15:8]}:{ 5'b00100, addr[7:0]};
+	(q == STATE_CMD_START)?addr[20:8]:{ 4'b0010, addr[23], addr[7:0]};
 
 assign sd_addr = (reset != 0)?reset_addr:run_addr;
-
-assign sd_ba = 2'b00;
+assign sd_ba = addr[22:21];
 
 endmodule

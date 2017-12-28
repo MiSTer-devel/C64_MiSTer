@@ -64,10 +64,21 @@ entity fpga64_sid_iec is
 		-- cartridge port
 		game        : in  std_logic;
 		exrom       : in  std_logic;
+		ioE_rom     : in std_logic;
+		ioF_rom     : in std_logic;
+		max_ram     : in std_logic;
 		irq_n       : inout std_logic;
-		nmi_n       : inout std_logic;
+		nmi_n       : in  std_logic;
+		nmi_ack     : out std_logic;
 		dma_n       : in  std_logic;
 		ba          : out std_logic;
+		romL			: out std_logic;													-- cart signals LCA
+		romH			: out std_logic;													-- cart signals LCA
+		UMAXromH 	: out std_logic;													-- cart signals LCA
+		IOE			: out std_logic;													-- cart signals LCA
+		IOF			: out std_logic;													-- cart signals LCA
+		CPU_hasbus  : out std_logic;													-- CPU has the bus STROBE
+		freeze_key  : out std_logic;
 
 		-- joystick interface
 		joyA        : in  unsigned(4 downto 0);
@@ -155,6 +166,7 @@ architecture rtl of fpga64_sid_iec is
 	signal cs_ioF: std_logic;
 	signal cs_romL: std_logic;
 	signal cs_romH: std_logic;
+	signal cs_UMAXromH: std_logic;							-- romH VIC II read flag
 
 	signal reset: std_logic := '1';
 	signal reset_cnt: integer range 0 to resetCycles := 0;
@@ -371,6 +383,9 @@ begin
 
 		game => game,
 		exrom => exrom,
+		ioE_rom => ioE_rom,
+		ioF_rom => ioF_rom,
+		max_ram => max_ram,
 
 		ramData => ramDataReg,
 
@@ -400,6 +415,7 @@ begin
 		cs_ioF => cs_ioF,
 		cs_romL => cs_romL,
 		cs_romH => cs_romH,
+		cs_UMAXromH => cs_UMAXromH,
 
 		c64rom_addr => c64rom_addr,
 		c64rom_data => c64rom_data,
@@ -592,6 +608,7 @@ begin
 			reset => reset,
 			enable => enableCpu,
 			nmi_n => nmiLoc,
+			nmi_ack => nmi_ack,
 			irq_n => irqLoc,
 
 			di => cpuDi,
@@ -734,12 +751,23 @@ begin
 -- Interrupt lines
 -- -----------------------------------------------------------------------
 	irq_n <= 'Z';
-	nmi_n <= 'Z';
 	irqLoc <= irq_cia1 and irq_vic and irq_n; 
-	nmiLoc <= irq_cia2 and nmi_n and not restore_key;
+	nmiLoc <= irq_cia2 and nmi_n;
+	freeze_key <= restore_key;
 
 -- -----------------------------------------------------------------------
 -- Dummy silence audio output
 -- -----------------------------------------------------------------------
 	still <= X"4000";
+	
+	
+-- -----------------------------------------------------------------------
+-- Cartridge port lines LCA
+-- -----------------------------------------------------------------------
+	romL <= cs_romL;
+	romH <= cs_romH;
+	IOE <= cs_ioE;
+	IOF <= cs_ioF;
+	UMAXromH <= cs_UMAXromH;
+	CPU_hasbus <= cpuHasBus;
 end architecture;
