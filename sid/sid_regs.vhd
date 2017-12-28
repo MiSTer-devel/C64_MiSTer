@@ -208,6 +208,14 @@ begin
             end case;
 
             if reset='1' then
+					 freq_lo  <= (others => (others => '0'));
+					 freq_hi  <= (others => (others => '0'));
+					 phase_lo <= (others => (others => '0'));
+					 phase_hi <= (others => (others => '0'));
+					 control  <= (others => (others => '0'));
+					 att_dec  <= (others => (others => '0'));
+					 sust_rel <= (others => (others => '0'));
+
                 filt_en_i    <= (others => '0');
                 voice3_off_l <= '0';
                 voice3_off_r <= '0';
