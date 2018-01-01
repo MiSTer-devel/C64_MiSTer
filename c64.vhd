@@ -140,6 +140,7 @@ constant CONF_STR : string :=
 	"O3,Joysticks,normal,swapped;" &
 	"O6,Audio filter,On,Off;" &
 	"-;" &
+	"OB,BIOS,C64,C64GS;" &
 	"T5,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
 	"V0,v0.27.45";
@@ -773,6 +774,7 @@ begin
 	port map(
 		clk32 => clk32,
 		reset_n => reset_n,
+		c64gs => status(11),
 		ps2_key => ps2_key,
 		ramAddr => c64_addr_int,
 		ramDataOut => c64_data_out_int,

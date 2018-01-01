@@ -26,6 +26,8 @@ entity fpga64_buslogic is
 	port (
 		clk : in std_logic;
 		reset : in std_logic;
+		c64gs : in std_logic;
+
 		cpuHasBus : in std_logic;
 
 		ramData: in unsigned(7 downto 0);
@@ -96,6 +98,9 @@ architecture rtl of fpga64_buslogic is
 	signal charData: unsigned(7 downto 0);
 	signal basicData: unsigned(7 downto 0);
 	signal romData: std_logic_vector(7 downto 0);
+	signal romData_c64: std_logic_vector(7 downto 0);
+	signal romData_c64gs: std_logic_vector(7 downto 0);
+	signal c64gs_ena : std_logic := '0';
 
 	signal cs_CharReg : std_logic;
 	signal cs_romReg : std_logic;
@@ -124,7 +129,10 @@ begin
 			do => charData
 		);
 
-	kernelrom: entity work.rom_C64
+	kernel_c64: entity work.rom_C64
+		generic map (
+			ROM_FILE => "roms/std_C64.mif"
+		)
 		port map 
 		(
 			clock => clk,
@@ -134,9 +142,35 @@ begin
 			wraddress => c64rom_addr,
 
 			rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
-			q => romData
+			q => romData_c64
 		);
 	
+	kernel_c64gs: entity work.rom_C64
+		generic map (
+			ROM_FILE => "roms/std_C64GS.mif"
+		)
+		port map 
+		(
+			clock => clk,
+
+			wren => '0',
+			data => (others => '0'),
+			wraddress => (others => '0'),
+
+			rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
+			q => romData_c64gs
+		);
+
+	romData <= romData_c64gs when c64gs_ena = '1' else romData_c64;
+	process(clk)
+	begin
+		if rising_edge(clk) then
+			if reset = '1' then 
+				c64gs_ena <= c64gs;
+			end if;
+		end if;
+	end process;
+
 	--
 	--begin
 	process(ramData, vicData, sidData, colorData,

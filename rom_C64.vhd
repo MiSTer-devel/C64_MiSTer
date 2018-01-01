@@ -8,7 +8,8 @@ entity rom_c64 is
 	generic 
 	(
 		DATA_WIDTH : natural := 8;
-		ADDR_WIDTH : natural := 14
+		ADDR_WIDTH : natural := 14;
+		ROM_FILE   : string
 	);
 
 	port 
@@ -31,7 +32,7 @@ architecture rtl of rom_c64 is
 	shared variable ram : memory_t;
 	
 	attribute ram_init_file : string;
-	attribute ram_init_file of ram : variable is "roms/std_C64.mif";	
+	attribute ram_init_file of ram : variable is ROM_FILE;	
 
 begin
 
