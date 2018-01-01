@@ -141,8 +141,8 @@ constant CONF_STR : string :=
 	"O6,Audio filter,On,Off;" &
 	"-;" &
 	"T5,Reset & Detach cartridge;" &
-	"J,Fire;" &
-	"V0,v0.27.43";
+	"J,Button 1,Button 2,Button 3;" &
+	"V0,v0.27.45";
 
 ---------
 -- ARM IO
@@ -396,10 +396,10 @@ end component cartridge;
 
 	signal joyA           : std_logic_vector(15 downto 0);
 	signal joyB           : std_logic_vector(15 downto 0);
-	signal joyA_int       : std_logic_vector(4 downto 0);
-	signal joyB_int       : std_logic_vector(4 downto 0);
-	signal joyA_c64       : std_logic_vector(4 downto 0);
-	signal joyB_c64       : std_logic_vector(4 downto 0);
+	signal joyA_int       : std_logic_vector(6 downto 0);
+	signal joyB_int       : std_logic_vector(6 downto 0);
+	signal joyA_c64       : std_logic_vector(6 downto 0);
+	signal joyB_c64       : std_logic_vector(6 downto 0);
 	signal reset_key      : std_logic;
 	
 	signal status         : std_logic_vector(31 downto 0);
@@ -565,8 +565,8 @@ begin
 	);
 
 	-- rearrange joystick contacts for c64
-	joyA_int <= joyA(4) & joyA(0) & joyA(1) & joyA(2) & joyA(3);
-	joyB_int <= joyB(4) & joyB(0) & joyB(1) & joyB(2) & joyB(3);
+	joyA_int <= joyA(6 downto 4) & joyA(0) & joyA(1) & joyA(2) & joyA(3);
+	joyB_int <= joyB(6 downto 4) & joyB(0) & joyB(1) & joyB(2) & joyB(3);
 
 	-- swap joysticks if requested
 	joyA_c64 <= joyB_int when status(3)='1' else joyA_int;
