@@ -73,7 +73,8 @@ entity emu is port
 	-- AUDIO
 	AUDIO_L          : out   std_logic_vector(15 downto 0);
 	AUDIO_R          : out   std_logic_vector(15 downto 0);
-	AUDIO_S          : out   std_logic; -- 1 - signed audio samples, 0 - unsigned
+	AUDIO_S          : out   std_logic;                    -- 1 - signed audio samples, 0 - unsigned
+	AUDIO_MIX        : out   std_logic_vector(1 downto 0); -- 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
 	TAPE_IN          : in    std_logic;
 
 	-- SD-SPI
@@ -953,6 +954,7 @@ begin
 	AUDIO_L <= audio_data(17 downto 2);
 	AUDIO_R <= audio_data(17 downto 2);
 	AUDIO_S <= '1';
+	AUDIO_MIX <= "00";
 
 	CLK_VIDEO  <= clk64;
 
