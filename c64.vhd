@@ -137,7 +137,7 @@ constant CONF_STR : string :=
 	"O4,Aspect ratio,4:3,16:9;" &
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%;" &
 	"-;" &
-	"O3,Joysticks,normal,swapped;" &
+	"O3,Joystick,Port #2,Port #1;" &
 	"O6,Audio filter,On,Off;" &
 	"-;" &
 	"OB,BIOS,C64,C64GS;" &
