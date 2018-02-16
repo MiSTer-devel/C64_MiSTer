@@ -20,7 +20,7 @@ wire       mI2C_ACK;
 reg [15:0] LUT_DATA;
 reg  [7:0] LUT_INDEX = 0;
 
-I2C_Controller #(50_000_000, 400_000) i2c_av
+i2c #(50_000_000, 20_000) i2c_av
 (
 	.CLK(iCLK),
 
@@ -66,8 +66,15 @@ end
 
 wire [15:0] init_data[58] = 
 '{
-	16'h4110,					// Power Down control
 	16'h9803,					// ADI required Write.
+
+	{8'hD6, 8'b1100_0000},	// [7:6] HPD Control...
+									// 00 = HPD is from both HPD pin or CDC HPD
+									// 01 = HPD is from CDC HPD
+									// 10 = HPD is from HPD pin
+									// 11 = HPD is always high
+
+	16'h4110,					// Power Down control
 	16'h9A70,					// ADI required Write.
 	16'h9C30,					// ADI required Write.
 	{8'h9D, 8'b0110_0001},	// [7:4] must be b0110!.
@@ -155,12 +162,6 @@ wire [15:0] init_data[58] =
 									// b111 = 1.6ns.
 					
 	16'hBB00,					// ADI required Write.
-	
-	{8'hD6, 8'b1000_0000},	// [7:6] HPD Control...
-									// 00 = HPD is from both HPD pin or CDC HPD
-									// 01 = HPD is from CDC HPD
-									// 10 = HPD is from HPD pin
-									// 11 = HPD is always high
 	
 	16'hDE9C,					// ADI required Write.
 	16'hE460,					// ADI required Write.

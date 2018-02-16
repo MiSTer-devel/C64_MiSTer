@@ -82,6 +82,7 @@ entity emu is port
 	SD_MOSI          : out   std_logic := 'Z';
 	SD_MISO          : in    std_logic;
 	SD_CS            : out   std_logic := 'Z';
+	SD_CD            : in    std_logic;
 
 	-- High latency DDR3 RAM interface
 	-- Use for non-critical time purposes
