@@ -352,9 +352,9 @@ set_location_assignment PIN_W21 -to SW[2]
 set_location_assignment PIN_W20 -to SW[3]
 
 set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:sys/build_id.tcl"
-set_global_assignment -name CDF_FILE jtag_lite.cdf
+
+set_global_assignment -name CDF_FILE jtag.cdf
 set_global_assignment -name QIP_FILE sys/sys.qip
-set_global_assignment -name QIP_FILE sys/sysmem.qip
 set_global_assignment -name QIP_FILE sid/sid.qip
 set_global_assignment -name VHDL_FILE video_vicII_656x_e.vhd
 set_global_assignment -name VHDL_FILE video_vicII_656x_a.vhd

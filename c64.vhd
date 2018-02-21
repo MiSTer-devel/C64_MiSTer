@@ -40,7 +40,7 @@ entity emu is port
 	RESET            : in    std_logic;
 
 	-- Must be passed to hps_io module
-	HPS_BUS          : inout std_logic_vector(43 downto 0);
+	HPS_BUS          : inout std_logic_vector(44 downto 0);
 
 	-- Base video clock. Usually equals to CLK_SYS.
 	CLK_VIDEO        : out   std_logic;
@@ -178,7 +178,7 @@ component hps_io generic
 port
 (
 	CLK_SYS           : in  std_logic;
-	HPS_BUS           : inout std_logic_vector(43 downto 0);
+	HPS_BUS           : inout std_logic_vector(44 downto 0);
 
 	conf_str          : in  std_logic_vector(8*STRLEN-1 downto 0);
 
