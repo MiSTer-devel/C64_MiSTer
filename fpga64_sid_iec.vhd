@@ -68,7 +68,7 @@ entity fpga64_sid_iec is
 		ioE_rom     : in std_logic;
 		ioF_rom     : in std_logic;
 		max_ram     : in std_logic;
-		irq_n       : inout std_logic;
+		irq_n       : in  std_logic;
 		nmi_n       : in  std_logic;
 		nmi_ack     : out std_logic;
 		dma_n       : in  std_logic;
@@ -80,6 +80,10 @@ entity fpga64_sid_iec is
 		IOF			: out std_logic;													-- cart signals LCA
 		CPU_hasbus  : out std_logic;													-- CPU has the bus STROBE
 		freeze_key  : out std_logic;
+
+		ioF_ext     : in std_logic;
+		ioE_ext     : in std_logic;
+		io_data     : in unsigned(7 downto 0);
 
 		-- joystick interface
 		joyA        : in  unsigned(6 downto 0);
@@ -391,6 +395,10 @@ begin
 		max_ram => max_ram,
 
 		ramData => ramDataReg,
+
+		ioF_ext => ioF_ext,
+		ioE_ext => ioE_ext,
+		io_data => io_data,
 
 		cpuWe => cpuWe,
 		cpuAddr => cpuAddr,
@@ -756,7 +764,6 @@ begin
 -- -----------------------------------------------------------------------
 -- Interrupt lines
 -- -----------------------------------------------------------------------
-	irq_n <= 'Z';
 	irqLoc <= irq_cia1 and irq_vic and irq_n; 
 	nmiLoc <= irq_cia2 and nmi_n;
 	freeze_key <= restore_key;

@@ -27,8 +27,8 @@
 
 library IEEE;
 use IEEE.std_logic_1164.all;
-use IEEE.std_logic_unsigned.ALL;
 use IEEE.numeric_std.all;
+use IEEE.std_logic_unsigned.ALL;
 
 entity emu is port
 (
@@ -121,6 +121,7 @@ component pll is
 		outclk_0 : out std_logic; -- clk
 		outclk_1 : out std_logic; -- clk
 		outclk_2 : out std_logic; -- clk
+		outclk_3 : out std_logic; -- clk
 		locked   : out std_logic  -- export
 	);
 end component pll;
@@ -138,14 +139,14 @@ constant CONF_STR : string :=
 	"O2,Video standard,PAL,NTSC;" &
 	"O4,Aspect ratio,4:3,16:9;" &
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%;" &
+	"O6,Audio filter,On,Off;" &
+	"OC,Sound expander,No,OPL2;" &
 	"-;" &
 	"O3,Joystick,Port #2,Port #1;" &
-	"O6,Audio filter,On,Off;" &
-	"-;" &
 	"OB,BIOS,C64,C64GS;" &
-	"T5,Reset & Detach cartridge;" &
+	"R5,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
-	"V0,v0.27.45";
+	"V0,v0.27.50";
 
 ---------
 -- ARM IO
@@ -327,6 +328,23 @@ component cartridge port
 
 end component cartridge;
 
+component opl port
+(
+    clk          : in  std_logic;
+    clk_opl      : in  std_logic;
+    rst_n        : in  std_logic;
+    irq_n        : out std_logic;
+
+    fm_address   : in  std_logic_vector(1 downto 0);
+    fm_readdata  : out std_logic_vector(7 downto 0);
+    fm_write     : in  std_logic;
+    fm_writedata : in  std_logic_vector(7 downto 0);
+
+    sample_l     : out signed(15 downto 0);
+    sample_r     : out signed(15 downto 0)
+);
+end component opl;
+
 
 	signal c1541_reset      : std_logic;
 	signal idle             : std_logic;
@@ -441,6 +459,7 @@ end component cartridge;
 	signal pll_locked: std_logic;
 	signal clk32     : std_logic;
 	signal clk64     : std_logic;
+	signal clk_opl   : std_logic;
 	signal clkdiv    : std_logic_vector(9 downto 0);
 	signal ce_8      : std_logic;
 	signal ce_4      : std_logic;
@@ -465,6 +484,12 @@ end component cartridge;
 	signal scanlines : std_logic_vector(1 downto 0);
 
 	signal audio_data : std_logic_vector(17 downto 0);
+	signal sid_out    : signed(15 downto 0);
+	signal opl_out    : signed(15 downto 0);
+	signal audio_out  : signed(15 downto 0);
+
+	signal opl_dout   : std_logic_vector(7 downto 0);
+	signal opl_en     : std_logic;
 
 	signal reset_counter : integer;
 	signal reset_n       : std_logic;
@@ -715,6 +740,7 @@ begin
 		outclk_0 => clk64,
 		outclk_1 => SDRAM_CLK,
 		outclk_2 => clk32,
+		outclk_3 => clk_opl,
 		locked   => pll_locked
 	);
 
@@ -805,6 +831,9 @@ begin
 		romH => romH,			-- cart signals LCA
 		IOE => IOE,				-- cart signals LCA										
 		IOF => IOF,				-- cart signals LCA
+		ioF_ext => opl_en,
+		ioE_ext => '0',
+		io_data => unsigned(opl_dout),
 		ba => open,
 		joyA => unsigned(joyA_c64),
 		joyB => unsigned(joyB_c64),
@@ -948,14 +977,34 @@ begin
 		VGA_HS => VGA_HS,
 		VGA_DE => VGA_DE
 	);
+	
+	opl_en <= status(12);
+
+	opl_inst : opl
+	port map
+	(
+		 clk => clk32,
+		 clk_opl => clk_opl,
+		 rst_n => reset_n,
+
+		 fm_address => '0' & c64_addr(4),
+		 fm_readdata => opl_dout,
+		 fm_write => (not ram_we) and IOF and opl_en and c64_addr(6) and (not c64_addr(5)),
+		 fm_writedata => c64_data_out,
+
+		 sample_l => opl_out
+	);
+
+	sid_out <= signed(audio_data(17 downto 2));
+	audio_out <= sid_out when opl_en = '0' else shift_right(opl_out,1) + shift_right(sid_out,1);
+
+	AUDIO_L    <= std_logic_vector(audio_out);
+	AUDIO_R    <= std_logic_vector(audio_out);
+	AUDIO_S    <= '1';
+	AUDIO_MIX  <= "00";
 
 	VIDEO_ARX  <= X"04" when (status(4) = '0') else X"10";
 	VIDEO_ARY  <= X"03" when (status(4) = '0') else X"09";
-
-	AUDIO_L <= audio_data(17 downto 2);
-	AUDIO_R <= audio_data(17 downto 2);
-	AUDIO_S <= '1';
-	AUDIO_MIX <= "00";
 
 	CLK_VIDEO  <= clk64;
 

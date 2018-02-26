@@ -44,6 +44,10 @@ entity fpga64_buslogic is
 		ioF_rom : in std_logic;
 		max_ram : in std_logic;
 
+		ioF_ext : in std_logic;
+		ioE_ext : in std_logic;
+		io_data : in unsigned(7 downto 0);
+
 		c64rom_addr: in std_logic_vector(13 downto 0);
 		c64rom_data: in std_logic_vector(7 downto 0);
 		c64rom_wr:   in std_logic;
@@ -178,7 +182,8 @@ begin
 			  cs_romHReg, cs_romLReg, cs_romReg, cs_CharReg,
 			  cs_ramReg, cs_vicReg, cs_sidReg, cs_colorReg,
 			  cs_cia1Reg, cs_cia2Reg, lastVicData,
-			  cs_ioEReg, cs_ioFReg, ioE_rom, ioF_rom)
+			  cs_ioEReg, cs_ioFReg, ioE_rom, ioF_rom,
+			  ioE_ext, ioF_ext, io_data)
 	begin
 		-- If no hardware is addressed the bus is floating.
 		-- It will contain the last data read by the VIC. (if a C64 is shielded correctly)
@@ -207,6 +212,10 @@ begin
 			dataToCpu <= ramData;
 		elsif cs_ioFReg = '1' and ioF_rom = '1' then
 			dataToCpu <= ramData;
+		elsif cs_ioEReg = '1' and ioE_ext = '1' then
+			dataToCpu <= io_data;
+		elsif cs_ioFReg = '1' and ioF_ext = '1' then
+			dataToCpu <= io_data;
 		end if;
 	end process;
 

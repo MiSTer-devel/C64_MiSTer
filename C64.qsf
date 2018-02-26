@@ -355,6 +355,7 @@ set_global_assignment -name CDF_FILE jtag.cdf
 set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name QSYS_FILE sys/vip.qsys
 set_global_assignment -name QIP_FILE sid/sid.qip
+set_global_assignment -name QIP_FILE opl3/opl.qip
 set_global_assignment -name VHDL_FILE video_vicII_656x_e.vhd
 set_global_assignment -name VHDL_FILE video_vicII_656x_a.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE sd_card.sv
