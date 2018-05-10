@@ -23,6 +23,7 @@ port
 	sb_atn_oe       : out std_logic;
 	sb_atn_in       : in std_logic;
 
+	c1541rom_clk    : in std_logic;
 	c1541rom_addr   : in std_logic_vector(13 downto 0);
 	c1541rom_data   : in std_logic_vector(7 downto 0);
 	c1541rom_wr     : in std_logic;
@@ -52,13 +53,10 @@ architecture SYN of c1541_logic is
 	signal clk_1M_pulse   : std_logic;
 
 	-- cpu signals  
-	signal cpu_a          : unsigned(15 downto 0);
-	signal cpu_di         : unsigned(7 downto 0);
-	signal cpu_do         : unsigned(7 downto 0);
-	signal cpu_a_l        : std_logic_vector(23 downto 0);
-	signal cpu_do_l       : std_logic_vector(7 downto 0);
+	signal cpu_a          : std_logic_vector(23 downto 0);
+	signal cpu_di         : std_logic_vector(7 downto 0);
+	signal cpu_do         : std_logic_vector(7 downto 0);
 	signal cpu_rw         : std_logic;
-	signal cpu_rw_n       : std_logic;
 	signal cpu_irq_n      : std_logic;
 	signal cpu_so_n       : std_logic;
 
@@ -153,7 +151,7 @@ begin
 	rom_cs <= '1' when STD_MATCH(cpu_a(15 downto 0), "11--------------") else '0';
 
 	-- qualified write signals
-	ram_wr <= '1' when ram_cs = '1' and cpu_rw = '1' else '0';
+	ram_wr <= '1' when ram_cs = '1' and cpu_rw = '0' else '0';
 
 	--
 	-- hook up UC1 ports
@@ -209,10 +207,10 @@ begin
 	--
 	-- CPU connections
 	--
-	cpu_di <= unsigned(rom_do) when rom_cs = '1' else
-             unsigned(ram_do) when ram_cs = '1' else
-             unsigned(uc1_do) when (uc1_cs1 = '1' and uc1_cs2_n = '0') else
-             unsigned(uc3_do) when (uc3_cs1 = '1' and uc3_cs2_n = '0') else
+	cpu_di <= rom_do when rom_cs = '1' else
+             ram_do when ram_cs = '1' else
+             uc1_do when (uc1_cs1 = '1' and uc1_cs2_n = '0') else
+             uc3_do when (uc3_cs1 = '1' and uc3_cs2_n = '0') else
              (others => '1');
 	cpu_irq_n <= uc1_irq_n and uc3_irq_n;
 	cpu_so_n <= byte_n or not soe;
@@ -235,57 +233,56 @@ begin
 		end if;
 	end process;
 	
-	cpu: entity work.cpu65xx
-	generic map (
-		pipelineOpcode => false,
-		pipelineAluMux => false,
-		pipelineAluOut => false
-	)
-	port map (
-		clk => clk_32M,
-		enable => clk_1M_pulse,
-		reset => reset,
-		nmi_n => '1',
-		irq_n => cpu_irq_n,
-		so_n => cpu_so_n,
-		di => cpu_di,
-		do => cpu_do,
-		addr => cpu_a,
-		we => cpu_rw
+	cpu: work.T65
+	port map(
+		Mode    => "00",
+		Res_n   => not reset,
+		Enable  => clk_1M_pulse,
+		Clk     => clk_32M,
+		Rdy     => '1',
+		Abort_n => '1',
+		IRQ_n   => cpu_irq_n,
+		NMI_n   => '1',
+		SO_n    => cpu_so_n,
+		R_W_n   => cpu_rw,
+		A       => cpu_a,
+		DI      => cpu_di,
+		DO      => cpu_do
 	);
 
-	rom_inst: entity work.rom_C1541
+	rom_inst: entity work.C1541_rom
 	port map (
-		clock => clk_32M,
+		wrclock => c1541rom_clk,
 
 		wren => c1541rom_wr,
 		data => c1541rom_data,
 		wraddress => c1541rom_addr,
 
-		rdaddress => std_logic_vector(cpu_a(13 downto 0)),
+		rdclock => clk_32M,
+		rdaddress => cpu_a(13 downto 0),
 		q => rom_do
 	);
 
 	process (clk_32M)
 	begin 
 		if rising_edge(clk_32M) then
-			ram_do <= ram(to_integer(cpu_a(13 downto 0)));
+			ram_do <= ram(to_integer(unsigned(cpu_a(13 downto 0))));
 			if ram_wr = '1' then
-				ram(to_integer(cpu_a(13 downto 0))) <= std_logic_vector(cpu_do);
+				ram(to_integer(unsigned(cpu_a(13 downto 0)))) <= cpu_do;
 			end if;
 		end if;
 	end process;
 
 
-	uc1_via6522_inst : entity work.M6522
+	uc1_via6522_inst : entity work.C1541_M6522
 	port map
 	(
-		I_RS            => std_logic_vector(cpu_a(3 downto 0)),
-		I_DATA          => std_logic_vector(cpu_do),
+		I_RS            => cpu_a(3 downto 0),
+		I_DATA          => cpu_do,
 		O_DATA          => uc1_do,
 		O_DATA_OE_L     => open,
 
-		I_RW_L          => not cpu_rw,
+		I_RW_L          => cpu_rw,
 		I_CS1           => uc1_cs1,
 		I_CS2_L         => uc1_cs2_n,
 
@@ -320,15 +317,15 @@ begin
 		ENA_4           => clk_4M_en      -- 4x system clock (4MHZ)   _-_-_-_-_-
 	);
 
-	uc3_via6522_inst : entity work.M6522
+	uc3_via6522_inst : entity work.C1541_M6522
 	port map
 	(
-		I_RS            => std_logic_vector(cpu_a(3 downto 0)),
-		I_DATA          => std_logic_vector(cpu_do),
+		I_RS            => cpu_a(3 downto 0),
+		I_DATA          => cpu_do,
 		O_DATA          => uc3_do,
 		O_DATA_OE_L     => open,
 
-		I_RW_L          => not cpu_rw,
+		I_RW_L          => cpu_rw,
 		I_CS1           => cpu_a(11),
 		I_CS2_L         => uc3_cs2_n,
 

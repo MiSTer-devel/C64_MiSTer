@@ -612,11 +612,6 @@ begin
 -- 6510 CPU
 -- -----------------------------------------------------------------------
 	cpu: entity work.cpu_6510
-		generic map (
-			pipelineOpcode => false,
-			pipelineAluMux => false,
-			pipelineAluOut => false
-		)
 		port map (
 			clk => clk32,
 			reset => reset,
@@ -631,14 +626,7 @@ begin
 			we => cpuWe,
 			
 			diIO => "00010111",
-			doIO => cpuIO,
-
-			debugOpcode => open,
-			debugPc => open,
-			debugA => open,
-			debugX => open,
-			debugY => open,
-			debugS => open
+			doIO => cpuIO
 		);
 
 -- -----------------------------------------------------------------------

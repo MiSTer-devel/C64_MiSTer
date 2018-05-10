@@ -1,0 +1,6 @@
+set_global_assignment -name VHDL_FILE c1541/c1541_m6522.vhd
+set_global_assignment -name VHDL_FILE c1541/c1541_rom.vhd
+set_global_assignment -name VHDL_FILE c1541/gcr_floppy.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE c1541/c1541_track.sv
+set_global_assignment -name VHDL_FILE c1541/c1541_logic.vhd
+set_global_assignment -name VHDL_FILE c1541/c1541_sd.vhd

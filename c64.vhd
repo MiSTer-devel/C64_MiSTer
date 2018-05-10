@@ -146,7 +146,7 @@ constant CONF_STR : string :=
 	"OB,BIOS,C64,C64GS;" &
 	"R5,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
-	"V0,v0.27.50";
+	"V0,v0.27.55";
 
 ---------
 -- ARM IO
@@ -857,9 +857,9 @@ begin
 	);
 
 
-   c64_iec_atn_i  <= not ((not c64_iec_atn_o)  and (not c1541_iec_atn_o) );
-   c64_iec_data_i <= not ((not c64_iec_data_o) and (not c1541_iec_data_o));
-	c64_iec_clk_i  <= not ((not c64_iec_clk_o)  and (not c1541_iec_clk_o) );
+   c64_iec_atn_i  <= c64_iec_atn_o  or c1541_iec_atn_o;
+   c64_iec_data_i <= c64_iec_data_o or c1541_iec_data_o;
+	c64_iec_clk_i  <= c64_iec_clk_o  or c1541_iec_clk_o;
 
 	c1541_iec_atn_i  <= c64_iec_atn_i;
 	c1541_iec_data_i <= c64_iec_data_i;
@@ -889,6 +889,7 @@ begin
 		clk32 => clk32,
 		reset => c1541_reset,
 
+		c1541rom_clk => clk32,
 		c1541rom_addr => ioctl_addr(13 downto 0),
 		c1541rom_data => ioctl_data,
 		c1541rom_wr => c1541rom_wr,
@@ -917,7 +918,7 @@ begin
 		led => LED_USER
 	);
 
-	comp_sync : entity work.composite_sync
+	comp_sync : entity work.video_sync
 	port map
 	(
 		clk32 => clk32,

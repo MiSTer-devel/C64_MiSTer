@@ -55,15 +55,16 @@ port
 
 	led            : out std_logic;
 
+	c1541rom_clk   : in std_logic;
 	c1541rom_addr  : in  std_logic_vector(13 downto 0);
 	c1541rom_data  : in  std_logic_vector(7 downto 0);
 	c1541rom_wr    : in  std_logic
 );
-end c1541_sd;
+end;
 
 architecture struct of c1541_sd is
 
-	component sd_card port
+	component c1541_track port
 	(
 		sd_lba         : out std_logic_vector(31 downto 0);
 		sd_rd          : out std_logic;
@@ -89,7 +90,7 @@ architecture struct of c1541_sd is
 		clk            : in  std_logic;     -- System clock
 		reset          : in  std_logic
 	);
-	end component sd_card;
+	end component;
 
 	signal buff_dout  : std_logic_vector(7 downto 0);
 	signal buff_din   : std_logic_vector(7 downto 0);
@@ -151,6 +152,7 @@ begin
 		sb_clk_in  => not iec_clk_i,
 		sb_atn_in  => not iec_atn_i,
     
+		c1541rom_clk  => c1541rom_clk,
 		c1541rom_addr => c1541rom_addr,
 		c1541rom_data => c1541rom_data,
 		c1541rom_wr   => c1541rom_wr,
@@ -193,7 +195,7 @@ begin
 		ram_ready   => not sd_busy
 	);
 
-	sd : sd_card
+	track_buf : c1541_track
 	port map
 	(
 		sd_lba  => sd_lba,

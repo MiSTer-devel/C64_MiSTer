@@ -11,7 +11,7 @@ use IEEE.std_logic_1164.all;
 use IEEE.std_logic_unsigned.all;
 use IEEE.numeric_std.all;
 
-entity composite_sync is
+entity video_sync is
 port(
 	clk32 : in std_logic;
 	hsync : in std_logic;
@@ -22,9 +22,9 @@ port(
 	hblank : out std_logic;
 	vblank : out std_logic
 );
-end composite_sync ;
+end;
 
-architecture struct of composite_sync is
+architecture struct of video_sync is
 
 	signal clk_cnt : std_logic_vector(1 downto 0);
 	signal vsync_r : std_logic;

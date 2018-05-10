@@ -1,5 +1,5 @@
 // 
-// sd_card.v
+// c1541_track.v
 //
 // Copyright (c) 2016 Sorgelig
 //
@@ -19,7 +19,7 @@
 //
 /////////////////////////////////////////////////////////////////////////
 
-module sd_card
+module c1541_track
 (
 	input         clk,
 	input         reset,

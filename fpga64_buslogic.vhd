@@ -99,8 +99,7 @@ architecture rtl of fpga64_buslogic is
 		);
 	end component;
 
-	signal charData: unsigned(7 downto 0);
-	signal basicData: unsigned(7 downto 0);
+	signal charData: std_logic_vector(7 downto 0);
 	signal romData: std_logic_vector(7 downto 0);
 	signal romData_c64: std_logic_vector(7 downto 0);
 	signal romData_c64gs: std_logic_vector(7 downto 0);
@@ -126,44 +125,42 @@ architecture rtl of fpga64_buslogic is
 	signal currentAddr: unsigned(15 downto 0);
 	
 begin
-	charrom: entity work.rom_c64_chargen
-		port map (
-			clk => clk,
-			addr => currentAddr(11 downto 0),
-			do => charData
-		);
+	chargen: entity work.dprom
+	generic map ("roms/chargen.mif", 12)
+	port map
+	(
+		wrclock => clk,
+		rdclock => clk,
 
-	kernel_c64: entity work.rom_C64
-		generic map (
-			ROM_FILE => "roms/std_C64.mif"
-		)
-		port map 
-		(
-			clock => clk,
+		rdaddress => std_logic_vector(currentAddr(11 downto 0)),
+		q => charData
+	);
 
-			wren => c64rom_wr,
-			data => c64rom_data,
-			wraddress => c64rom_addr,
+	kernel_c64gs: entity work.dprom
+	generic map ("roms/std_C64GS.mif", 14)
+	port map
+	(
+		wrclock => clk,
+		rdclock => clk,
 
-			rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
-			q => romData_c64
-		);
-	
-	kernel_c64gs: entity work.rom_C64
-		generic map (
-			ROM_FILE => "roms/std_C64GS.mif"
-		)
-		port map 
-		(
-			clock => clk,
+		rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
+		q => romData_c64gs
+	);
 
-			wren => '0',
-			data => (others => '0'),
-			wraddress => (others => '0'),
+	kernel_c64: entity work.dprom
+	generic map ("roms/std_C64.mif", 14)
+	port map
+	(
+		wrclock => clk,
+		rdclock => clk,
 
-			rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
-			q => romData_c64gs
-		);
+		wren => c64rom_wr,
+		data => c64rom_data,
+		wraddress => c64rom_addr,
+
+		rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
+		q => romData_c64
+	);
 
 	romData <= romData_c64gs when c64gs_ena = '1' else romData_c64;
 	process(clk)
@@ -189,7 +186,7 @@ begin
 		-- It will contain the last data read by the VIC. (if a C64 is shielded correctly)
 		dataToCpu <= lastVicData;
 		if cs_CharReg = '1' then	
-			dataToCpu <= charData;
+			dataToCpu <= unsigned(charData);
 		elsif cs_romReg = '1' then	
 			dataToCpu <= unsigned(romData);
 		elsif cs_ramReg = '1' then
@@ -348,6 +345,6 @@ begin
 	cs_romH <= cs_romHReg;
 	cs_UMAXromH <= cs_UMAXromHReg;
 
-	dataToVic  <= charData when vicCharReg = '1' else ramData;
+	dataToVic  <= unsigned(charData) when vicCharReg = '1' else ramData;
 	systemAddr <= currentAddr;
 end architecture;
