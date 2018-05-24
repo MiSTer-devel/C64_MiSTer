@@ -346,7 +346,6 @@ component opl port
 end component opl;
 
 
-	signal c1541_reset      : std_logic;
 	signal idle             : std_logic;
 	signal ces              : std_logic_vector(3 downto 0);
 	signal iec_cycle        : std_logic;
@@ -438,19 +437,17 @@ end component opl;
 	
 	signal ps2_key        : std_logic_vector(10 downto 0);
 	
-	signal c64_iec_atn_i  : std_logic;
 	signal c64_iec_clk_o  : std_logic;
 	signal c64_iec_data_o : std_logic;
 	signal c64_iec_atn_o  : std_logic;
-	signal c64_iec_data_i : std_logic;
-	signal c64_iec_clk_i  : std_logic;
 
-	signal c1541_iec_atn_i  : std_logic;
+	signal iec_atn_i      : std_logic;
+	signal iec_data_i     : std_logic;
+	signal iec_clk_i      : std_logic;
+
 	signal c1541_iec_clk_o  : std_logic;
 	signal c1541_iec_data_o : std_logic;
 	signal c1541_iec_atn_o  : std_logic;
-	signal c1541_iec_data_i : std_logic;
-	signal c1541_iec_clk_i  : std_logic;
 
 	alias  c64_addr_int : unsigned is unsigned(c64_addr);
 	alias  c64_data_in_int   : unsigned is unsigned(c64_data_in);
@@ -847,47 +844,24 @@ begin
 		iec_data_o => c64_iec_data_o,
 		iec_atn_o  => c64_iec_atn_o,
 		iec_clk_o  => c64_iec_clk_o,
-		iec_data_i => not c64_iec_data_i,
-		iec_clk_i  => not c64_iec_clk_i,
-		iec_atn_i  => not c64_iec_atn_i,
+		iec_data_i => not iec_data_i,
+		iec_clk_i  => not iec_clk_i,
+		iec_atn_i  => not iec_atn_i,
 		c64rom_addr => ioctl_addr(13 downto 0),
 		c64rom_data => ioctl_data,
 		c64rom_wr => c64rom_wr,
 		reset_key => reset_key
 	);
 
-
-   c64_iec_atn_i  <= c64_iec_atn_o  or c1541_iec_atn_o;
-   c64_iec_data_i <= c64_iec_data_o or c1541_iec_data_o;
-	c64_iec_clk_i  <= c64_iec_clk_o  or c1541_iec_clk_o;
-
-	c1541_iec_atn_i  <= c64_iec_atn_i;
-	c1541_iec_data_i <= c64_iec_data_i;
-	c1541_iec_clk_i  <= c64_iec_clk_i;
-
-	process(clk32, reset_n)
-		variable reset_cnt : integer range 0 to 100000;
-	begin
-		if reset_n = '0' then
-			reset_cnt := 100000;
-		elsif rising_edge(clk32) then
-			if reset_cnt /= 0 then
-				reset_cnt := reset_cnt - 1;
-			end if;
-		end if;
-
-		if reset_cnt = 0 then
-			c1541_reset <= '0';
-		else 
-			c1541_reset <= '1';
-		end if;
-	end process;
+   iec_atn_i  <= c64_iec_atn_o  or c1541_iec_atn_o;
+   iec_data_i <= c64_iec_data_o or c1541_iec_data_o;
+	iec_clk_i  <= c64_iec_clk_o  or c1541_iec_clk_o;
 
 	c1541_sd : entity work.c1541_sd
 	port map
 	(
 		clk32 => clk32,
-		reset => c1541_reset,
+		reset => not reset_n,
 
 		c1541rom_clk => clk32,
 		c1541rom_addr => ioctl_addr(13 downto 0),
@@ -897,9 +871,9 @@ begin
 		disk_change => sd_change, 
 		disk_readonly => disk_readonly,
 
-		iec_atn_i  => c1541_iec_atn_i,
-		iec_data_i => c1541_iec_data_i,
-		iec_clk_i  => c1541_iec_clk_i,
+		iec_atn_i  => iec_atn_i,
+		iec_data_i => iec_data_i,
+		iec_clk_i  => iec_clk_i,
 
 		iec_atn_o  => c1541_iec_atn_o,
 		iec_data_o => c1541_iec_data_o,
