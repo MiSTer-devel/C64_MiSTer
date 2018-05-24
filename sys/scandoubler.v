@@ -52,7 +52,7 @@ module scandoubler #(parameter LENGTH, parameter HALF_DEPTH)
 
 localparam DWIDTH = HALF_DEPTH ? 3 : 7;
 
-assign vs_out = vs_in;
+assign vs_out = vso[3];
 assign ce_pix_out = ce_x4;
 
 //Compensate picture shift after HQ2x
@@ -117,6 +117,7 @@ reg [DWIDTH:0] r_d;
 reg [DWIDTH:0] g_d;
 reg [DWIDTH:0] b_d;
 
+reg [3:0] vso;
 
 always @(posedge clk_sys) begin
 
@@ -143,6 +144,7 @@ always @(posedge clk_sys) begin
 
 		// falling edge of hsync indicates start of line
 		if(hs && !hs_in) begin
+			vso <= (vso<<1) | vs_in;
 			hs_max <= {hcnt,1'b1};
 			hcnt <= 0;
 		end else begin

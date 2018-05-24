@@ -457,9 +457,6 @@ end component opl;
 	signal clk32     : std_logic;
 	signal clk64     : std_logic;
 	signal clk_opl   : std_logic;
-	signal clkdiv    : std_logic_vector(9 downto 0);
-	signal ce_8      : std_logic;
-	signal ce_4      : std_logic;
 	signal hq2x160   : std_logic;
 
 	signal sysram_ce        : std_logic;
@@ -469,6 +466,7 @@ end component opl;
 
 	signal scandoubler : std_logic;
 	signal forced_scandoubler : std_logic;
+	signal clkdivpix : std_logic_vector(3 downto 0);
 	signal ce_pix    : std_logic;
 	signal r,g,b     : unsigned(7 downto 0);
 	signal hsync     : std_logic;
@@ -713,23 +711,6 @@ begin
 	c64rom_wr   <= ioctl_wr when (ioctl_index = 0) and (ioctl_addr(14) = '0') and (ioctl_download = '1') else '0';
 	c1541rom_wr <= ioctl_wr when (ioctl_index = 0) and (ioctl_addr(14) = '1') and (ioctl_download = '1') else '0';
 
-	process(clk32)
-	begin
-		if rising_edge(clk32) then
-			clkdiv <= std_logic_vector(unsigned(clkdiv)+1);
-			if(clkdiv(1 downto 0) = "00") then
-				ce_8 <= '1';
-			else
-				ce_8 <= '0';
-			end if;
-			if(clkdiv(2 downto 0) = "000") then
-				ce_4 <= '1';
-			else
-				ce_4 <= '0';
-			end if;
-		end if;
-	end process;
-
 	mainpll : pll
 	port map(
 		refclk   => CLK_50M,
@@ -892,7 +873,7 @@ begin
 		led => LED_USER
 	);
 
-	comp_sync : entity work.video_sync
+	sync : entity work.video_sync
 	port map
 	(
 		clk32 => clk32,
@@ -904,9 +885,6 @@ begin
 		hblank => hblank,
 		vblank => vblank
 	);
-
-	ce_pix <= ce_4 when hq2x160='1' else ce_8;
-	scandoubler <= '1' when (status(10 downto 8)/="000" or forced_scandoubler='1') else '0';
 
 	process(clk32)
 	begin
@@ -922,6 +900,10 @@ begin
 		end if;
 	end process;
 
+	clkdivpix <= clkdivpix+"1" when rising_edge(clk64);
+	ce_pix <= (not clkdivpix(3) or not hq2x160) and not clkdivpix(2) and not clkdivpix(1) and not clkdivpix(0);
+
+	scandoubler <= '1' when (status(10 downto 8)/="000" or forced_scandoubler='1') else '0';
 	scanlines <= "01" when status(10 downto 8) = "011" else "10" when status(10 downto 8) = "100" else "00";
 
 	vmixer : video_mixer

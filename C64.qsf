@@ -365,8 +365,7 @@ set_global_assignment -name VHDL_FILE spram.vhd
 set_global_assignment -name VERILOG_FILE sdram.v
 set_global_assignment -name VERILOG_FILE cartridge.v
 set_global_assignment -name VHDL_FILE video_sync.vhd
-set_global_assignment -name VHDL_FILE video_vicII_656x_e.vhd
-set_global_assignment -name VHDL_FILE video_vicII_656x_a.vhd
+set_global_assignment -name VHDL_FILE video_vicII_656x.vhd
 set_global_assignment -name VHDL_FILE fpga64_rgbcolor.vhd
 set_global_assignment -name VHDL_FILE fpga64_keyboard.vhd
 set_global_assignment -name VHDL_FILE fpga64_bustiming.vhd
