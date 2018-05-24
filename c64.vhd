@@ -137,16 +137,16 @@ constant CONF_STR : string :=
 	"F,CRT,Load Cartridge;" &
 	"-;" &
 	"O2,Video standard,PAL,NTSC;" &
-	"O4,Aspect ratio,4:3,16:9;" &
+	"O45,Aspect ratio,Original,Wide,Zoom;" &
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%;" &
 	"O6,Audio filter,On,Off;" &
 	"OC,Sound expander,No,OPL2;" &
 	"-;" &
-	"O3,Joystick,Port #2,Port #1;" &
+	"O3,Primary joystick,Port 2,Port 1;" &
 	"OB,BIOS,C64,C64GS;" &
-	"R5,Reset & Detach cartridge;" &
+	"R0,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
-	"V0,v0.27.55";
+	"V0,v0.27.56";
 
 ---------
 -- ARM IO
@@ -685,7 +685,7 @@ begin
 				erase_cram <= '1';
 			end if;
 
-			if status(5)='1' or buttons(1)='1' then
+			if status(0)='1' or buttons(1)='1' then
 				cart_attached <= '0';
 			end if;
 			
@@ -727,10 +727,10 @@ begin
 		if rising_edge(clk32) then
 			-- Reset by:
 			-- Button at device, IO controller reboot, OSD or FPGA startup
-			if status(0)='1' or pll_locked = '0' then
-				reset_counter <= 1000000;
+			if status(0)='1' or buttons(1)='1' or pll_locked = '0' then
+				reset_counter <= 100000;
 				reset_n <= '0';
-			elsif buttons(1)='1' or status(5)='1' or reset_key = '1' or reset_crt='1' or (ioctl_download='1' and ioctl_index = 3) then
+			elsif reset_key = '1' or reset_crt='1' or (ioctl_download='1' and ioctl_index = 3) then
 				reset_counter <= 255;
 				reset_n <= '0';
 			elsif ioctl_download ='1' then
@@ -880,6 +880,7 @@ begin
 		hsync => hsync,
 		vsync => vsync,
 		ntsc  => status(2),
+		wide  => status(5),
 		hsync_out => hsync_out,
 		vsync_out => vsync_out,
 		hblank => hblank,
@@ -960,8 +961,8 @@ begin
 	AUDIO_S    <= '1';
 	AUDIO_MIX  <= "00";
 
-	VIDEO_ARX  <= X"04" when (status(4) = '0') else X"10";
-	VIDEO_ARY  <= X"03" when (status(4) = '0') else X"09";
+	VIDEO_ARX  <= X"04" when (status(5 downto 4) = "00") else X"10";
+	VIDEO_ARY  <= X"03" when (status(5 downto 4) = "00") else X"09";
 
 	CLK_VIDEO  <= clk64;
 

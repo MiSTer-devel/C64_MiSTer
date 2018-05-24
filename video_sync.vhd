@@ -17,6 +17,7 @@ port(
 	hsync : in std_logic;
 	vsync : in std_logic;
 	ntsc  : in std_logic;
+	wide  : in std_logic;
 	hsync_out : out std_logic;
 	vsync_out : out std_logic;
 	hblank : out std_logic;
@@ -63,31 +64,43 @@ process(clk32)
 			end if;
 			
 			if ntsc = '1' then
-				if dot_count  = 510 then    hblank <= '1'; end if;
 				if dot_count  = 010 then hsync_out <= '1'; end if;
 				if dot_count  = 048 then hsync_out <= '0'; end if;
-				if dot_count  = 096 then    hblank <= '0'; end if;
-
-				if line_count = 000 then    vblank <= '1'; end if;
 				if line_count = 004 then vsync_out <= '1'; end if;
 				if line_count = 010 then vsync_out <= '0'; end if;
-				if line_count = 012 then    vblank <= '0'; end if;
+
+				if wide = '0' then
+					if dot_count  = 510 then hblank <= '1'; end if;
+					if dot_count  = 096 then hblank <= '0'; end if;
+					if line_count = 000 then vblank <= '1'; end if;
+					if line_count = 012 then vblank <= '0'; end if;
+				else
+					if dot_count  = 510 then hblank <= '1'; end if;
+					if dot_count  = 096 then hblank <= '0'; end if;
+					if line_count = 242 then vblank <= '1'; end if;
+					if line_count = 035 then vblank <= '0'; end if;
+				end if;
 			else
-				if dot_count  = 495 then    hblank <= '1'; end if;
 				if dot_count  = 010 then hsync_out <= '1'; end if;
 				if dot_count  = 048 then hsync_out <= '0'; end if;
-				if dot_count  = 094 then    hblank <= '0'; end if;
-
-				if line_count = 302 then    vblank <= '1'; end if;
 				if line_count = 002 then vsync_out <= '1'; end if;
 				if line_count = 010 then vsync_out <= '0'; end if;
-				if line_count = 022 then    vblank <= '0'; end if;
+
+				if wide = '0' then
+					if dot_count  = 482 then hblank <= '1'; end if;
+					if dot_count  = 108 then hblank <= '0'; end if;
+					if line_count = 302 then vblank <= '1'; end if;
+					if line_count = 022 then vblank <= '0'; end if;
+				else
+					if dot_count  = 478 then hblank <= '1'; end if;
+					if dot_count  = 112 then hblank <= '0'; end if;
+					if line_count = 266 then vblank <= '1'; end if;
+					if line_count = 059 then vblank <= '0'; end if;
+				end if;
 			end if;
 
 		end if;
 	end if;
 end process;
-
-
 
 end architecture;
