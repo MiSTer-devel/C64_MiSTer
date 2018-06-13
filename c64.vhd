@@ -121,7 +121,6 @@ component pll is
 		outclk_0 : out std_logic; -- clk
 		outclk_1 : out std_logic; -- clk
 		outclk_2 : out std_logic; -- clk
-		outclk_3 : out std_logic; -- clk
 		locked   : out std_logic  -- export
 	);
 end component pll;
@@ -146,7 +145,7 @@ constant CONF_STR : string :=
 	"OB,BIOS,C64,C64GS;" &
 	"R0,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
-	"V0,v0.27.56";
+	"V0,v0.27.57";
 
 ---------
 -- ARM IO
@@ -328,22 +327,24 @@ component cartridge port
 
 end component cartridge;
 
-component opl port
+component opl3 port
 (
     clk          : in  std_logic;
     clk_opl      : in  std_logic;
     rst_n        : in  std_logic;
     irq_n        : out std_logic;
 
-    fm_address   : in  std_logic_vector(1 downto 0);
-    fm_readdata  : out std_logic_vector(7 downto 0);
-    fm_write     : in  std_logic;
-    fm_writedata : in  std_logic_vector(7 downto 0);
+	 period_80us  : in  std_logic_vector(12 downto 0);
+
+    addr         : in  std_logic_vector(1 downto 0);
+    dout         : out std_logic_vector(7 downto 0);
+    we           : in  std_logic;
+    din          : in  std_logic_vector(7 downto 0);
 
     sample_l     : out signed(15 downto 0);
     sample_r     : out signed(15 downto 0)
 );
-end component opl;
+end component;
 
 
 	signal idle             : std_logic;
@@ -456,7 +457,6 @@ end component opl;
 	signal pll_locked: std_logic;
 	signal clk32     : std_logic;
 	signal clk64     : std_logic;
-	signal clk_opl   : std_logic;
 	signal hq2x160   : std_logic;
 
 	signal sysram_ce        : std_logic;
@@ -718,7 +718,6 @@ begin
 		outclk_0 => clk64,
 		outclk_1 => SDRAM_CLK,
 		outclk_2 => clk32,
-		outclk_3 => clk_opl,
 		locked   => pll_locked
 	);
 
@@ -938,17 +937,19 @@ begin
 	
 	opl_en <= status(12);
 
-	opl_inst : opl
+	opl_inst : opl3
 	port map
 	(
 		 clk => clk32,
-		 clk_opl => clk_opl,
+		 clk_opl => clk64,
 		 rst_n => reset_n,
+		 
+		 period_80us => std_logic_vector(to_unsigned(2560, 13)),
 
-		 fm_address => '0' & c64_addr(4),
-		 fm_readdata => opl_dout,
-		 fm_write => (not ram_we) and IOF and opl_en and c64_addr(6) and (not c64_addr(5)),
-		 fm_writedata => c64_data_out,
+		 addr => '0' & c64_addr(4),
+		 dout => opl_dout,
+		 we => (not ram_we) and IOF and opl_en and c64_addr(6) and (not c64_addr(5)),
+		 din => c64_data_out,
 
 		 sample_l => opl_out
 	);
