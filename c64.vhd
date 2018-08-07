@@ -138,6 +138,8 @@ constant CONF_STR : string :=
 	"O2,Video standard,PAL,NTSC;" &
 	"O45,Aspect ratio,Original,Wide,Zoom;" &
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%;" &
+	"-;" &
+	"OD,SID,6581,8580;" &
 	"O6,Audio filter,On,Off;" &
 	"OC,Sound expander,No,OPL2;" &
 	"-;" &
@@ -821,6 +823,7 @@ begin
 		idle => idle,
 		audio_data => audio_data,
 		extfilter_en => not status(6),
+		sid_ver => status(13),
 		iec_data_o => c64_iec_data_o,
 		iec_atn_o  => c64_iec_atn_o,
 		iec_clk_o  => c64_iec_clk_o,

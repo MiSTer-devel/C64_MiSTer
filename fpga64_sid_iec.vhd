@@ -98,6 +98,7 @@ entity fpga64_sid_iec is
 		still       : out unsigned(15 downto 0);
 		audio_data  : out std_logic_vector(17 downto 0);
 		extfilter_en: in  std_logic;
+		sid_ver     : in  std_logic;
 
 		-- IEC
 		iec_data_o	: out std_logic;
@@ -180,6 +181,8 @@ architecture rtl of fpga64_sid_iec is
 
 	-- SID signals
 	signal sid_do : std_logic_vector(7 downto 0);
+	signal sid_do6581 : std_logic_vector(7 downto 0);
+	signal sid_do8580 : std_logic_vector(7 downto 0);
 
 	-- CIA signals
 	signal enableCia : std_logic;
@@ -241,6 +244,28 @@ architecture rtl of fpga64_sid_iec is
 
 	signal clk_1MHz     : std_logic_vector(31 downto 0);
 	signal voice_volume : signed(17 downto 0);
+	signal pot_x        : std_logic_vector(7 downto 0);
+	signal pot_y        : std_logic_vector(7 downto 0);
+	signal audio_8580   : std_logic_vector(15 downto 0);
+
+	component sid8580
+		port (
+			clk32    : in std_logic;
+			reset    : in std_logic;
+			cs       : in std_logic;
+			we       : in std_logic;
+			addr     : in std_logic_vector(4 downto 0);
+			data_in  : in std_logic_vector(7 downto 0);
+			pot_x    : in std_logic_vector(7 downto 0);
+			pot_y    : in std_logic_vector(7 downto 0);
+
+			data_out   : out std_logic_vector(7 downto 0);
+			audio_data : out std_logic_vector(15 downto 0);
+
+			extfilter_en : in std_logic
+	  );
+	end component sid8580;
+
 begin
 -- -----------------------------------------------------------------------
 -- Local signal to outside world
@@ -531,10 +556,11 @@ begin
 			end if;
 		end if;
 	end process;
+	
+	audio_data <= std_logic_vector(voice_volume) when sid_ver='0' else (audio_8580 & "00");
+	sid_do     <= sid_do6581                     when sid_ver='0' else sid_do8580;
 
-	audio_data <= std_logic_vector(voice_volume);
-
-	sid: entity work.sid_top
+	sid_6581: entity work.sid_top
 	port map (
 		clock => clk32,
 		reset => reset,
@@ -542,7 +568,7 @@ begin
 		addr => "000" & cpuAddr(4 downto 0),
 		wren => pulseWrRam and phi0_cpu and cs_sid,
 		wdata => std_logic_vector(cpuDo),
-		rdata => sid_do,
+		rdata => sid_do6581,
 		
 		potx => not std_logic((cia1_pao(7) and JoyA(5)) or (cia1_pao(6) and JoyB(5))),
 		poty => not std_logic((cia1_pao(7) and JoyA(6)) or (cia1_pao(6) and JoyB(6))),
@@ -556,6 +582,24 @@ begin
 		sample_left => voice_volume,
 		sample_right => open
 	);
+
+	pot_x <= X"FF" when (not std_logic((cia1_pao(7) and JoyA(5)) or (cia1_pao(6) and JoyB(5)))) = '1' else X"00";
+	pot_y <= X"FF" when (not std_logic((cia1_pao(7) and JoyA(6)) or (cia1_pao(6) and JoyB(6)))) = '1' else X"00";
+
+	sid_8580 : sid8580
+	port map (
+		clk32 => clk32,
+		reset => reset,
+		cs => cs_sid,
+		we => pulseWrRam and phi0_cpu,
+		addr => std_logic_vector(cpuAddr(4 downto 0)),
+		data_in => std_logic_vector(cpuDo),
+		data_out => sid_do8580,
+		pot_x => pot_x,
+		pot_y => pot_y,
+		audio_data => audio_8580,
+		extfilter_en => extfilter_en
+	);	
 
 -- -----------------------------------------------------------------------
 -- CIAs
