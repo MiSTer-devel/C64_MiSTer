@@ -106,7 +106,6 @@ entity fpga64_sid_iec is
 		iec_clk_o	: out std_logic;
 		iec_clk_i	: in  std_logic;
 		iec_atn_o	: out std_logic;
-		iec_atn_i	: in  std_logic;
 		
 		c64rom_addr : in std_logic_vector(13 downto 0);
 		c64rom_data : in std_logic_vector(7 downto 0);
@@ -767,9 +766,9 @@ begin
 		end if;
 		if rising_edge(clk32) then
 			if sysCycle = CYCLE_IEC1 then
-				cia2_pai(7) <= iec_data_i;
-				cia2_pai(6) <= iec_clk_i;
-			end if;	
+				cia2_pai(7) <= not(iec_data_i or cia2_pao(5));
+				cia2_pai(6) <= not(iec_clk_i or cia2_pao(4));
+			end if;
 		end if;
 	end process;
 

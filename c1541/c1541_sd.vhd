@@ -1,21 +1,18 @@
 ---------------------------------------------------------------------------------
--- Commodore 1541 to SD card (read only) by Dar (darfpga@aol.fr) 02-April-2015
+--
+-- Reworked and adapted to MiSTer by Sorgelig@MiSTer (31.08.2018)
+--
+-- Commodore 1541 to SD card by Dar (darfpga@aol.fr)
 -- http://darfpga.blogspot.fr
 --
--- c1541_sd reads D64 data from raw SD card, produces GCR data, feeds c1541_logic
--- Raw SD data : each D64 image must start on 256KB boundaries
--- disk_num allow to select D64 image
---
 -- c1541_logic    from : Mark McDougall
--- spi_controller from : Michel Stempin, Stephen A. Edwards
--- via6522        from : Arnim Laeuger, Mark McDougall, MikeJ
+-- via6522        from : Gideon Zweijtzer  <gideon.zweijtzer@gmail.com>
+-- cpu            from : Gideon Zweijtzer  <gideon.zweijtzer@gmail.com>
+-- c1541_track    from : Sorgelig@MiSTer
 --
 -- c1541_logic    modified for : slow down CPU (EOI ack missed by real c64)
 --                             : remove iec internal OR wired
 --                             : synched atn_in (sometime no IRQ with real c64)
--- spi_controller modified for : sector start and size adapted + busy signal
--- via6522        modified for : no modification
---
 --
 -- Input clk 32MHz
 --
@@ -29,17 +26,16 @@ use IEEE.numeric_std.all;
 entity c1541_sd is
 port
 (
-	clk32          : in std_logic;
-	reset          : in std_logic;
+	clk32          : in  std_logic;
 
-	disk_change    : in std_logic;
-	disk_readonly  : in std_logic;
+	disk_change    : in  std_logic;
+	disk_readonly  : in  std_logic;
+	drive_num      : in  std_logic_vector(1 downto 0) := "00";
 
-	iec_atn_i      : in std_logic;
-	iec_data_i     : in std_logic;
-	iec_clk_i      : in std_logic;
-
-	iec_atn_o      : out std_logic;
+	iec_reset_i    : in  std_logic;
+	iec_atn_i      : in  std_logic;
+	iec_data_i     : in  std_logic;
+	iec_clk_i      : in  std_logic;
 	iec_data_o     : out std_logic;
 	iec_clk_o      : out std_logic;
 
@@ -55,7 +51,7 @@ port
 
 	led            : out std_logic;
 
-	c1541rom_clk   : in std_logic;
+	c1541rom_clk   : in  std_logic;
 	c1541rom_addr  : in  std_logic_vector(13 downto 0);
 	c1541rom_data  : in  std_logic_vector(7 downto 0);
 	c1541rom_wr    : in  std_logic
@@ -66,29 +62,29 @@ architecture struct of c1541_sd is
 
 	component c1541_track port
 	(
-		sd_lba         : out std_logic_vector(31 downto 0);
-		sd_rd          : out std_logic;
-		sd_wr          : out std_logic;
-		sd_ack         : in  std_logic;
+		sd_lba       : out std_logic_vector(31 downto 0);
+		sd_rd        : out std_logic;
+		sd_wr        : out std_logic;
+		sd_ack       : in  std_logic;
 
-		sd_buff_addr   : in  std_logic_vector(8 downto 0);
-		sd_buff_dout   : in  std_logic_vector(7 downto 0);
-		sd_buff_din    : out std_logic_vector(7 downto 0);
-		sd_buff_wr     : in  std_logic;
+		sd_buff_addr : in  std_logic_vector(8 downto 0);
+		sd_buff_dout : in  std_logic_vector(7 downto 0);
+		sd_buff_din  : out std_logic_vector(7 downto 0);
+		sd_buff_wr   : in  std_logic;
 
-		buff_addr      : in  std_logic_vector(7 downto 0);
-		buff_dout      : out std_logic_vector(7 downto 0);
-		buff_din       : in  std_logic_vector(7 downto 0);
-		buff_we        : in  std_logic;
+		buff_addr    : in  std_logic_vector(7 downto 0);
+		buff_dout    : out std_logic_vector(7 downto 0);
+		buff_din     : in  std_logic_vector(7 downto 0);
+		buff_we      : in  std_logic;
 
-		save_track     : in  std_logic;
-		change         : in  std_logic;                     -- Force reload as disk may have changed
-		track          : in  std_logic_vector(5 downto 0);  -- Track number (0-34)
-		sector         : in  std_logic_vector(4 downto 0);  -- Sector number (0-20)
-		busy           : out std_logic;
+		save_track   : in  std_logic;
+		change       : in  std_logic;                     -- Force reload as disk may have changed
+		track        : in  std_logic_vector(5 downto 0);  -- Track number (0-34)
+		sector       : in  std_logic_vector(4 downto 0);  -- Sector number (0-20)
+		busy         : out std_logic;
 
-		clk            : in  std_logic;     -- System clock
-		reset          : in  std_logic
+		clk          : in  std_logic;     -- System clock
+		reset        : in  std_logic
 	);
 	end component;
 
@@ -111,17 +107,26 @@ architecture struct of c1541_sd is
 	signal track_num_dbl : std_logic_vector(6 downto 0);
 	signal track      : std_logic_vector(5 downto 0);
 	
-	signal tr00_sense_n     : std_logic;
-	signal save_track       : std_logic;
-	signal track_modified   : std_logic;
+	signal tr00_sense_n   : std_logic;
+	signal save_track     : std_logic;
+	signal track_modified : std_logic;
 
-	signal ch_timeout : integer := 0;
-	signal prev_change : std_logic := '0';
-	signal ch_state : std_logic := '0';
+	signal ch_timeout     : integer := 0;
+	signal prev_change    : std_logic := '0';
+	signal ch_state       : std_logic := '0';
+	
+	signal reset, reset_r : std_logic;
 begin
 	
 	tr00_sense_n <= '1' when (track > "000000") else '0';
 	
+	process(clk32) begin
+		if rising_edge(clk32) then
+			reset_r <= iec_reset_i;
+			reset   <= reset_r;
+		end if;
+	end process;
+
 	process(clk32) begin
 		if rising_edge(clk32) then
 			prev_change <= disk_change;
@@ -144,13 +149,12 @@ begin
 		reset => reset,
 
 		-- serial bus
-		sb_data_oe => iec_data_o,
-		sb_clk_oe  => iec_clk_o,
-		sb_atn_oe  => iec_atn_o,
+		sb_data_oe    => iec_data_o,
+		sb_clk_oe     => iec_clk_o,
 		
-		sb_data_in => not iec_data_i,
-		sb_clk_in  => not iec_clk_i,
-		sb_atn_in  => not iec_atn_i,
+		sb_data_in    => not iec_data_i,
+		sb_clk_in     => not iec_clk_i,
+		sb_atn_in     => not iec_atn_i,
     
 		c1541rom_clk  => c1541rom_clk,
 		c1541rom_addr => c1541rom_addr,
@@ -158,7 +162,7 @@ begin
 		c1541rom_wr   => c1541rom_wr,
 
 		-- drive-side interface
-		ds            => "00",   -- device select
+		ds            => drive_num, -- device select
 		di            => do,     -- disk read data
 		do            => di,     -- disk write data
 		mode          => mode,   -- read/write
@@ -175,52 +179,52 @@ begin
 	floppy : entity work.gcr_floppy
 	port map
 	(
-		clk32       => clk32,
+		clk32     => clk32,
 
-		dout        => do,     -- disk read data
-		din         => di,
-		mode        => mode,
-		mtr         => mtr,    -- stepper motor on/off
-		sync_n      => sync_n, -- reading SYNC bytes
-		byte_n      => byte_n, -- byte ready
+		dout      => do,     -- disk read data
+		din       => di,
+		mode      => mode,
+		mtr       => mtr,    -- stepper motor on/off
+		sync_n    => sync_n, -- reading SYNC bytes
+		byte_n    => byte_n, -- byte ready
 		
-		track       => track,
-		sector      => sector,
+		track     => track,
+		sector    => sector,
 
-		byte_addr   => byte_addr,
-		ram_do      => buff_dout,
-		ram_di      => buff_din,
-		ram_we      => buff_we,
+		byte_addr => byte_addr,
+		ram_do    => buff_dout,
+		ram_di    => buff_din,
+		ram_we    => buff_we,
 
-		ram_ready   => not sd_busy
+		ram_ready => not sd_busy
 	);
 
 	track_buf : c1541_track
 	port map
 	(
-		sd_lba  => sd_lba,
-		sd_rd   => sd_rd,
-		sd_wr   => sd_wr,
-		sd_ack  => sd_ack,
+		sd_lba       => sd_lba,
+		sd_rd        => sd_rd,
+		sd_wr        => sd_wr,
+		sd_ack       => sd_ack,
 
 		sd_buff_addr => sd_buff_addr,
 		sd_buff_dout => sd_buff_dout,
 		sd_buff_din  => sd_buff_din,
 		sd_buff_wr   => sd_buff_wr,
 
-		buff_addr => byte_addr,
-		buff_dout => buff_dout,
-		buff_din  => buff_din,
-		buff_we   => buff_we,
+		buff_addr    => byte_addr,
+		buff_dout    => buff_dout,
+		buff_din     => buff_din,
+		buff_we      => buff_we,
 
-		save_track => save_track,
-		change  => disk_change,
-		track   => track,
-		sector  => sector,
+		save_track   => save_track,
+		change       => disk_change,
+		track        => track,
+		sector       => sector,
 
-		clk     => clk32,
-		reset   => reset, 
-		busy    => sd_busy
+		clk          => clk32,
+		reset        => reset, 
+		busy         => sd_busy
 	);
 
 	led <= act or sd_busy;
@@ -241,7 +245,7 @@ begin
 				track_modified <= '0';
 			else
 				if mtr = '1' then
-					if(  (stp_r = "00" and stp = "10")
+					if(   (stp_r = "00" and stp = "10")
 						or (stp_r = "10" and stp = "01")
 						or (stp_r = "01" and stp = "11")
 						or (stp_r = "11" and stp = "00")) then
@@ -252,7 +256,7 @@ begin
 							track_modified <= '0';
 					end if;
 
-					if(  (stp_r = "00" and stp = "11")
+					if(   (stp_r = "00" and stp = "11")
 						or (stp_r = "10" and stp = "00")
 						or (stp_r = "01" and stp = "10")
 						or (stp_r = "11" and stp = "01")) then 

@@ -1,6 +1,5 @@
 // 
-// c1541_track.v
-//
+// c1541_track
 // Copyright (c) 2016 Sorgelig
 //
 // This source file is free software: you can redistribute it and/or modify

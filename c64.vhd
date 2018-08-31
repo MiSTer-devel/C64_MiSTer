@@ -147,7 +147,7 @@ constant CONF_STR : string :=
 	"OB,BIOS,C64,C64GS;" &
 	"R0,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
-	"V0,v0.27.57";
+	"V0,v0.27.58";
 
 ---------
 -- ARM IO
@@ -443,14 +443,8 @@ end component;
 	signal c64_iec_clk_o  : std_logic;
 	signal c64_iec_data_o : std_logic;
 	signal c64_iec_atn_o  : std_logic;
-
-	signal iec_atn_i      : std_logic;
-	signal iec_data_i     : std_logic;
-	signal iec_clk_i      : std_logic;
-
 	signal c1541_iec_clk_o  : std_logic;
 	signal c1541_iec_data_o : std_logic;
-	signal c1541_iec_atn_o  : std_logic;
 
 	alias  c64_addr_int : unsigned is unsigned(c64_addr);
 	alias  c64_data_in_int   : unsigned is unsigned(c64_data_in);
@@ -827,24 +821,18 @@ begin
 		iec_data_o => c64_iec_data_o,
 		iec_atn_o  => c64_iec_atn_o,
 		iec_clk_o  => c64_iec_clk_o,
-		iec_data_i => not iec_data_i,
-		iec_clk_i  => not iec_clk_i,
-		iec_atn_i  => not iec_atn_i,
+		iec_data_i => c1541_iec_data_o,
+		iec_clk_i  => c1541_iec_clk_o,
 		c64rom_addr => ioctl_addr(13 downto 0),
 		c64rom_data => ioctl_data,
 		c64rom_wr => c64rom_wr,
 		reset_key => reset_key
 	);
 
-   iec_atn_i  <= c64_iec_atn_o  or c1541_iec_atn_o;
-   iec_data_i <= c64_iec_data_o or c1541_iec_data_o;
-	iec_clk_i  <= c64_iec_clk_o  or c1541_iec_clk_o;
-
 	c1541_sd : entity work.c1541_sd
 	port map
 	(
 		clk32 => clk32,
-		reset => not reset_n,
 
 		c1541rom_clk => clk32,
 		c1541rom_addr => ioctl_addr(13 downto 0),
@@ -854,19 +842,17 @@ begin
 		disk_change => sd_change, 
 		disk_readonly => disk_readonly,
 
-		iec_atn_i  => iec_atn_i,
-		iec_data_i => iec_data_i,
-		iec_clk_i  => iec_clk_i,
-
-		iec_atn_o  => c1541_iec_atn_o,
+		iec_atn_i  => c64_iec_atn_o,
+		iec_data_i => c64_iec_data_o,
+		iec_clk_i  => c64_iec_clk_o,
 		iec_data_o => c1541_iec_data_o,
 		iec_clk_o  => c1541_iec_clk_o,
+		iec_reset_i=> not reset_n,
 
 		sd_lba => sd_lba,
 		sd_rd  => sd_rd,
 		sd_wr  => sd_wr,
 		sd_ack => sd_ack,
-
 		sd_buff_addr => sd_buff_addr,
 		sd_buff_dout => sd_buff_dout,
 		sd_buff_din  => sd_buff_din,
