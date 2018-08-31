@@ -24,8 +24,8 @@ port (
     wdata         : in  std_logic_vector(7 downto 0);
     rdata         : out std_logic_vector(7 downto 0);
     
-    potx          : in  std_logic;
-    poty          : in  std_logic;
+    potx          : in  std_logic_vector(7 downto 0);
+    poty          : in  std_logic_vector(7 downto 0);
 
 ---
     comb_wave_l   : in  std_logic;
@@ -205,8 +205,8 @@ begin
 
             -- Readback (unmapped address)
             case addr is
-            when "00011001" => rdata <= potx & potx & potx & potx & potx & potx & potx & potx;
-            when "00011010" => rdata <= poty & poty & poty & poty & poty & poty & poty & poty;
+            when "00011001" => rdata <= potx;
+            when "00011010" => rdata <= poty;
             when "00011011" => rdata <= osc3;
             when "00011100" => rdata <= env3;
             when others     => rdata <= (others => '0');

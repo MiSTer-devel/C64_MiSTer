@@ -42,7 +42,7 @@ assign divmul[15] = 395;
 
 wire [35:0] mul1 = w0 * Vhp;
 wire [35:0] mul2 = w0 * Vbp;
-wire [35:0] mul3 = q * Vbp;
+wire [35:0] mul3 = q  * Vbp;
 wire [35:0] mul4 = 18'd82355 * ({Fc_hi, Fc_lo[2:0]} + 1'b1);
 
 // Filter
@@ -65,6 +65,7 @@ always @(posedge clk) begin
 	else begin
 		case (state)
 			0:	if (input_valid) begin
+					if(mulr[21] == mulr[20]) sound <= mulr[20:5];
 					state <= state + 1'd1;
 					Vi <= 0;
 					Vnf <= 0;
@@ -75,12 +76,12 @@ always @(posedge clk) begin
 					w0 <= {mul4[35], mul4[28:12]};
 					if (Res_Filt[0]) Vi  <= Vi  + (voice1 << 2);
 					else             Vnf <= Vnf + (voice1 << 2);
-          end
+				end
 			3: begin
 					state <= state + 1'd1;
 					if (Res_Filt[1]) Vi  <= Vi  + (voice2 << 2);
 					else             Vnf <= Vnf + (voice2 << 2);
-          end
+				end
 			4: begin
 					state <= state + 1'd1;
 					if (Res_Filt[2])       Vi  <= Vi  + (voice3 << 2);
@@ -103,7 +104,7 @@ always @(posedge clk) begin
 			7: begin
 					state <= state + 1'd1;
 					Vhp <= {mul3[35], mul3[26:10]} - Vlp;
-					Vf <= (Mode_Vol[4]) ? Vf + Vlp : Vf;
+					if(Mode_Vol[4]) Vf <= Vf + Vlp;
 				end
 			8: begin
 					state <= state + 1'd1;
@@ -111,19 +112,15 @@ always @(posedge clk) begin
 				end
 			9: begin
 					state <= state + 1'd1;
-					Vf <= (Mode_Vol[6]) ? Vf + Vhp : Vf;
+					if(Mode_Vol[6]) Vf <= Vf + Vhp;
 				end
 			10: begin
 					state <= state + 1'd1;
 					Vf <= (extfilter_en) ? {~Vf + 1'b1} + Vnf : Vi + Vnf;
 				end
 			11: begin
-					state <= state + 1'd1;
-					mulr  <= Vf * Mode_Vol[3:0];
-				end
-			12: begin
 					state <= 0;
-					sound <= (mulr[21] != mulr[20]) ? sound : mulr[20:5];
+					mulr  <= Vf * Mode_Vol[3:0];
 				end
 		endcase
 	end

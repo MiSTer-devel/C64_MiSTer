@@ -1,17 +1,20 @@
 
 module sid8580
 (
-	input         clk32,
 	input         reset,
-	input         cs,
+
+	input         clk,
+	input         ce_1m,
+
 	input         we,
 	input   [4:0] addr,
 	input   [7:0] data_in,
+	output [ 7:0] data_out,
+
 	input   [7:0] pot_x,
 	input   [7:0] pot_y,
-	input         extfilter_en,
 
-	output [ 7:0] data_out,
+	input         extfilter_en,
 	output [15:0] audio_data
 );
 
@@ -70,7 +73,7 @@ localparam DC_offset = 14'b00111111111111;
 // Voice 1 Instantiation
 sid_voice v1
 (
-	.clock(clk32),
+	.clock(clk),
 	.ce_1m(ce_1m),
 	.reset(reset),
 	.freq_lo(Voice_1_Freq_lo),
@@ -88,7 +91,7 @@ sid_voice v1
 // Voice 2 Instantiation
 sid_voice v2
 (
-	.clock(clk32),
+	.clock(clk),
 	.ce_1m(ce_1m),
 	.reset(reset),
 	.freq_lo(Voice_2_Freq_lo),
@@ -106,7 +109,7 @@ sid_voice v2
 // Voice 3 Instantiation
 sid_voice v3
 (
-	.clock(clk32),
+	.clock(clk),
 	.ce_1m(ce_1m),
 	.reset(reset),
 	.freq_lo(Voice_3_Freq_lo),
@@ -126,7 +129,7 @@ sid_voice v3
 // Filter Instantiation
 sid_filters filters
 (
-	.clk(clk32),
+	.clk(clk),
 	.rst(reset),
 	.Fc_lo(Filter_Fc_lo),
 	.Fc_hi(Filter_Fc_hi),
@@ -147,31 +150,19 @@ assign data_out = do_buf;
 //assign unsigned_audio = unsigned_filt[18:1];
 //assign audio_data     = filtered_audio[18:3];// + 15'h4000;//{1'b0, unsigned_audio[17:1]};
 
-
-reg ce_1m;
-always @(posedge clk32) begin
-	reg [4:0] div;
-	
-	div <= div + 1'd1;
-	ce_1m <= !div;
-end
-
 always @(*) begin
-	do_buf = 0;
-	if (cs) begin
-		case (addr)
-			  5'h19: do_buf = pot_x;
-			  5'h1a: do_buf = pot_y;
-			  5'h1b: do_buf = Misc_Osc3_Random;
-			  5'h1c: do_buf = Misc_Env3;
-			default: do_buf = 0;
-		endcase
-	end
+	case (addr)
+		  5'h19: do_buf = pot_x;
+		  5'h1a: do_buf = pot_y;
+		  5'h1b: do_buf = Misc_Osc3_Random;
+		  5'h1c: do_buf = Misc_Env3;
+		default: do_buf = 0;
+	endcase
 end
 
 
 // Register Decoding
-always @(posedge clk32) begin
+always @(posedge clk) begin
 	if (reset) begin
 		Voice_1_Freq_lo <= 0;
 		Voice_1_Freq_hi <= 0;
@@ -200,7 +191,7 @@ always @(posedge clk32) begin
 		Filter_Mode_Vol <= 0;
 	end
 	else begin
-		if (cs & we) begin
+		if (we) begin
 			case (addr)
 				5'h00: Voice_1_Freq_lo <= data_in;
 				5'h01: Voice_1_Freq_hi <= data_in;
