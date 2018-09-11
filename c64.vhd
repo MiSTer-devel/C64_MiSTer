@@ -29,6 +29,7 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use IEEE.std_logic_unsigned.ALL;
+use work.C1541.all;
 
 entity emu is port
 (
@@ -829,7 +830,7 @@ begin
 		reset_key => reset_key
 	);
 
-	c1541_sd : entity work.c1541_sd
+	c1541 : c1541_sd
 	port map
 	(
 		clk32 => clk32,
