@@ -39,11 +39,9 @@ entity cia6526 is
 
 		ppai: in unsigned(7 downto 0);
 		ppao: out unsigned(7 downto 0);
-		ppad: out unsigned(7 downto 0);
 
 		ppbi: in unsigned(7 downto 0);
 		ppbo: out unsigned(7 downto 0);
-		ppbd: out unsigned(7 downto 0);
 
 		flag_n: in std_logic;
 
@@ -166,14 +164,12 @@ begin
 	-- Port A
 	process(pra, ddra)
 	begin
-		ppad <= ddra;
 		ppao <= pra or (not ddra);
 	end process;
 
 	-- Port B
 	process(prb, ddrb, cra_pbon, cra_outmode, crb_pbon, crb_outmode, timerAPulse, timerAToggle, timerBPulse, timerBToggle)
 	begin
-		ppbd <= ddrb;
 		ppbo <= prb or (not ddrb);
 		if cra_pbon = '1' then
 			ppbo(6) <= timerAPulse or (not ddrb(6));
