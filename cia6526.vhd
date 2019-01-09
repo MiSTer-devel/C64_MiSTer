@@ -605,7 +605,7 @@ begin
 
 	process(clk)
 	begin
-		if rising_edge(clk) then
+		if falling_edge(clk) then
 			if enable = '1' then
 				ir <= ir
 				or (intr_timerA and mask_timerA)
