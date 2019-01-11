@@ -61,6 +61,8 @@ entity emu is port
 	VGA_HS           : out   std_logic; -- positive pulse!
 	VGA_VS           : out   std_logic; -- positive pulse!
 	VGA_DE           : out   std_logic; -- = not (VBlank or HBlank)
+	VGA_F1           : out   std_logic;
+	VGA_SL           : out   std_logic_vector(1 downto 0);
 
 	-- LED
 	LED_USER         : out   std_logic; -- 1 - ON, 0 - OFF.
@@ -79,10 +81,10 @@ entity emu is port
 	TAPE_IN          : in    std_logic;
 
 	-- SD-SPI
-	SD_SCK           : out   std_logic := 'Z';
-	SD_MOSI          : out   std_logic := 'Z';
+	SD_SCK           : out   std_logic;
+	SD_MOSI          : out   std_logic;
 	SD_MISO          : in    std_logic;
-	SD_CS            : out   std_logic := 'Z';
+	SD_CS            : out   std_logic;
 	SD_CD            : in    std_logic;
 
 	-- High latency DDR3 RAM interface
@@ -109,7 +111,14 @@ entity emu is port
 	SDRAM_nCS        : out   std_logic;
 	SDRAM_nCAS       : out   std_logic;
 	SDRAM_nRAS       : out   std_logic;
-	SDRAM_nWE        : out   std_logic
+	SDRAM_nWE        : out   std_logic;
+
+	UART_CTS         : in    std_logic;
+	UART_RTS         : out   std_logic;
+	UART_RXD         : in    std_logic;
+	UART_TXD         : out   std_logic;
+	UART_DTR         : out   std_logic;
+	UART_DSR         : in    std_logic
 );
 end emu;
 
@@ -138,7 +147,7 @@ constant CONF_STR : string :=
 	"-;" &
 	"O2,Video standard,PAL,NTSC;" &
 	"O45,Aspect ratio,Original,Wide,Zoom;" &
-	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%;" &
+	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;" &
 	"-;" &
 	"OD,SID,6581,8580;" &
 	"O6,Audio filter,On,Off;" &
@@ -148,7 +157,7 @@ constant CONF_STR : string :=
 	"OB,BIOS,C64,C64GS;" &
 	"R0,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
-	"V0,v0.27.58";
+	"V0,v0.27.65";
 
 ---------
 -- ARM IO
@@ -894,7 +903,6 @@ begin
 	ce_pix <= (not clkdivpix(3) or not hq2x160) and not clkdivpix(2) and not clkdivpix(1) and not clkdivpix(0);
 
 	scandoubler <= '1' when (status(10 downto 8)/="000" or forced_scandoubler='1') else '0';
-	scanlines <= "01" when status(10 downto 8) = "011" else "10" when status(10 downto 8) = "100" else "00";
 
 	vmixer : video_mixer
 	port map
@@ -903,8 +911,8 @@ begin
 		ce_pix  => ce_pix,
 		ce_pix_out => CE_PIXEL,
 
-		scanlines => scanlines,
-		hq2x => status(9) xor status(8),
+		scanlines => "00",
+		hq2x => not status(10) and (status(9) xor status(8)),
 		scandoubler => scandoubler,
 
 		R => std_logic_vector(r),
@@ -954,6 +962,11 @@ begin
 
 	VIDEO_ARX  <= X"04" when (status(5 downto 4) = "00") else X"10";
 	VIDEO_ARY  <= X"03" when (status(5 downto 4) = "00") else X"09";
+	VGA_F1     <= '0';
+	VGA_SL     <= "01" when status(10 downto 8) = "011" else
+	              "10" when status(10 downto 8) = "100" else
+	              "11" when status(10 downto 8) = "101" else
+	              "00";
 
 	CLK_VIDEO  <= clk64;
 
@@ -968,4 +981,8 @@ begin
 	SD_SCK     <= 'Z';
 	SD_MOSI    <= 'Z';
 	SD_CS      <= 'Z';
+	
+	UART_RTS   <= '0';
+	UART_TXD   <= '0';
+	UART_DTR   <= '0';
 end struct;
