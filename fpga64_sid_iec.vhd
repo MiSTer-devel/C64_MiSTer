@@ -88,6 +88,8 @@ entity fpga64_sid_iec is
 		-- joystick interface
 		joyA        : in  unsigned(6 downto 0);
 		joyB        : in  unsigned(6 downto 0);
+		joyC        : in  unsigned(6 downto 0);
+		joyD        : in  unsigned(6 downto 0);
 
 		-- serial port, for connection to pheripherals
 		serioclk    : out std_logic;
@@ -782,7 +784,10 @@ begin
 	end process;
 
 	cia2_pai(5 downto 0) <= cia2_pao(5 downto 0);
-	cia2_pbi(7 downto 0) <= cia2_pbo;
+	cia2_pbi(3 downto 0) <= not joyC(3 downto 0) when cia2_pbo(7) = '1' else not joyD(3 downto 0);
+	cia2_pbi(4) <= '0' when joyC(6 downto 4) /= "000" else '1';
+	cia2_pbi(5) <= '0' when joyD(6 downto 4) /= "000" else '1';
+	cia2_pbi(7 downto 6) <= cia2_pbo(7 downto 6);
 
 -- -----------------------------------------------------------------------
 -- VIC bank to address lines
