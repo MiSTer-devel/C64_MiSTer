@@ -426,7 +426,7 @@ begin
 				tod_secs_alarm <= "0000000" ;
 				tod_mins_alarm <= "0000000" ;
 				tod_hrs_alarm <= "00000000" ;
-				tod_pm_alarm <= '0' ;
+				--tod_pm_alarm <= '0' ;
 			end if;
 			
 			if resetIrq then 
