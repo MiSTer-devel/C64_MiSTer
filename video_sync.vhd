@@ -87,8 +87,8 @@ process(clk32)
 				if line_count = 010 then vsync_out <= '0'; end if;
 
 				if wide = '0' then
-					if dot_count  = 482 then hblank <= '1'; end if;
-					if dot_count  = 108 then hblank <= '0'; end if;
+					if dot_count  = 480 then hblank <= '1'; end if;
+					if dot_count  = 110 then hblank <= '0'; end if;
 					if line_count = 302 then vblank <= '1'; end if;
 					if line_count = 022 then vblank <= '0'; end if;
 				else
