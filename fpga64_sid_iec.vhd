@@ -666,7 +666,7 @@ begin
 			do => cpuDo,
 			we => cpuWe,
 			
-			diIO => cpuIO(7) & cpuIO(6) & "01" & cpuIO(3) & "111",
+			diIO => "00010111",
 			doIO => cpuIO
 		);
 
