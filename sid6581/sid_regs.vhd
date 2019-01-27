@@ -150,6 +150,7 @@ architecture gideon of sid_regs is
         X"FF", X"FF" );                                   -- FE
          
     signal address  : unsigned(7 downto 0);
+	 signal last_wr  : std_logic_vector(7 downto 0);
 begin
     process(clock)
     begin
@@ -159,6 +160,7 @@ begin
             wdata_d  <= wdata;
 
             if do_write='0' and wren='1' then
+					 last_wr <= wdata_d;
                 if address(3)='0' then -- Voice register
                     case address(2 downto 0) is
                     when "000" =>   freq_lo(to_integer(address(7 downto 4))) <= wdata_d;
@@ -209,7 +211,7 @@ begin
             when "00011010" => rdata <= poty;
             when "00011011" => rdata <= osc3;
             when "00011100" => rdata <= env3;
-            when others     => rdata <= (others => '0');
+            when others     => rdata <= last_wr;
             end case;
 
             if reset='1' then
