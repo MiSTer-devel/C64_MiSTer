@@ -139,9 +139,7 @@ end component pll;
 -- config string used by the io controller to fill the OSD
 constant CONF_STR : string := 
 	"C64;;" &
-	"-;" &
 	"S,D64,Mount Disk;" &
-	"-;" &
 	"F,PRG,Load File;" &
 	"F,CRT,Load Cartridge;" &
 	"-;" &
@@ -154,10 +152,11 @@ constant CONF_STR : string :=
 	"OC,Sound expander,No,OPL2;" &
 	"-;" &
 	"O3,Primary joystick,Port 2,Port 1;" &
-	"OB,BIOS,C64,C64GS;" &
+	"-;" &
+	"OEF,Kernal,Loadable C64,Standard C64,C64GS;" &
 	"R0,Reset & Detach cartridge;" &
 	"J,Button 1,Button 2,Button 3;" &
-	"V0,v0.27.65";
+	"V0,v0.27.70";
 
 ---------
 -- ARM IO
@@ -795,7 +794,7 @@ begin
 	port map(
 		clk32 => clk32,
 		reset_n => reset_n,
-		c64gs => status(11),
+		bios => status(15 downto 14),
 		ps2_key => ps2_key,
 		ramAddr => c64_addr_int,
 		ramDataOut => c64_data_out_int,

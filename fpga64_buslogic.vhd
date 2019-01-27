@@ -26,7 +26,7 @@ entity fpga64_buslogic is
 	port (
 		clk : in std_logic;
 		reset : in std_logic;
-		c64gs : in std_logic;
+		bios  : in std_logic_vector(1 downto 0);
 
 		cpuHasBus : in std_logic;
 
@@ -102,8 +102,10 @@ architecture rtl of fpga64_buslogic is
 	signal charData: std_logic_vector(7 downto 0);
 	signal romData: std_logic_vector(7 downto 0);
 	signal romData_c64: std_logic_vector(7 downto 0);
+	signal romData_c64std: std_logic_vector(7 downto 0);
 	signal romData_c64gs: std_logic_vector(7 downto 0);
 	signal c64gs_ena : std_logic := '0';
+	signal c64std_ena : std_logic := '0';
 
 	signal cs_CharReg : std_logic;
 	signal cs_romReg : std_logic;
@@ -162,12 +164,24 @@ begin
 		q => romData_c64
 	);
 
-	romData <= romData_c64gs when c64gs_ena = '1' else romData_c64;
+	kernel_c64std: entity work.dprom
+	generic map ("roms/std_C64.mif", 14)
+	port map
+	(
+		wrclock => clk,
+		rdclock => clk,
+
+		rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
+		q => romData_c64std
+	);
+
+	romData <= romData_c64gs when c64gs_ena = '1' else romData_c64std when c64std_ena = '1' else romData_c64;
 	process(clk)
 	begin
 		if rising_edge(clk) then
 			if reset = '1' then 
-				c64gs_ena <= c64gs;
+				c64gs_ena <= bios(1);
+				c64std_ena <= bios(0);
 			end if;
 		end if;
 	end process;
