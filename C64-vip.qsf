@@ -360,7 +360,7 @@ set_global_assignment -name QIP_FILE opl3/opl3.qip
 set_global_assignment -name QIP_FILE c1541/c1541.qip
 set_global_assignment -name QIP_FILE t65/t65.qip
 set_global_assignment -name VHDL_FILE cpu_6510.vhd
-set_global_assignment -name VHDL_FILE cia6526.vhd
+set_global_assignment -name VERILOG_FILE mos6526.v
 set_global_assignment -name VHDL_FILE dprom.vhd
 set_global_assignment -name VHDL_FILE spram.vhd
 set_global_assignment -name VERILOG_FILE sdram.v

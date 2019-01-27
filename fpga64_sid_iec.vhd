@@ -38,10 +38,10 @@ entity fpga64_sid_iec is
 	port(
 		clk32       : in  std_logic;
 		reset_n     : in  std_logic;
-		c64gs       : in std_logic;
+		c64gs       : in  std_logic;
 
 		-- keyboard interface (use any ordinairy PS2 keyboard)
-		ps2_key     : in std_logic_vector(10 downto 0);
+		ps2_key     : in  std_logic_vector(10 downto 0);
 		reset_key   : out std_logic;
 
 		-- external memory
@@ -65,25 +65,25 @@ entity fpga64_sid_iec is
 		-- cartridge port
 		game        : in  std_logic;
 		exrom       : in  std_logic;
-		ioE_rom     : in std_logic;
-		ioF_rom     : in std_logic;
-		max_ram     : in std_logic;
+		ioE_rom     : in  std_logic;
+		ioF_rom     : in  std_logic;
+		max_ram     : in  std_logic;
 		irq_n       : in  std_logic;
 		nmi_n       : in  std_logic;
 		nmi_ack     : out std_logic;
 		dma_n       : in  std_logic;
 		ba          : out std_logic;
-		romL			: out std_logic;													-- cart signals LCA
-		romH			: out std_logic;													-- cart signals LCA
-		UMAXromH 	: out std_logic;													-- cart signals LCA
-		IOE			: out std_logic;													-- cart signals LCA
-		IOF			: out std_logic;													-- cart signals LCA
-		CPU_hasbus  : out std_logic;													-- CPU has the bus STROBE
+		romL			: out std_logic;	-- cart signals LCA
+		romH			: out std_logic;	-- cart signals LCA
+		UMAXromH 	: out std_logic;	-- cart signals LCA
+		IOE			: out std_logic;	-- cart signals LCA
+		IOF			: out std_logic;	-- cart signals LCA
+		CPU_hasbus  : out std_logic;	-- CPU has the bus STROBE
 		freeze_key  : out std_logic;
 
-		ioF_ext     : in std_logic;
-		ioE_ext     : in std_logic;
-		io_data     : in unsigned(7 downto 0);
+		ioF_ext     : in  std_logic;
+		ioE_ext     : in  std_logic;
+		io_data     : in  unsigned(7 downto 0);
 
 		-- joystick interface
 		joyA        : in  unsigned(6 downto 0);
@@ -109,9 +109,9 @@ entity fpga64_sid_iec is
 		iec_clk_i	: in  std_logic;
 		iec_atn_o	: out std_logic;
 		
-		c64rom_addr : in std_logic_vector(13 downto 0);
-		c64rom_data : in std_logic_vector(7 downto 0);
-		c64rom_wr   : in std_logic
+		c64rom_addr : in  std_logic_vector(13 downto 0);
+		c64rom_data : in  std_logic_vector(7 downto 0);
+		c64rom_wr   : in  std_logic
 );
 end fpga64_sid_iec;
 
@@ -265,6 +265,30 @@ architecture rtl of fpga64_sid_iec is
 	  );
 	end component sid8580;
 
+	component mos6526
+		PORT (
+			clk      : in  std_logic;
+			phi2     : in  std_logic;
+			res_n    : in  std_logic;
+			cs_n     : in  std_logic;
+			rw       : in  std_logic; -- '1' - read, '0' - write
+			rs       : in  unsigned(3 downto 0);
+			db_in    : in  unsigned(7 downto 0);
+			db_out   : out unsigned(7 downto 0);
+			pa_in    : in  unsigned(7 downto 0);
+			pa_out   : out unsigned(7 downto 0);
+			pb_in    : in  unsigned(7 downto 0);
+			pb_out   : out unsigned(7 downto 0);
+			flag_n   : in  std_logic;
+			pc_n     : out std_logic;
+			tod      : in  std_logic;
+			sp_in    : in  std_logic;
+			sp_out   : out std_logic;
+			cnt_in   : in  std_logic;
+			cnt_out  : out std_logic;
+			irq_n    : out std_logic
+		);
+	end component; 
 begin
 -- -----------------------------------------------------------------------
 -- Local signal to outside world
@@ -353,12 +377,13 @@ begin
 			when CYCLE_VIC2 =>
 				enableVic <= '1';
 			when CYCLE_CPUE =>
-				enableCia <= '1';
 				enableVic <= '1';
 				if baLoc = '1'
 				or cpuWe = '1' then
 					enableCpu <= '1';
 				end if;
+			when CYCLE_CPUF =>
+				enableCia <= '1';
 			when others =>
 				null;
 			end case;
@@ -603,50 +628,52 @@ begin
 -- -----------------------------------------------------------------------
 -- CIAs
 -- -----------------------------------------------------------------------
-	cia1: entity work.cia6526
+	cia1: mos6526
 		port map (
 			clk => clk32,
-			todClk => vicVSync,
-			reset => reset,
-			enable => enableCia,
-			cs => cs_cia1,
-			we => pulseWrIo,
-			rd => pulseRd,
+			tod => vicVSync,
+			res_n => not reset,
+			phi2 => enableCia,
+			cs_n => not cs_cia1,
+			rw => not cpuWe,
 
-			addr => cpuAddr(3 downto 0),
-			di => cpuDo,
-			do => cia1Do,
+			rs => cpuAddr(3 downto 0),
+			db_in => cpuDo,
+			db_out => cia1Do,
 
-			ppai => cia1_pai,
-			ppao => cia1_pao,
-			ppbi => cia1_pbi,
-			ppbo => cia1_pbo,
+			pa_in => cia1_pai,
+			pa_out => cia1_pao,
+			pb_in => cia1_pbi,
+			pb_out => cia1_pbo,
 
 			flag_n => '1',
+			sp_in => '1',
+			cnt_in => '1',
 
 			irq_n => irq_cia1
 		);
 
-	cia2: entity work.cia6526
+	cia2: mos6526
 		port map (
 			clk => clk32,
-			todClk => vicVSync,
-			reset => reset,
-			enable => enableCia,
-			cs => cs_cia2,
-			we => pulseWrIo,
-			rd => pulseRd,
+			tod => vicVSync,
+			res_n => not reset,
+			phi2 => enableCia,
+			cs_n => not cs_cia2,
+			rw => not cpuWe,
 
-			addr => cpuAddr(3 downto 0),
-			di => cpuDo,
-			do => cia2Do,
+			rs => cpuAddr(3 downto 0),
+			db_in => cpuDo,
+			db_out => cia2Do,
 
-			ppai => cia2_pai,
-			ppao => cia2_pao,
-			ppbi => cia2_pbi,
-			ppbo => cia2_pbo,
+			pa_in => cia2_pai,
+			pa_out => cia2_pao,
+			pb_in => cia2_pbi,
+			pb_out => cia2_pbo,
 
 			flag_n => '1',
+			sp_in => '1',
+			cnt_in => '1',
 
 			irq_n => irq_cia2
 		);
