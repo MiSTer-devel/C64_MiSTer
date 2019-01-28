@@ -118,7 +118,9 @@ entity emu is port
 	UART_RXD         : in    std_logic;
 	UART_TXD         : out   std_logic;
 	UART_DTR         : out   std_logic;
-	UART_DSR         : in    std_logic
+	UART_DSR         : in    std_logic;
+
+	OSD_STATUS       : in    std_logic
 );
 end emu;
 
