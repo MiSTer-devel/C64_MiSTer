@@ -268,6 +268,7 @@ architecture rtl of fpga64_sid_iec is
 	component mos6526
 		PORT (
 			clk      : in  std_logic;
+			mode     : in  std_logic := '0'; -- 0 - 6526 "old", 1 - 8521 "new"
 			phi2     : in  std_logic;
 			res_n    : in  std_logic;
 			cs_n     : in  std_logic;
