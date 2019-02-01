@@ -354,6 +354,7 @@ set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:sys/build_id.tcl"
 set_global_assignment -name CDF_FILE jtag.cdf
 set_global_assignment -name QIP_FILE sys/sys.qip
 set_global_assignment -name QSYS_FILE sys/vip.qsys
+set_global_assignment -name SDC_FILE sys/vip.sdc
 set_global_assignment -name QIP_FILE sid6581/sid.qip
 set_global_assignment -name QIP_FILE sid8580/sid.qip
 set_global_assignment -name QIP_FILE opl3/opl3.qip
