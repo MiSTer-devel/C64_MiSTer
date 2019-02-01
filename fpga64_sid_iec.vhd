@@ -379,10 +379,7 @@ begin
 				enableVic <= '1';
 			when CYCLE_CPUE =>
 				enableVic <= '1';
-				if baLoc = '1'
-				or cpuWe = '1' then
-					enableCpu <= '1';
-				end if;
+				enableCpu <= '1';
 			when CYCLE_CPUF =>
 				enableCia <= '1';
 			when others =>
@@ -690,6 +687,7 @@ begin
 			nmi_n => nmiLoc,
 			nmi_ack => nmi_ack,
 			irq_n => irqLoc,
+			rdy => baLoc,
 
 			di => cpuDi,
 			addr => cpuAddr,
