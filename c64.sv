@@ -135,6 +135,7 @@ localparam CONF_STR = {
 	"OH,SID right address,Same,DE00;",
 	"O6,Audio filter,On,Off;",
 	"OC,Sound expander,No,OPL2;",
+	"OIJ,Stereo mix,none,25%,50%,100%;",
 	"-;",
 	"O3,Primary joystick,Port 2,Port 1;",
 	"-;",
@@ -709,9 +710,19 @@ sid8580 sid_8580
 
 wire [17:0] audio_r = status[16] ? audio8580_r : audio6581_r;
 
-assign AUDIO_L = opl_en ? {opl_out[15],opl_out[15:1]} + {audio_l[17],audio_l[17:3]} : audio_l[17:2];
-assign AUDIO_R = opl_en ? {opl_out[15],opl_out[15:1]} + {audio_r[17],audio_r[17:3]} : audio_r[17:2];
+reg [15:0] al,ar;
+always @(posedge clk32) begin
+	reg [16:0] alm,arm;
+
+	alm <= opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]};
+	arm <= opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]};
+	al <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
+	ar <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
+end
+
+assign AUDIO_L = al;
+assign AUDIO_R = ar;
 assign AUDIO_S = 1;
-assign AUDIO_MIX = 0;
+assign AUDIO_MIX = status[19:18];
 
 endmodule
