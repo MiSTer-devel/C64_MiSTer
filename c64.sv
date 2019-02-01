@@ -130,7 +130,9 @@ localparam CONF_STR = {
 	"O45,Aspect ratio,Original,Wide,Zoom;",
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
 	"-;",
-	"OD,SID,6581,8580;",
+	"OD,SID left,6581,8580;",
+	"OG,SID right,6581,8580;",
+	"OH,SID right address,Same,DE00;",
 	"O6,Audio filter,On,Off;",
 	"OC,Sound expander,No,OPL2;",
 	"-;",
@@ -472,7 +474,8 @@ wire        romL;
 wire        romH;
 wire        UMAXromH;
 
-wire [17:0] audio_data;
+wire        sid_we;
+wire [17:0] audio_l;
 wire  [7:0] r,g,b;
 
 fpga64_sid_iec fpga64
@@ -510,15 +513,16 @@ fpga64_sid_iec fpga64
 	.iof(IOF),
 	.iof_ext(opl_en),
 	.ioe_ext(1'b0),
-	.io_data(opl_dout),
+	.io_data(IOF ? opl_dout : status[16] ? data_8580 : data_6581),
 	.joya(joyA_c64),
 	.joyb(joyB_c64),
 	.joyc(joyC_c64),
 	.joyd(joyD_c64),
 	.ces(ces),
 	.idle(idle),
-	.audio_data(audio_data),
-	.extfilter_en((~status[6])),
+	.sid_we(sid_we),
+	.audio_data(audio_l),
+	.extfilter_en(~status[6]),
 	.sid_ver(status[13]),
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
@@ -641,7 +645,6 @@ video_mixer video_mixer
 wire        opl_en = status[12];
 wire [15:0] opl_out;
 wire  [7:0] opl_dout;
-
 opl3 opl_inst
 (
 	.clk(clk32),
@@ -658,8 +661,56 @@ opl3 opl_inst
 	.sample_l(opl_out)
 );
 
-assign AUDIO_L = opl_en ? {opl_out[15],opl_out[15:1]} + {audio_data[17],audio_data[17:3]} : audio_data[17:2];
-assign AUDIO_R = AUDIO_L;
+reg [31:0] ce_1m;
+always @(posedge clk32) ce_1m <= reset_n ? {ce_1m[30:0], ce_1m[31]} : 1;
+
+reg ioe_we;
+always @(posedge clk32) begin
+	reg old_ioe;
+
+	old_ioe <= IOE;
+	ioe_we <= ~old_ioe & IOE & ~ram_we;
+end
+
+
+wire [17:0] audio6581_r;
+wire  [7:0] data_6581;
+sid_top sid_6581
+(
+	.clock(clk32),
+	.reset(~reset_n),
+	.start_iter(ce_1m[31]),
+
+	.addr(c64_addr[4:0]),
+	.wren(status[17] ? ioe_we : sid_we),
+	.wdata(c64_data_out),
+	.rdata(data_6581),
+
+	.extfilter_en(~status[6]),
+	.sample_left(audio6581_r)
+);
+
+wire [17:0] audio8580_r;
+wire  [7:0] data_8580;
+sid8580 sid_8580
+(
+	.clk(clk32),
+	.reset(~reset_n),
+	.ce_1m(ce_1m[31]),
+
+	.addr(c64_addr[4:0]),
+	.we(status[17] ? ioe_we : sid_we),
+	.data_in(c64_data_out),
+	.data_out(data_8580),
+
+	.extfilter_en(~status[6]),
+	.audio_data(audio8580_r)
+);	
+
+wire [17:0] audio_r = status[16] ? audio8580_r : audio6581_r;
+
+assign AUDIO_L = opl_en ? {opl_out[15],opl_out[15:1]} + {audio_l[17],audio_l[17:3]} : audio_l[17:2];
+assign AUDIO_R = opl_en ? {opl_out[15],opl_out[15:1]} + {audio_r[17],audio_r[17:3]} : audio_r[17:2];
 assign AUDIO_S = 1;
 assign AUDIO_MIX = 0;
 

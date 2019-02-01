@@ -96,11 +96,10 @@ entity fpga64_sid_iec is
 		ces         : out std_logic_vector(3 downto 0);
 
 		--Connector to the SID
-		SIDclk      : out std_logic;
-		still       : out unsigned(15 downto 0);
 		audio_data  : out std_logic_vector(17 downto 0);
 		extfilter_en: in  std_logic;
 		sid_ver     : in  std_logic;
+		sid_we      : out std_logic;
 
 		-- IEC
 		iec_data_o	: out std_logic;
@@ -184,6 +183,7 @@ architecture rtl of fpga64_sid_iec is
 	signal sid_do : std_logic_vector(7 downto 0);
 	signal sid_do6581 : std_logic_vector(7 downto 0);
 	signal sid_do8580 : std_logic_vector(7 downto 0);
+	signal sid_we_int : std_logic;
 
 	-- CIA signals
 	signal enableCia : std_logic;
@@ -328,19 +328,6 @@ begin
 			or sysCycle = CYCLE_IEC1 then
 				serioclk <= '0'; --for iec write
 			end if;	
-		end if;
-	end process;
-
-	sidClock: process(clk32)
-	begin
-		if rising_edge(clk32) then
-			-- Toggle SIDclk early to compensate for the delay caused by the gbridge
-			if sysCycle = CYCLE_VIC3 then
-				SIDclk <= '1';
-			end if;
-			if sysCycle = CYCLE_CPUD then
-				SIDclk <= '0';
-			end if;
 		end if;
 	end process;
 
@@ -581,6 +568,9 @@ begin
 	
 	audio_data <= std_logic_vector(voice_volume) when sid_ver='0' else (audio_8580 & "00");
 	sid_do     <= sid_do6581                     when sid_ver='0' else sid_do8580;
+	
+	sid_we_int <= pulseWrRam and phi0_cpu and cs_sid;
+	sid_we <= sid_we_int;
 
 	pot_x <= X"FF" when ((cia1_pao(7) and JoyA(5)) or (cia1_pao(6) and JoyB(5))) = '0' else X"00";
 	pot_y <= X"FF" when ((cia1_pao(7) and JoyA(6)) or (cia1_pao(6) and JoyB(6))) = '0' else X"00";
@@ -591,7 +581,7 @@ begin
 		reset => reset,
 
 		addr => "000" & cpuAddr(4 downto 0),
-		wren => pulseWrRam and phi0_cpu and cs_sid,
+		wren => sid_we_int,
 		wdata => std_logic_vector(cpuDo),
 		rdata => sid_do6581,
 
@@ -613,7 +603,7 @@ begin
 		reset => reset,
 		clk => clk32,
 		ce_1m => clk_1MHz(31),
-		we => pulseWrRam and phi0_cpu and cs_sid,
+		we => sid_we_int,
 		addr => std_logic_vector(cpuAddr(4 downto 0)),
 		data_in => std_logic_vector(cpuDo),
 		data_out => sid_do8580,
@@ -828,12 +818,6 @@ begin
 	nmiLoc <= irq_cia2 and nmi_n;
 	freeze_key <= restore_key;
 
--- -----------------------------------------------------------------------
--- Dummy silence audio output
--- -----------------------------------------------------------------------
-	still <= X"4000";
-	
-	
 -- -----------------------------------------------------------------------
 -- Cartridge port lines LCA
 -- -----------------------------------------------------------------------
