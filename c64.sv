@@ -132,7 +132,7 @@ localparam CONF_STR = {
 	"-;",
 	"OD,SID left,6581,8580;",
 	"OG,SID right,6581,8580;",
-	"OH,SID right address,Same,DE00;",
+	"OKM,SID right addr,Same,DE00,D420,D500,DF00;",
 	"O6,Audio filter,On,Off;",
 	"OC,Sound expander,No,OPL2;",
 	"OIJ,Stereo mix,none,25%,50%,100%;",
@@ -514,7 +514,7 @@ fpga64_sid_iec fpga64
 	.iof(IOF),
 	.iof_ext(opl_en),
 	.ioe_ext(1'b0),
-	.io_data(IOF ? opl_dout : status[16] ? data_8580 : data_6581),
+	.io_data(sid2_oe ? (status[16] ? data_8580 : data_6581) : opl_dout),
 	.joya(joyA_c64),
 	.joyb(joyB_c64),
 	.joyc(joyC_c64),
@@ -522,6 +522,7 @@ fpga64_sid_iec fpga64
 	.ces(ces),
 	.idle(idle),
 	.sid_we(sid_we),
+	.sid_mode({status[22:21]==1,status[20]}),
 	.audio_data(audio_l),
 	.extfilter_en(~status[6]),
 	.sid_ver(status[13]),
@@ -666,14 +667,19 @@ opl3 opl_inst
 reg [31:0] ce_1m;
 always @(posedge clk32) ce_1m <= reset_n ? {ce_1m[30:0], ce_1m[31]} : 1;
 
-reg ioe_we;
+reg ioe_we, iof_we;
 always @(posedge clk32) begin
-	reg old_ioe;
+	reg old_ioe, old_iof;
 
 	old_ioe <= IOE;
 	ioe_we <= ~old_ioe & IOE & ~ram_we;
+
+	old_iof <= IOF;
+	iof_we <= ~old_iof & IOF & ~ram_we;
 end
 
+wire sid2_we = (status[22:20]==1) ? ioe_we : (status[22:20]==4) ? iof_we : sid_we;
+wire sid2_oe = (status[22:20]==1) ? IOE    : (status[22:20]==4) ? IOF    : ~IOE & ~IOF;
 
 wire [17:0] audio6581_r;
 wire  [7:0] data_6581;
@@ -684,7 +690,7 @@ sid_top sid_6581
 	.start_iter(ce_1m[31]),
 
 	.addr(c64_addr[4:0]),
-	.wren(status[17] ? ioe_we : sid_we),
+	.wren(sid2_we),
 	.wdata(c64_data_out),
 	.rdata(data_6581),
 
@@ -692,7 +698,7 @@ sid_top sid_6581
 	.sample_left(audio6581_r)
 );
 
-wire [17:0] audio8580_r;
+wire [15:0] audio8580_r;
 wire  [7:0] data_8580;
 sid8580 sid_8580
 (
@@ -701,7 +707,7 @@ sid8580 sid_8580
 	.ce_1m(ce_1m[31]),
 
 	.addr(c64_addr[4:0]),
-	.we(status[17] ? ioe_we : sid_we),
+	.we(sid2_we),
 	.data_in(c64_data_out),
 	.data_out(data_8580),
 
@@ -709,7 +715,7 @@ sid8580 sid_8580
 	.audio_data(audio8580_r)
 );	
 
-wire [17:0] audio_r = status[16] ? audio8580_r : audio6581_r;
+wire [17:0] audio_r = status[16] ? {audio8580_r,2'b00} : audio6581_r;
 
 reg [15:0] al,ar;
 always @(posedge clk32) begin
