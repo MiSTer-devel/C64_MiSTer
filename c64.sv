@@ -550,6 +550,7 @@ c1541_sd c1541
 	.c1541rom_addr(ioctl_addr[13:0]),
 	.c1541rom_data(ioctl_data),
 	.c1541rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
+	.c1541std(status[14]),
 
 	.disk_change(sd_change),
 	.disk_readonly(disk_readonly),

@@ -44,6 +44,7 @@ module c1541_sd
 
 	output        led,
 
+	input         c1541std,
 	input         c1541rom_clk,
 	input  [13:0] c1541rom_addr,
 	input   [7:0] c1541rom_data,
@@ -97,6 +98,7 @@ c1541_logic c1541_logic
 	.c1541rom_addr(c1541rom_addr),
 	.c1541rom_data(c1541rom_data),
 	.c1541rom_wr(c1541rom_wr),
+	.c1541std(c1541std),
 
 	// drive-side interface
 	.ds(drive_num),
