@@ -65,8 +65,12 @@ always @(posedge clk) begin
 	else begin
 		case (state)
 			0:	if (input_valid) begin
-					if(mulr[21] == mulr[20]) sound <= mulr[20:3];
 					state <= state + 1'd1;
+
+					if($signed(mulr[21:3])>$signed(19'd131071)) sound <= 18'd131071;
+					else if($signed(mulr[21:3])<$signed(-19'd131072)) sound <= -18'd131072;
+					else sound <= mulr[20:3];
+
 					Vi <= 0;
 					Vnf <= 0;
 				end
