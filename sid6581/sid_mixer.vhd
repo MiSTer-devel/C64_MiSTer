@@ -96,7 +96,7 @@ begin
                 
             end case;
 
-            mixed_out <= p_mul_s(33 downto 16);
+            mixed_out <= p_mul_s(33 downto 16) - (p_mul_s(33)&p_mul_s(33)&p_mul_s(33 downto 18));
 
             if reset='1' then
                 mix_i <= (others => '0');

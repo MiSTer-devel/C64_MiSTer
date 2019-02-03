@@ -14,7 +14,7 @@ module sid_filters
 	input      [11:0] ext_in,
 	input             extfilter_en,
 
-	output reg [15:0] sound
+	output reg [17:0] sound
 );
 
 reg signed [17:0] Vhp;
@@ -65,7 +65,7 @@ always @(posedge clk) begin
 	else begin
 		case (state)
 			0:	if (input_valid) begin
-					if(mulr[21] == mulr[20]) sound <= mulr[20:5];
+					if(mulr[21] == mulr[20]) sound <= mulr[20:3];
 					state <= state + 1'd1;
 					Vi <= 0;
 					Vnf <= 0;
@@ -116,7 +116,7 @@ always @(posedge clk) begin
 				end
 			10: begin
 					state <= state + 1'd1;
-					Vf <= (extfilter_en) ? {~Vf + 1'b1} + Vnf : Vi + Vnf;
+					Vf <= (extfilter_en) ? Vnf - Vf : Vnf + Vi;
 				end
 			11: begin
 					state <= 0;

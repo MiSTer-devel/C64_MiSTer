@@ -250,7 +250,7 @@ architecture rtl of fpga64_sid_iec is
 	signal voice_volume : signed(17 downto 0);
 	signal pot_x        : std_logic_vector(7 downto 0);
 	signal pot_y        : std_logic_vector(7 downto 0);
-	signal audio_8580   : std_logic_vector(15 downto 0);
+	signal audio_8580   : std_logic_vector(17 downto 0);
 
 	component sid8580
 		port (
@@ -263,7 +263,7 @@ architecture rtl of fpga64_sid_iec is
 			data_out : out std_logic_vector(7 downto 0);
 			pot_x    : in std_logic_vector(7 downto 0);
 			pot_y    : in std_logic_vector(7 downto 0);
-			audio_data   : out std_logic_vector(15 downto 0);
+			audio_data   : out std_logic_vector(17 downto 0);
 			extfilter_en : in std_logic
 	  );
 	end component sid8580;
@@ -569,7 +569,7 @@ begin
 		end if;
 	end process;
 	
-	audio_data <= std_logic_vector(voice_volume) when sid_ver='0' else (audio_8580 & "00");
+	audio_data <= std_logic_vector(voice_volume) when sid_ver='0' else audio_8580;
 	sid1_do    <= sid_do6581 when sid_ver='0' else sid_do8580;
 	sid_do     <= sid1_do    when sid_mode(1) = '0' or sid_sel = '1' else std_logic_vector(io_data);
 

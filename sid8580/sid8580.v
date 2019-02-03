@@ -15,7 +15,7 @@ module sid8580
 	input   [7:0] pot_y,
 
 	input         extfilter_en,
-	output [15:0] audio_data
+	output [17:0] audio_data
 );
 
 // Internal Signals
@@ -145,10 +145,6 @@ sid_filters filters
 );
 
 assign data_out = do_buf;
-//assign audio_data = {1'b0, (filtered_audio[18:5] + 14'b1000000000000000)};
-//assign unsigned_filt  = filtered_audio + 19'b1000000000000000000;
-//assign unsigned_audio = unsigned_filt[18:1];
-//assign audio_data     = filtered_audio[18:3];// + 15'h4000;//{1'b0, unsigned_audio[17:1]};
 
 reg [7:0] last_wr;
 always @(*) begin

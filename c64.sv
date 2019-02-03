@@ -698,7 +698,7 @@ sid_top sid_6581
 	.sample_left(audio6581_r)
 );
 
-wire [15:0] audio8580_r;
+wire [17:0] audio8580_r;
 wire  [7:0] data_8580;
 sid8580 sid_8580
 (
@@ -715,7 +715,7 @@ sid8580 sid_8580
 	.audio_data(audio8580_r)
 );	
 
-wire [17:0] audio_r = status[16] ? {audio8580_r,2'b00} : audio6581_r;
+wire [17:0] audio_r = status[16] ? audio8580_r : audio6581_r;
 
 reg [15:0] al,ar;
 always @(posedge clk32) begin
