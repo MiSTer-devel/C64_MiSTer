@@ -99,7 +99,7 @@ entity fpga64_sid_iec is
 		audio_data  : out std_logic_vector(17 downto 0);
 		extfilter_en: in  std_logic;
 		sid_ver     : in  std_logic;
-		sid_we      : out std_logic;
+		sid_we_ext  : out std_logic;
 		sid_mode    : in  std_logic_vector(1 downto 0);
 
 		-- IEC
@@ -181,12 +181,11 @@ architecture rtl of fpga64_sid_iec is
 	signal bankSwitch: unsigned(2 downto 0);
 
 	-- SID signals
-	signal sid1_do    : std_logic_vector(7 downto 0);
 	signal sid_do     : std_logic_vector(7 downto 0);
 	signal sid_do6581 : std_logic_vector(7 downto 0);
 	signal sid_do8580 : std_logic_vector(7 downto 0);
-	signal sid_we_int : std_logic;
-	signal sid_sel    : std_logic;
+	signal sid_we     : std_logic;
+	signal sid_sel_int: std_logic;
 
 	-- CIA signals
 	signal enableCia : std_logic;
@@ -569,13 +568,12 @@ begin
 		end if;
 	end process;
 	
-	audio_data <= std_logic_vector(voice_volume) when sid_ver='0' else audio_8580;
-	sid1_do    <= sid_do6581 when sid_ver='0' else sid_do8580;
-	sid_do     <= sid1_do    when sid_mode(1) = '0' or sid_sel = '1' else std_logic_vector(io_data);
+	audio_data  <= std_logic_vector(voice_volume) when sid_ver='0' else audio_8580;
 
-	sid_we_int <= pulseWrRam and phi0_cpu and cs_sid;
-	sid_sel <= '1'        when sid_mode(1) = '0' or (sid_mode(0) = '0' and cpuAddr(5) = '0') or (sid_mode(0) = '1' and cpuAddr(8) = '0') else '0';
-	sid_we  <= sid_we_int when sid_mode(1) = '0' or (sid_mode(0) = '0' and cpuAddr(5) = '1') or (sid_mode(0) = '1' and cpuAddr(8) = '1') else '0';
+	sid_we      <= pulseWrRam and phi0_cpu and cs_sid;
+	sid_sel_int <= not sid_mode(1) or (not sid_mode(0) and not cpuAddr(5)) or (sid_mode(0) and not cpuAddr(8));
+	sid_we_ext  <= sid_we and (not sid_mode(1) or not sid_sel_int);
+	sid_do      <= std_logic_vector(io_data) when sid_sel_int = '0' else sid_do6581 when sid_ver='0' else sid_do8580;
 
 	pot_x <= X"FF" when ((cia1_pao(7) and JoyA(5)) or (cia1_pao(6) and JoyB(5))) = '0' else X"00";
 	pot_y <= X"FF" when ((cia1_pao(7) and JoyA(6)) or (cia1_pao(6) and JoyB(6))) = '0' else X"00";
@@ -586,7 +584,7 @@ begin
 		reset => reset,
 
 		addr => "000" & cpuAddr(4 downto 0),
-		wren => sid_we_int and sid_sel,
+		wren => sid_we and sid_sel_int,
 		wdata => std_logic_vector(cpuDo),
 		rdata => sid_do6581,
 
@@ -608,7 +606,7 @@ begin
 		reset => reset,
 		clk => clk32,
 		ce_1m => clk_1MHz(31),
-		we => sid_we_int and sid_sel,
+		we => sid_we and sid_sel_int,
 		addr => std_logic_vector(cpuAddr(4 downto 0)),
 		data_in => std_logic_vector(cpuDo),
 		data_out => sid_do8580,

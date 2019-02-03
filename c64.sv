@@ -521,7 +521,7 @@ fpga64_sid_iec fpga64
 	.joyd(joyD_c64),
 	.ces(ces),
 	.idle(idle),
-	.sid_we(sid_we),
+	.sid_we_ext(sid_we),
 	.sid_mode({status[22:21]==1,status[20]}),
 	.audio_data(audio_l),
 	.extfilter_en(~status[6]),
