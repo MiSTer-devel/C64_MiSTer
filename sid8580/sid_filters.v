@@ -53,8 +53,10 @@ always @(posedge clk) begin
 	reg [17:0] Vi;
 	reg [17:0] Vnf;
 	reg [17:0] Vf;
-	reg [21:0] mulr;
 	reg  [3:0] state;
+	reg signed [35:0] mulr;
+	reg signed [17:0] mula;
+	reg signed [17:0] mulb;
 
 	if (rst) begin
 		state <= 0;
@@ -66,65 +68,61 @@ always @(posedge clk) begin
 		case (state)
 			0:	if (input_valid) begin
 					state <= state + 1'd1;
-
-					if($signed(mulr[21:3])>$signed(19'd131071)) sound <= 18'd131071;
-					else if($signed(mulr[21:3])<$signed(-19'd131072)) sound <= -18'd131072;
-					else sound <= mulr[20:3];
-
+					if(!(^mulr[21:20])) sound <= mulr[20:3];
 					Vi <= 0;
 					Vnf <= 0;
 				end
-			1: state <= state + 1'd1;
-			2: begin
+			1:	begin
 					state <= state + 1'd1;
 					w0 <= {mul4[35], mul4[28:12]};
-					if (Res_Filt[0]) Vi  <= Vi  + (voice1 << 2);
-					else             Vnf <= Vnf + (voice1 << 2);
+					if (Res_Filt[0]) Vi  <= Vi  + {voice1,2'b00};
+					else             Vnf <= Vnf + {voice1,2'b00};
 				end
-			3: begin
+			2:	begin
 					state <= state + 1'd1;
-					if (Res_Filt[1]) Vi  <= Vi  + (voice2 << 2);
-					else             Vnf <= Vnf + (voice2 << 2);
+					if (Res_Filt[1]) Vi  <= Vi  + {voice2,2'b00};
+					else             Vnf <= Vnf + {voice2,2'b00};
 				end
-			4: begin
+			3:	begin
 					state <= state + 1'd1;
-					if (Res_Filt[2])       Vi  <= Vi  + (voice3 << 2);
-					else if (!Mode_Vol[7]) Vnf <= Vnf + (voice3 << 2);
+					if (Res_Filt[2])       Vi  <= Vi  + {voice3,2'b00};
+					else if (!Mode_Vol[7]) Vnf <= Vnf + {voice3,2'b00};
 					dVbp <= {mul1[35], mul1[35:19]};            
 				end
-			5: begin
+			4:	begin
 					state <= state + 1'd1;
-					if (Res_Filt[3]) Vi  <= Vi  + (ext_in << 2);
-					else             Vnf <= Vnf + (ext_in << 2);
+					if (Res_Filt[3]) Vi  <= Vi  + {ext_in,2'b00};
+					else             Vnf <= Vnf + {ext_in,2'b00};
 					dVlp <= {mul2[35], mul2[35:19]};
 					Vbp <= Vbp - dVbp;
 					q <= divmul[Res_Filt[7:4]];
 				end
-			6: begin
+			5:	begin
 					state <= state + 1'd1;
 					Vlp <= Vlp - dVlp;
-					Vf <= (Mode_Vol[5]) ? Vbp : 18'h00000;
+					Vf <= (Mode_Vol[5]) ? Vbp : 18'd0;
 				end
-			7: begin
+			6: begin
 					state <= state + 1'd1;
 					Vhp <= {mul3[35], mul3[26:10]} - Vlp;
 					if(Mode_Vol[4]) Vf <= Vf + Vlp;
 				end
-			8: begin
+			7: begin
 					state <= state + 1'd1;
 					Vhp <= Vhp - Vi;
 				end
-			9: begin
+			8:	begin
 					state <= state + 1'd1;
 					if(Mode_Vol[6]) Vf <= Vf + Vhp;
 				end
-			10: begin
+			9:	begin
 					state <= state + 1'd1;
-					Vf <= (extfilter_en) ? Vnf - Vf : Vnf + Vi;
+					mula <= (extfilter_en) ? Vnf - Vf : Vnf + Vi;
+					mulb <= Mode_Vol[3:0];
 				end
-			11: begin
+			10:begin
 					state <= 0;
-					mulr  <= Vf * Mode_Vol[3:0];
+					mulr <= mula * mulb;
 				end
 		endcase
 	end
