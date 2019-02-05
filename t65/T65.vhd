@@ -151,7 +151,7 @@ entity T65 is
     DI      : in  std_logic_vector(7 downto 0);
     DO      : out std_logic_vector(7 downto 0);
     DEBUG   : out T_t65_dbg;
-	 NMI_ack : out std_logic
+    NMI_ack : out std_logic
   );
 end T65;
 
@@ -462,18 +462,14 @@ begin
             --This should happen after P has been pushed to stack
             tmpP(Flag_I) := '1';
           end if;
-          if SO_n_o = '1' and SO_n = '0' then
-            tmpP(Flag_V) := '1';
-          end if;
           if RstCycle = '1' then
-            tmpP(Flag_I) := '0';
+            tmpP(Flag_I) := '1';
             tmpP(Flag_D) := '0';
           end if;
           tmpP(Flag_1) := '1';
 
           P<=tmpP;--new way
 
-          SO_n_o <= SO_n;
           if IR(4 downto 0)/="10000" or Jump/="01" then -- delay interrupts during branches (checked with Lorenz test and real 6510), not best way yet, though - but works...
             IRQ_n_o <= IRQ_n;
           end if;
@@ -483,6 +479,13 @@ begin
           NMI_n_o <= NMI_n;
         end if;
       end if;
+      -- act immediately on SO pin change
+      -- The signal is sampled on the trailing edge of phi1 and must be externally synchronized (from datasheet)
+      SO_n_o <= SO_n;
+		if SO_n_o = '1' and SO_n = '0' then
+          P(Flag_V) <= '1';
+      end if;
+
     end if;
   end process;
 
