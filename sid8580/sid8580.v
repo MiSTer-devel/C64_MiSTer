@@ -70,6 +70,13 @@ wire [18:0] unsigned_filt;
 
 localparam DC_offset = 14'b00111111111111;
 
+reg [7:0] _st_out[3];
+reg [7:0] p_t_out[3];
+reg [7:0] ps__out[3];
+reg [7:0] pst_out[3];
+wire [11:0] sawtooth[3];
+wire [11:0] triangle[3];
+
 // Voice 1 Instantiation
 sid_voice v1
 (
@@ -85,7 +92,13 @@ sid_voice v1
 	.sus_rel(Voice_1_Sus_Rel),
 	.osc_msb_in(voice_3_PA_MSB),
 	.osc_msb_out(voice_1_PA_MSB),
-	.signal_out(voice_1)
+	.signal_out(voice_1),
+	._st_out(_st_out[0]),
+	.p_t_out(p_t_out[0]),
+	.ps__out(ps__out[0]),
+	.pst_out(pst_out[0]),
+	.sawtooth(sawtooth[0]),
+	.triangle(triangle[0])
 );
 
 // Voice 2 Instantiation
@@ -103,7 +116,13 @@ sid_voice v2
 	.sus_rel(Voice_2_Sus_Rel),
 	.osc_msb_in(voice_1_PA_MSB),
 	.osc_msb_out(voice_2_PA_MSB),
-	.signal_out(voice_2)
+	.signal_out(voice_2),
+	._st_out(_st_out[1]),
+	.p_t_out(p_t_out[1]),
+	.ps__out(ps__out[1]),
+	.pst_out(pst_out[1]),
+	.sawtooth(sawtooth[1]),
+	.triangle(triangle[1])
 );
 
 // Voice 3 Instantiation
@@ -123,7 +142,13 @@ sid_voice v3
 	.osc_msb_out(voice_3_PA_MSB),
 	.signal_out(voice_3),
 	.osc_out(Misc_Osc3_Random),
-	.env_out(Misc_Env3)
+	.env_out(Misc_Env3),
+	._st_out(_st_out[2]),
+	.p_t_out(p_t_out[2]),
+	.ps__out(ps__out[2]),
+	.pst_out(pst_out[2]),
+	.sawtooth(sawtooth[2]),
+	.triangle(triangle[2])
 );
 
 // Filter Instantiation
@@ -143,6 +168,48 @@ sid_filters filters
 	.sound(audio_data),
 	.extfilter_en(extfilter_en)
 );
+
+sid_tables sid_tables
+(
+	.clock(clk),
+	.sawtooth(f_sawtooth),
+	.triangle(f_triangle),
+	._st_out(f__st_out),
+	.p_t_out(f_p_t_out),
+	.ps__out(f_ps__out),
+	.pst_out(f_pst_out)
+);
+
+wire [7:0] f__st_out;
+wire [7:0] f_p_t_out;
+wire [7:0] f_ps__out;
+wire [7:0] f_pst_out;
+reg [11:0] f_sawtooth;
+reg [11:0] f_triangle;
+
+always @(posedge clk) begin
+	reg [3:0] state;
+	
+	if(~&state) state <= state + 1'd1;;
+	if(ce_1m) state <= 0;
+
+	case(state)
+		1,5,9: begin
+			f_sawtooth <= sawtooth[state[3:2]];
+			f_triangle <= triangle[state[3:2]];
+		end
+	endcase
+
+	case(state)
+		3,7,11: begin
+			_st_out[state[3:2]] <= f__st_out;
+			p_t_out[state[3:2]] <= f_p_t_out;
+			ps__out[state[3:2]] <= f_ps__out;
+			pst_out[state[3:2]] <= f_pst_out;
+		end
+	endcase
+end
+
 
 assign data_out = do_buf;
 
