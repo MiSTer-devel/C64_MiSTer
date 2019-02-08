@@ -188,7 +188,8 @@ architecture rtl of fpga64_sid_iec is
 	signal sid_sel_int: std_logic;
 
 	-- CIA signals
-	signal enableCia : std_logic;
+	signal enableCia_p : std_logic;
+	signal enableCia_n : std_logic;
 	signal cia1Do: unsigned(7 downto 0);
 	signal cia2Do: unsigned(7 downto 0);
 
@@ -271,7 +272,8 @@ architecture rtl of fpga64_sid_iec is
 		PORT (
 			clk      : in  std_logic;
 			mode     : in  std_logic := '0'; -- 0 - 6526 "old", 1 - 8521 "new"
-			phi2     : in  std_logic;
+			phi2_p   : in  std_logic;
+			phi2_n   : in  std_logic;
 			res_n    : in  std_logic;
 			cs_n     : in  std_logic;
 			rw       : in  std_logic; -- '1' - read, '0' - write
@@ -360,7 +362,8 @@ begin
 	begin
 		if rising_edge(clk32) then
 			enableVic <= '0';
-			enableCia <= '0';
+			enableCia_n <= '0';
+			enableCia_p <= '0';
 			enableCpu <= '0';
 
 			case sysCycle is
@@ -369,8 +372,10 @@ begin
 			when CYCLE_CPUE =>
 				enableVic <= '1';
 				enableCpu <= '1';
+			when CYCLE_CPUC =>
+				enableCia_n <= '1';
 			when CYCLE_CPUF =>
-				enableCia <= '1';
+				enableCia_p <= '1';
 			when others =>
 				null;
 			end case;
@@ -624,7 +629,8 @@ begin
 			clk => clk32,
 			tod => vicVSync,
 			res_n => not reset,
-			phi2 => enableCia,
+            phi2_p => enableCia_p,
+            phi2_n => enableCia_n,
 			cs_n => not cs_cia1,
 			rw => not cpuWe,
 
@@ -649,7 +655,8 @@ begin
 			clk => clk32,
 			tod => vicVSync,
 			res_n => not reset,
-			phi2 => enableCia,
+            phi2_p => enableCia_p,
+            phi2_n => enableCia_n,
 			cs_n => not cs_cia2,
 			rw => not cpuWe,
 
