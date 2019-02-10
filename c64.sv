@@ -114,7 +114,7 @@ module emu
 
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {UART_RTS, UART_TXD, UART_DTR} = 0;
+//assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 
 assign LED_DISK = 0;
 assign LED_POWER = 0;
@@ -241,7 +241,8 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_data),
-	.ioctl_wait(ioctl_req_wr)
+	.ioctl_wait(ioctl_req_wr),
+	.uart_mode(16'b000_11111_000_11111)
 );
 
 wire game;
@@ -534,7 +535,22 @@ fpga64_sid_iec fpga64
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
 	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
-	.reset_key(reset_key)
+	.reset_key(reset_key),
+		// Outputs...
+	.uart_txd(UART_TXD),
+	.uart_rts(!UART_RTS),	// Trying inverting these, as I think they are breaking minicom and other terminal programs on the HPS? ElectronAsh.
+	.uart_dtr(!UART_DTR),
+	.uart_ri_out(1'bz),
+	.uart_dcd_out(1'bz),
+		
+	// Inputs...
+	.uart_rxd(UART_RXD),
+	.uart_ri_in(1'b1),	// I think these are active-High on the User Port? (even those TXD and RXD seem to be active-low.) ElectronAsh.
+	.uart_dcd_in(1'b1),
+	//.uart_cts(UART_CTS),
+	//.uart_dsr(UART_DSR)
+	.uart_cts(1'b1),
+	.uart_dsr(1'b1)
 );
 
 wire c64_iec_clk;
