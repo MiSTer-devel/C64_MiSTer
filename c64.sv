@@ -138,6 +138,7 @@ localparam CONF_STR = {
 	"OIJ,Stereo mix,none,25%,50%,100%;",
 	"-;",
 	"O3,Primary joystick,Port 2,Port 1;",
+	"O1,User port,Joysticks,UART;",
 	"-;",
 	"OEF,Kernal,Loadable C64,Standard C64,C64GS;",
 	"R0,Reset & Detach cartridge;",
@@ -536,22 +537,20 @@ fpga64_sid_iec fpga64
 	.c64rom_data(ioctl_data),
 	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
 	.reset_key(reset_key),
-		// Outputs...
+
+	.uart_enable(status[1]),
 	.uart_txd(UART_TXD),
-	.uart_rts(!UART_RTS),	// Trying inverting these, as I think they are breaking minicom and other terminal programs on the HPS? ElectronAsh.
+	.uart_rts(!UART_RTS), // Trying inverting these, as I think they are breaking minicom and other terminal programs on the HPS? ElectronAsh.
 	.uart_dtr(!UART_DTR),
-	.uart_ri_out(1'bz),
-	.uart_dcd_out(1'bz),
-		
-	// Inputs...
+	.uart_ri_out(),
+	.uart_dcd_out(),
 	.uart_rxd(UART_RXD),
-	.uart_ri_in(1'b1),	// I think these are active-High on the User Port? (even those TXD and RXD seem to be active-low.) ElectronAsh.
-	.uart_dcd_in(1'b1),
-	//.uart_cts(UART_CTS),
-	//.uart_dsr(UART_DSR)
-	.uart_cts(1'b1),
-	.uart_dsr(1'b1)
+	.uart_ri_in(1),	    // I think these are active-High on the User Port? (even those TXD and RXD seem to be active-low.) ElectronAsh.
+	.uart_dcd_in(1),
+	.uart_cts(1),
+	.uart_dsr(1)
 );
+
 
 wire c64_iec_clk;
 wire c64_iec_data;
