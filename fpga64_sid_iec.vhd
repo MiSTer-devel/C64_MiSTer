@@ -111,7 +111,19 @@ entity fpga64_sid_iec is
 		
 		c64rom_addr : in  std_logic_vector(13 downto 0);
 		c64rom_data : in  std_logic_vector(7 downto 0);
-		c64rom_wr   : in  std_logic
+		c64rom_wr   : in  std_logic;
+		
+		uart_txd		: out std_logic;	-- CIA2, PortA(2) 
+		uart_rts		: out std_logic;	-- CIA2, PortB(1)
+		uart_dtr		: out std_logic;	-- CIA2, PortB(2)
+		uart_ri_out	: out std_logic;	-- CIA2, PortB(3)
+		uart_dcd_out: out std_logic;	-- CIA2, PortB(4)
+		
+		uart_rxd		: in std_logic;	-- CIA2, PortB(0)
+		uart_ri_in	: in std_logic;	-- CIA2, PortB(3)
+		uart_dcd_in	: in std_logic;	-- CIA2, PortB(4)
+		uart_cts		: in std_logic;	-- CIA2, PortB(6)
+		uart_dsr		: in std_logic		-- CIA2, PortB(7)
 );
 end fpga64_sid_iec;
 
@@ -669,8 +681,17 @@ begin
 			pb_in => cia2_pbi,
 			pb_out => cia2_pbo,
 
-			flag_n => '1',
-			sp_in => '1',
+			-- flag_n => '1',
+			-- sp_in => '1',
+			
+			-- Looks like most of the old terminal programs use the FLAG_N input (and to PB0) on CIA2 to
+			-- trigger an interrupt on the falling edge of the RXD input.
+			-- (and they don't use the "SP" pin for some reason?) ElectronAsh.
+			flag_n => uart_rxd,
+			
+			sp_in => uart_rxd,	-- Hooking up to the SP pin anyway, ready for the "UP9600" style serial.
+			-- sp_out => ,
+			
 			cnt_in => '1',
 
 			irq_n => irq_cia2
@@ -810,11 +831,24 @@ begin
 	end process;
 
 	cia2_pai(5 downto 0) <= cia2_pao(5 downto 0);
-	cia2_pbi(3 downto 0) <= not joyC(3 downto 0) when cia2_pbo(7) = '1' else not joyD(3 downto 0);
-	cia2_pbi(4) <= '0' when joyC(6 downto 4) /= "000" else '1';
+	-- cia2_pbi(3 downto 0) <= not joyC(3 downto 0) when cia2_pbo(7) = '1' else not joyD(3 downto 0);
+	-- cia2_pbi(4) <= '0' when joyC(6 downto 4) /= "000" else '1';
 	cia2_pbi(5) <= '0' when joyD(6 downto 4) /= "000" else '1';
-	cia2_pbi(7 downto 6) <= cia2_pbo(7 downto 6);
-
+	-- cia2_pbi(7 downto 6) <= cia2_pbo(7 downto 6);
+   
+	-- UART inputs...
+	cia2_pbi(0) <= uart_rxd;
+	cia2_pbi(3) <= uart_ri_in;
+	cia2_pbi(4) <= uart_dcd_in;
+	cia2_pbi(6) <= uart_cts;
+	cia2_pbi(7) <= uart_dsr;
+	
+	-- UART outputs...
+	uart_txd <= cia2_pao(2);
+	uart_rts <= cia2_pbo(1);
+	uart_dtr <= cia2_pbo(2);
+	uart_ri_out <= cia2_pbo(3);
+	uart_dcd_out <= cia2_pbo(4);
 -- -----------------------------------------------------------------------
 -- VIC bank to address lines
 -- -----------------------------------------------------------------------
@@ -825,7 +859,7 @@ begin
 -- Interrupt lines
 -- -----------------------------------------------------------------------
 	irqLoc <= irq_cia1 and irq_vic and irq_n; 
-	nmiLoc <= irq_cia2 and nmi_n;
+	nmiLoc <= irq_cia2 and nmi_n; -- nmiLoc (on the 6510) is active-Low, and so is irq_cia2, so the "and" here is correct. (ElectronAsh).
 	freeze_key <= restore_key;
 
 -- -----------------------------------------------------------------------
