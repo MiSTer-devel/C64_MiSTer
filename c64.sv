@@ -112,6 +112,9 @@ module emu
 	input         OSD_STATUS
 );
 
+assign UART_RTS = UART_CTS;
+assign UART_DTR = UART_DSR;
+
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 //assign {UART_RTS, UART_TXD, UART_DTR} = 0;
