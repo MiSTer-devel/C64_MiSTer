@@ -36,8 +36,8 @@ use IEEE.numeric_std.ALL;
 entity fpga64_keyboard is
 	port (
 		clk: in std_logic;
-		ps2_key : in std_logic_vector(10 downto 0);
 
+		ps2_key : in std_logic_vector(10 downto 0);
 		joyA: in unsigned(4 downto 0);
 		joyB: in unsigned(4 downto 0);
 
@@ -46,7 +46,6 @@ entity fpga64_keyboard is
 		pao: out unsigned(7 downto 0);
 		pbo: out unsigned(7 downto 0);
 		
-		reset_key : out std_logic;
 		restore_key : out std_logic;
 		
 		-- Config
@@ -319,7 +318,7 @@ begin
 				when X"83" => key_F7 <= pressed;
 				when X"0A" => key_F8 <= pressed;
 				when X"01" => key_pound <= pressed; -- F9
-				when X"09" => key_plus <= pressed; -- F10
+				when X"09" => key_plus <= pressed;  -- F10
 				when X"0E" => key_arrowleft <= pressed;
 				when X"11" => key_commodore <= pressed; 
 				when X"12" => key_shiftl <= pressed;
