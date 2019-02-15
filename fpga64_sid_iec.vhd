@@ -42,7 +42,6 @@ entity fpga64_sid_iec is
 
 		-- keyboard interface (use any ordinairy PS2 keyboard)
 		ps2_key     : in  std_logic_vector(10 downto 0);
-		reset_key   : out std_logic;
 
 		-- external memory
 		ramAddr     : out unsigned(15 downto 0);
@@ -731,7 +730,6 @@ begin
 			pao => cia1_pai,
 			pbo => cia1_pbi,
 
-			reset_key => reset_key,
 			restore_key => restore_key,
 
 			backwardsReadingEnabled => '1'

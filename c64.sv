@@ -171,7 +171,7 @@ always @(posedge clk32) begin
 		reset_counter <= 100000;
 		reset_n <= 0;
 	end
-	else if (reset_key || reset_crt || ioctl_download && ioctl_index == 3) begin
+	else if (reset_crt || ioctl_download && ioctl_index == 3) begin
 		reset_counter <= 255;
 		reset_n <= 0;
 	end
@@ -471,7 +471,6 @@ wire  [3:0] ces;
 wire        ram_ce;
 wire        ram_we;
 wire        nmi_ack;
-wire        reset_key;
 wire        freeze_key;
 
 wire        IOE;
@@ -539,7 +538,6 @@ fpga64_sid_iec fpga64
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
 	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
-	.reset_key(reset_key),
 
 	.uart_enable(status[1]),
 	.uart_txd(UART_TXD),

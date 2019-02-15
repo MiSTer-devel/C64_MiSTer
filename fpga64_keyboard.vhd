@@ -65,10 +65,14 @@ architecture rtl of fpga64_keyboard is
 	signal key_return: std_logic := '0';
 	signal key_left: std_logic := '0';
 	signal key_right: std_logic := '0';
-	signal key_f7: std_logic := '0';
 	signal key_f1: std_logic := '0';
+	signal key_f2: std_logic := '0';
 	signal key_f3: std_logic := '0';
+	signal key_f4: std_logic := '0';
 	signal key_f5: std_logic := '0';
+	signal key_f6: std_logic := '0';
+	signal key_f7: std_logic := '0';
+	signal key_f8: std_logic := '0';
 	signal key_up: std_logic := '0';
 	signal key_down: std_logic := '0';
 
@@ -137,34 +141,28 @@ architecture rtl of fpga64_keyboard is
 
 	-- for joystick emulation on PS2
 	signal old_state : std_logic;
-	signal joySelKey : std_logic := '0';
-	signal joyKeys   : std_logic_vector(joyA'range) := (others => '1');	-- active low
-	signal joyA_s    : unsigned(joyA'range);										-- active low
-	signal joyB_s    : unsigned(joyB'range);										-- active low
 
 begin
 
-	joyA_s <= joyA and unsigned(joyKeys) when joySelKey = '0' else joyA;
-	joyB_s <= joyB and unsigned(joyKeys) when joySelKey = '1' else joyB;
-	
 	pressed <= ps2_key(9);
-	extended<= ps2_key(8);
+	--extended<= ps2_key(8);
 
 	matrix: process(clk)
 	begin
 		if rising_edge(clk) then
+
 			-- reading A, scan pattern on B
-			pao(0) <= pai(0) and joyA_s(0) and
+			pao(0) <= pai(0) and joyA(0) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_del) and
 				(pbi(1) or not key_return) and
 				(pbi(2) or not (key_left or key_right)) and
-				(pbi(3) or not key_f7) and
-				(pbi(4) or not key_f1) and
-				(pbi(5) or not key_f3) and
-				(pbi(6) or not key_f5) and
+				(pbi(3) or not (key_f7 or key_f8)) and
+				(pbi(4) or not (key_f1 or key_f2)) and
+				(pbi(5) or not (key_f3 or key_f4)) and
+				(pbi(6) or not (key_f5 or key_f6)) and
 				(pbi(7) or not (key_up or key_down))));
-			pao(1) <= pai(1) and joyA_s(1) and
+			pao(1) <= pai(1) and joyA(1) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_3) and
 				(pbi(1) or not key_W) and
@@ -173,8 +171,8 @@ begin
 				(pbi(4) or not key_Z) and
 				(pbi(5) or not key_S) and
 				(pbi(6) or not key_E) and
-				(pbi(7) or not (key_left or key_up or key_shiftL))));
-			pao(2) <= pai(2) and joyA_s(2) and
+				(pbi(7) or not (key_left or key_up or key_shiftL or key_f2 or key_f4 or key_f6 or key_f8))));
+			pao(2) <= pai(2) and joyA(2) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_5) and
 				(pbi(1) or not key_R) and
@@ -184,7 +182,7 @@ begin
 				(pbi(5) or not key_F) and
 				(pbi(6) or not key_T) and
 				(pbi(7) or not key_X)));
-			pao(3) <= pai(3) and joyA_s(3) and
+			pao(3) <= pai(3) and joyA(3) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_7) and
 				(pbi(1) or not key_Y) and
@@ -194,7 +192,7 @@ begin
 				(pbi(5) or not key_H) and
 				(pbi(6) or not key_U) and
 				(pbi(7) or not key_V)));
-			pao(4) <= pai(4) and joyA_s(4) and
+			pao(4) <= pai(4) and joyA(4) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_9) and
 				(pbi(1) or not key_I) and
@@ -236,7 +234,7 @@ begin
 				(pbi(7) or not key_runstop)));
 
 			-- reading B, scan pattern on A
-			pbo(0) <= pbi(0) and joyB_s(0) and 
+			pbo(0) <= pbi(0) and joyB(0) and 
 				(pai(0) or not key_del) and
 				(pai(1) or not key_3) and
 				(pai(2) or not key_5) and
@@ -245,7 +243,7 @@ begin
 				(pai(5) or not key_plus) and
 				(pai(6) or not key_pound) and
 				(pai(7) or not key_1);
-			pbo(1) <= pbi(1) and joyB_s(1) and
+			pbo(1) <= pbi(1) and joyB(1) and
 				(pai(0) or not key_return) and
 				(pai(1) or not key_W) and
 				(pai(2) or not key_R) and
@@ -254,7 +252,7 @@ begin
 				(pai(5) or not key_P) and
 				(pai(6) or not key_star) and
 				(pai(7) or not key_arrowleft);
-			pbo(2) <= pbi(2) and joyB_s(2) and
+			pbo(2) <= pbi(2) and joyB(2) and
 				(pai(0) or not (key_left or key_right)) and
 				(pai(1) or not key_A) and
 				(pai(2) or not key_D) and
@@ -263,8 +261,8 @@ begin
 				(pai(5) or not key_L) and
 				(pai(6) or not key_semicolon) and
 				(pai(7) or not key_ctrl);
-			pbo(3) <= pbi(3) and joyB_s(3) and
-				(pai(0) or not key_F7) and
+			pbo(3) <= pbi(3) and joyB(3) and
+				(pai(0) or not (key_F7 or key_F8)) and
 				(pai(1) or not key_4) and
 				(pai(2) or not key_6) and
 				(pai(3) or not key_8) and
@@ -272,8 +270,8 @@ begin
 				(pai(5) or not key_minus) and
 				(pai(6) or not key_home) and
 				(pai(7) or not key_2);
-			pbo(4) <= pbi(4) and joyB_s(4) and
-				(pai(0) or not key_F1) and
+			pbo(4) <= pbi(4) and joyB(4) and
+				(pai(0) or not (key_F1 or key_F2)) and
 				(pai(1) or not key_Z) and
 				(pai(2) or not key_C) and
 				(pai(3) or not key_B) and
@@ -282,7 +280,7 @@ begin
 				(pai(6) or not key_shiftr) and
 				(pai(7) or not key_space);
 			pbo(5) <= pbi(5) and
-				(pai(0) or not key_F3) and
+				(pai(0) or not (key_F3 or key_F4)) and
 				(pai(1) or not key_S) and
 				(pai(2) or not key_F) and
 				(pai(3) or not key_H) and
@@ -291,7 +289,7 @@ begin
 				(pai(6) or not key_equal) and
 				(pai(7) or not key_commodore);
 			pbo(6) <= pbi(6) and
-				(pai(0) or not key_F5) and
+				(pai(0) or not (key_F5 or key_F6)) and
 				(pai(1) or not key_E) and
 				(pai(2) or not key_T) and
 				(pai(3) or not key_U) and
@@ -301,7 +299,7 @@ begin
 				(pai(7) or not key_Q);
 			pbo(7) <= pbi(7) and
 				(pai(0) or not (key_up or key_down)) and
-				(pai(1) or not (key_left or key_up or key_shiftL)) and
+				(pai(1) or not (key_left or key_up or key_shiftL or key_f2 or key_f4 or key_f6 or key_f8)) and
 				(pai(2) or not key_X) and
 				(pai(3) or not key_V) and
 				(pai(4) or not key_N) and
@@ -312,16 +310,16 @@ begin
 			old_state <= ps2_key(10);
 			if old_state /= ps2_key(10) then
 				case ps2_key(7 downto 0) is
-				when X"01" => key_pound <= pressed;
-				when X"03" => key_F5 <= pressed;
-				when X"04" => key_F3 <= pressed;
 				when X"05" => key_F1 <= pressed;
-				--when X"06" => -- F2
-				when X"09" => key_plus <= pressed;
-				--when X"0A" => -- F8
-				--when X"0B" => -- F6
-				when X"0C" => restore_key <= pressed; -- F4
+				when X"06" => key_F2 <= pressed;
+				when X"04" => key_F3 <= pressed;
+				when X"0C" => key_F4 <= pressed;
+				when X"03" => key_F5 <= pressed;
+				when X"0B" => key_F6 <= pressed;
 				when X"83" => key_F7 <= pressed;
+				when X"0A" => key_F8 <= pressed;
+				when X"01" => key_pound <= pressed; -- F9
+				when X"09" => key_plus <= pressed; -- F10
 				when X"0E" => key_arrowleft <= pressed;
 				when X"11" => key_commodore <= pressed; 
 				when X"12" => key_shiftl <= pressed;
@@ -375,20 +373,14 @@ begin
 				when X"5A" => key_Return <= pressed; 
 				when X"5B" => key_star <= pressed; 
 				when X"5D" => key_arrowup <= pressed;
-				when X"6B" => if extended = '0' then joyKeys(2) <= not pressed; else key_left <= pressed; end if;
+				when X"6B" => key_left <= pressed;
 				when X"6C" => key_home <= pressed; 
 				when X"66" => key_del <= pressed; 
-				when X"70" => if extended = '0' then joyKeys(4) <= not pressed; end if;
-				when X"72" => if extended = '0' then joyKeys(1) <= not pressed; else key_down <= pressed; end if;
-				when X"74" => if extended = '0' then joyKeys(3) <= not pressed; else key_right <= pressed; end if;
-				when X"75" => if extended = '0' then joyKeys(0) <= not pressed; else key_up <= pressed; end if;
+				when X"72" => key_down <= pressed;
+				when X"74" => key_right <= pressed;
+				when X"75" => key_up <= pressed;
 				when X"76" => key_runstop <= pressed; 
-				when X"78" => -- F11
-					if key_ctrl = '1' then
-						reset_key <= pressed;
-					else
-						joySelKey <= joySelKey xor pressed;
-					end if;
+				when X"78" => restore_key <= pressed; -- F11
 				when others => null;
 				end case;
 			end if;
