@@ -56,8 +56,8 @@ assign vs_out = vso[3];
 assign ce_pix_out = hq2x ? ce_x4 : ce_x2;
 
 //Compensate picture shift after HQ2x
-assign vb_out = vbo[2];
-assign hb_out = hbo[6];
+assign vb_out = vbo[3];
+assign hb_out = hbo[3];
 
 reg  [7:0] pix_len = 0;
 wire [7:0] pl = pix_len + 1'b1;
@@ -102,87 +102,83 @@ Hq2x #(.LENGTH(LENGTH), .HALF_DEPTH(HALF_DEPTH)) Hq2x
 	.inputpixel({b_d,g_d,r_d}),
 	.mono(mono),
 	.disable_hq2x(~hq2x),
-	.reset_frame(vs_in),
+	.reset_frame(vb_in),
 	.reset_line(req_line_reset),
 	.read_y(sd_line),
-	.hblank(hbo[0]&hbo[4]),
+	.hblank(hbo[0]&hbo[3]),
 	.outpixel({b_out,g_out,r_out})
 );
-
-reg  [1:0] sd_line;
-reg  [2:0] vbo;
-reg  [6:0] hbo;
 
 reg [DWIDTH:0] r_d;
 reg [DWIDTH:0] g_d;
 reg [DWIDTH:0] b_d;
 
+reg [1:0] sd_line;
+reg [3:0] vbo;
 reg [3:0] vso;
+reg [3:0] hbo;
 
 reg req_line_reset;
 always @(posedge clk_sys) begin
 
-	reg [11:0] hs_max,hs_rise;
-	reg [10:0] hcnt;
-	reg [11:0] sd_hcnt;
+	reg [11:0] hcnt, sd_hcnt;
+	reg [11:0] hs_start, hs_end;
 	reg [11:0] hde_start, hde_end;
 
-	reg hs, hs2, vs, hb;
+	reg hs, hb;
+
+	if(ce_x2) begin
+		hbo[3:1] <= hbo[2:0];
+
+		// output counter synchronous to input and at twice the rate
+		sd_hcnt <= sd_hcnt + 1'd1;
+		if(sd_hcnt == hde_start) begin
+			sd_hcnt <= 0;
+			vbo[3:1] <= vbo[2:0];
+		end
+
+		if(sd_hcnt == hs_end) begin
+			sd_line <= sd_line + 1'd1;
+			if(&vbo[3:2]) sd_line <= 1;
+			vso[3:1] <= vso[2:0];
+		end
+
+		if(sd_hcnt == hde_start)hbo[0] <= 0;
+		if(sd_hcnt == hde_end)  hbo[0] <= 1;
+
+		// replicate horizontal sync at twice the speed
+		if(sd_hcnt == hs_end)   hs_out <= 0;
+		if(sd_hcnt == hs_start) hs_out <= 1;
+	end
 
 	if(ce_x1) begin
 		hs <= hs_in;
 		hb <= hb_in;
-		
+
 		req_line_reset <= hb_in;
 
 		r_d <= r_in;
 		g_d <= g_in;
 		b_d <= b_in;
 
+		hcnt <= hcnt + 1'd1;
 		if(hb && !hb_in) begin
-			hde_start <= {hcnt,1'b0};
-			vbo <= {vbo[1:0], vb_in};
+			hde_start <= hcnt;
+			hcnt <= 0;
+			sd_hcnt <= 0;
+			vbo[0] <= vb_in;
 		end
-		if(!hb && hb_in) hde_end <= {hcnt,1'b0};
+
+		if(!hb && hb_in) hde_end <= hcnt;
 
 		// falling edge of hsync indicates start of line
 		if(hs && !hs_in) begin
-			vso <= (vso<<1) | vs_in;
-			hs_max <= {hcnt,1'b1};
-			hcnt <= 0;
-		end else begin
-			hcnt <= hcnt + 1'd1;
+			hs_end <= hcnt;
+			vso[0] <= vs_in;
 		end
 
 		// save position of rising edge
-		if(!hs && hs_in) hs_rise <= {hcnt,1'b1};
-
-		vs <= vs_in;
-		if(vs && ~vs_in) sd_line <= 0;
-	end
-
-	if(ce_x4) begin
-		hs2 <= hs_in;
-		hbo[6:1] <= hbo[5:0];
-
-		// output counter synchronous to input and at twice the rate
-		sd_hcnt <= sd_hcnt + 1'd1;
-
-		if(hs2 && !hs_in)     sd_hcnt <= hs_max;
-		if(sd_hcnt == hs_max) sd_hcnt <= 0;
-
-
-		//prepare to read in advance
-		if(sd_hcnt == (hde_start-2)) begin
-			sd_line <= sd_line + 1'd1;
-		end
-
-		if(sd_hcnt == hde_start) hbo[0] <= 0;
-		if(sd_hcnt == hde_end)   hbo[0] <= 1;
-
-		// replicate horizontal sync at twice the speed
-		if(sd_hcnt == hs_max)  hs_out <= 0;
-		if(sd_hcnt == hs_rise) hs_out <= 1;
+		if(!hs && hs_in) hs_start <= hcnt;
 	end
 end
 

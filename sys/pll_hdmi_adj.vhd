@@ -98,8 +98,8 @@ BEGIN
       itog<=itog XOR (isync AND NOT isync2);
       otog<=otog XOR (osync AND NOT osync2);
       
-      ipulse<=isync AND NOT isync2 AND itog;
-      opulse<=osync AND NOT osync2 AND otog;
+      --ipulse<=isync AND NOT isync2 AND itog;
+      --opulse<=osync AND NOT osync2 AND otog;
       
       -- Measure output image size
       IF osync='1' AND osync2='0' AND otog='1' THEN
@@ -112,7 +112,7 @@ BEGIN
       -- Measure input image size
       IF isync='1' AND isync2='0' AND itog='1' THEN
         icpt<=0;
-        isize<=to_signed(icpt,24);
+        --isize<=to_signed(icpt,24);
         osize<=osizep;
         offset<=to_signed(ocpt,24);
         udiff<=integer(to_integer(osizep)) - integer(icpt);
