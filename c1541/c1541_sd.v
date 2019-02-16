@@ -19,11 +19,13 @@
 
 module c1541_sd
 (
-	input         clk32,
+	//clk_c1541 ports
+	input         clk_c1541,
 
 	input         disk_change,
 	input         disk_readonly,
 	input   [1:0] drive_num,
+	output        led,
 
 	input         iec_reset_i,
 	input         iec_atn_i,
@@ -32,23 +34,22 @@ module c1541_sd
 	output        iec_data_o,
 	output        iec_clk_o,
 
+	//clk_sys ports
+	input         clk_sys,
+
 	output [31:0] sd_lba,
 	output        sd_rd,
 	output        sd_wr,
 	input         sd_ack,
-
 	input   [8:0] sd_buff_addr,
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din,
 	input         sd_buff_wr,
 
-	output        led,
-
-	input         c1541std,
-	input         c1541rom_clk,
-	input  [13:0] c1541rom_addr,
-	input   [7:0] c1541rom_data,
-	input         c1541rom_wr
+	input  [13:0] rom_addr,
+	input   [7:0] rom_data,
+	input         rom_wr,
+	input         rom_std
 );
 
 assign led = act | sd_busy;
@@ -58,14 +59,14 @@ assign led = act | sd_busy;
 // Sector number (0-20)
 
 reg reset;
-always @(posedge clk32) begin
+always @(posedge clk_c1541) begin
 	reg reset_r;
 	reset_r <= iec_reset_i;
 	reset <= reset_r;
 end
 
 reg ch_state;
-always @(posedge clk32) begin
+always @(posedge clk_c1541) begin
 	integer ch_timeout;
 	reg     prev_change;
 
@@ -84,7 +85,7 @@ wire       act;
 
 c1541_logic c1541_logic
 (
-	.clk32(clk32),
+	.clk32(clk_c1541),
 	.reset(reset),
 
 	// serial bus
@@ -94,11 +95,11 @@ c1541_logic c1541_logic
 	.sb_clk_out(iec_clk_o),
 	.sb_data_out(iec_data_o),
 
-	.c1541rom_clk(c1541rom_clk),
-	.c1541rom_addr(c1541rom_addr),
-	.c1541rom_data(c1541rom_data),
-	.c1541rom_wr(c1541rom_wr),
-	.c1541std(c1541std),
+	.c1541rom_clk(clk_sys),
+	.c1541rom_addr(rom_addr),
+	.c1541rom_data(rom_data),
+	.c1541rom_wr(rom_wr),
+	.c1541std(rom_std),
 
 	// drive-side interface
 	.ds(drive_num),
@@ -127,7 +128,7 @@ wire [7:0] byte_addr;
 
 c1541_gcr c1541_gcr
 (
-	.clk32(clk32),
+	.clk32(clk_c1541),
 
 	.dout(gcr_do),
 	.din(gcr_di),
@@ -151,6 +152,7 @@ wire sd_busy;
 
 c1541_track c1541_track
 (
+	.sd_clk(clk_sys),
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
@@ -171,14 +173,14 @@ c1541_track c1541_track
 	.track(track),
 	.sector(sector),
 
-	.clk(clk32),
+	.clk(clk_c1541),
 	.reset(reset),
 	.busy(sd_busy)
 );
 
 reg [5:0] track;
 reg       save_track;
-always @(posedge clk32) begin
+always @(posedge clk_c1541) begin
 	reg       track_modified;
 	reg [6:0] track_num;
 	reg [1:0] stp_r;

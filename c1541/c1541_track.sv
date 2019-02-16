@@ -23,6 +23,7 @@ module c1541_track
 	input         clk,
 	input         reset,
 
+	input         sd_clk,
 	output [31:0] sd_lba,
 	output reg    sd_rd,
 	output reg    sd_wr,
@@ -46,15 +47,25 @@ module c1541_track
 
 assign sd_lba = lba;
 
+always @(posedge sd_clk) begin
+	reg wr1,rd1;
+	
+	wr1 <= wr;
+	rd1 <= rd;
+	
+	sd_wr <= wr1;
+	sd_rd <= rd1;
+end
+
 trk_dpram buffer
 (
-	.clock(clk),
-
+	.clock_a(sd_clk),
 	.address_a(sd_buff_base + base_fix + sd_buff_addr),
 	.data_a(sd_buff_dout),
 	.wren_a(sd_ack & sd_buff_wr),
 	.q_a(sd_buff_din),
 
+	.clock_b(clk),
 	.address_b({sector, buff_addr}),
 	.data_b(buff_din),
 	.wren_b(buff_we),
@@ -68,8 +79,10 @@ wire [9:0] start_sectors[41] =
 reg [31:0] lba;
 reg [12:0] base_fix;
 reg [12:0] sd_buff_base;
+reg rd,wr;
 
 always @(posedge clk) begin
+	reg ack1,ack2,ack;
 	reg old_ack;
 	reg [5:0] cur_track = 0;
 	reg old_change, ready = 0;
@@ -77,25 +90,29 @@ always @(posedge clk) begin
 
 	old_change <= change;
 	if(~old_change & change) ready <= 1;
+	
+	ack1 <= sd_ack;
+	ack2 <= ack1;
+	if(ack2 == ack1) ack <= ack1;
 
-	old_ack <= sd_ack;
-	if(sd_ack) {sd_rd,sd_wr} <= 0;
+	old_ack <= ack;
+	if(ack) {rd,wr} <= 0;
 
 	if(reset) begin
 		cur_track <= 'b111111;
 		busy  <= 0;
-		sd_rd <= 0;
-		sd_wr <= 0;
+		rd <= 0;
+		wr <= 0;
 		saving<= 0;
 	end
 	else
 	if(busy) begin
-		if(old_ack && ~sd_ack) begin
+		if(old_ack && ~ack) begin
 			if(sd_buff_base < 'h1800) begin
 				sd_buff_base <= sd_buff_base + 13'd512;
 				lba <= lba + 1'd1;
-				if(saving) sd_wr <= 1;
-					else sd_rd <= 1;
+				if(saving) wr <= 1;
+					else rd <= 1;
 			end
 			else
 			if(saving && (cur_track != track)) begin
@@ -104,7 +121,7 @@ always @(posedge clk) begin
 				sd_buff_base <= 0;
 				base_fix <= start_sectors[track][0] ? 13'h1F00 : 13'h0000;
 				lba <= start_sectors[track][9:1];
-				sd_rd <= 1;
+				rd <= 1;
 			end
 			else
 			begin
@@ -118,7 +135,7 @@ always @(posedge clk) begin
 			saving <= 1;
 			sd_buff_base <= 0;
 			lba <= start_sectors[cur_track][9:1];
-			sd_wr <= 1;
+			wr <= 1;
 			busy <= 1;
 		end
 		else
@@ -128,7 +145,7 @@ always @(posedge clk) begin
 			sd_buff_base <= 0;
 			base_fix <= start_sectors[track][0] ? 13'h1F00 : 13'h0000;
 			lba <= start_sectors[track][9:1];
-			sd_rd <= 1;
+			rd <= 1;
 			busy <= 1;
 		end
 	end
@@ -138,13 +155,13 @@ endmodule
 
 module trk_dpram #(parameter DATAWIDTH=8, ADDRWIDTH=13)
 (
-	input	                     clock,
-
+	input	                     clock_a,
 	input	     [ADDRWIDTH-1:0] address_a,
 	input	     [DATAWIDTH-1:0] data_a,
 	input	                     wren_a,
 	output reg [DATAWIDTH-1:0] q_a,
 
+	input	                     clock_b,
 	input	     [ADDRWIDTH-1:0] address_b,
 	input	     [DATAWIDTH-1:0] data_b,
 	input	                     wren_b,
@@ -153,7 +170,7 @@ module trk_dpram #(parameter DATAWIDTH=8, ADDRWIDTH=13)
 
 logic [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
 
-always_ff@(posedge clock) begin
+always_ff@(posedge clock_a) begin
 	if(wren_a) begin
 		ram[address_a] <= data_a;
 		q_a <= data_a;
@@ -162,7 +179,7 @@ always_ff@(posedge clock) begin
 	end
 end
 
-always_ff@(posedge clock) begin
+always_ff@(posedge clock_b) begin
 	if(wren_b) begin
 		ram[address_b] <= data_b;
 		q_b <= data_b;

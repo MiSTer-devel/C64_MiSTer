@@ -483,6 +483,8 @@ wire        sid_we;
 wire [17:0] audio_l;
 wire  [7:0] r,g,b;
 
+wire        ntsc = status[2];
+
 fpga64_sid_iec fpga64
 (
 	.clk32(clk32),
@@ -494,7 +496,7 @@ fpga64_sid_iec fpga64
 	.ramdatain(SDRAM_DQ[7:0]),
 	.ramce(ram_ce),
 	.ramwe(ram_we),
-	.ntscmode(status[2]),
+	.ntscmode(ntsc),
 	.hsync(hsync),
 	.vsync(vsync),
 	.r(r),
@@ -533,8 +535,8 @@ fpga64_sid_iec fpga64
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
 	.iec_clk_o(c64_iec_clk),
-	.iec_data_i(c1541_iec_data),
-	.iec_clk_i(c1541_iec_clk),
+	.iec_data_i(c64_iec_data_i),
+	.iec_clk_i(c64_iec_clk_i),
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
 	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
@@ -552,6 +554,19 @@ fpga64_sid_iec fpga64
 	.uart_dsr(1)
 );
 
+reg c64_iec_data_i, c64_iec_clk_i;
+always @(posedge clk32) begin
+	reg iec_data_d1, iec_clk_d1;
+	reg iec_data_d2, iec_clk_d2;
+
+	iec_data_d1 <= c1541_iec_data;
+	iec_data_d2 <= iec_data_d1;
+	if(iec_data_d1 == iec_data_d2) c64_iec_data_i <= iec_data_d2;
+
+	iec_clk_d1 <= c1541_iec_clk;
+	iec_clk_d2 <= iec_clk_d1;
+	if(iec_clk_d1 == iec_clk_d2) c64_iec_clk_i <= iec_clk_d2;
+end
 
 wire c64_iec_clk;
 wire c64_iec_data;
@@ -561,13 +576,13 @@ wire c1541_iec_data;
 
 c1541_sd c1541
 (
-	.clk32(clk32),
+	.clk_c1541(clk64 & ce_c1541),
+	.clk_sys(clk32),
 
-	.c1541rom_clk(clk32),
-	.c1541rom_addr(ioctl_addr[13:0]),
-	.c1541rom_data(ioctl_data),
-	.c1541rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
-	.c1541std(status[14]),
+	.rom_addr(ioctl_addr[13:0]),
+	.rom_data(ioctl_data),
+	.rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
+	.rom_std(status[14]),
 
 	.disk_change(sd_change),
 	.disk_readonly(disk_readonly),
@@ -591,6 +606,19 @@ c1541_sd c1541
 	.led(LED_USER)
 );
 
+reg ce_c1541;
+always @(negedge clk64) begin
+	int sum = 0;
+
+	ce_c1541 <= 0;
+	sum = sum + (ntsc ? 31288892 : 32506000);
+	if(sum >= 64000000) begin
+		sum = sum - 64000000;
+		ce_c1541 <= 1;
+	end
+end
+
+
 wire hsync;
 wire vsync;
 wire hblank;
@@ -603,7 +631,7 @@ video_sync sync
 	.clk32(clk32),
 	.hsync(hsync),
 	.vsync(vsync),
-	.ntsc(status[2]),
+	.ntsc(ntsc),
 	.wide(status[5]),
 	.hsync_out(hsync_out),
 	.vsync_out(vsync_out),

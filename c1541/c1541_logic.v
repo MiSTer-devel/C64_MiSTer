@@ -62,15 +62,15 @@ always @(posedge clk32) begin
 
 	iec_atn_d1 <= sb_atn_in;
 	iec_atn_d2 <= iec_atn_d1;
-	iec_atn <= iec_atn_d2;
+	if(iec_atn_d1 == iec_atn_d2) iec_atn <= iec_atn_d2;
 
 	iec_data_d1 <= sb_data_in;
 	iec_data_d2 <= iec_data_d1;
-	iec_data <= iec_data_d2;
+	if(iec_data_d1 == iec_data_d2) iec_data <= iec_data_d2;
 
 	iec_clk_d1 <= sb_clk_in;
 	iec_clk_d2 <= iec_clk_d1;
-	iec_clk <= iec_clk_d2;
+	if(iec_clk_d1 == iec_clk_d2) iec_clk <= iec_clk_d2;
 end
 
 reg p2_h_r;
