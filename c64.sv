@@ -171,7 +171,7 @@ always @(posedge clk32) begin
 		reset_counter <= 100000;
 		reset_n <= 0;
 	end
-	else if (reset_crt || ioctl_download && ioctl_index == 3) begin
+	else if (reset_crt || (ioctl_download && load_cart)) begin
 		reset_counter <= 255;
 		reset_n <= 0;
 	end
@@ -259,6 +259,7 @@ wire nmi;
 wire reset_crt;
 
 wire [24:0] cart_addr;
+wire load_cart = (ioctl_index == 3) || (ioctl_index == 'hC0);
 
 cartridge cartridge
 (
@@ -287,7 +288,7 @@ cartridge cartridge
 	.cart_bank_wr(cart_hdr_wr),
 
 	.cart_attached(cart_attached),
-	.cart_loading(ioctl_download && ioctl_index == 3),
+	.cart_loading(ioctl_download && load_cart),
 
 	.c64_mem_address_in(c64_addr),
 	.c64_data_out(c64_data_out),
@@ -327,7 +328,7 @@ reg [15:0] cart_bank_num;
 reg  [7:0] cart_bank_type;
 reg  [7:0] cart_exrom;
 reg  [7:0] cart_game;
-reg        cart_attached;
+reg        cart_attached = 0;
 reg  [3:0] cart_hdr_cnt;
 reg        cart_hdr_wr;
 reg [31:0] cart_blk_len;
@@ -342,6 +343,7 @@ always @(negedge clk32) begin
 	reg old_download;
 	reg erase_cram;
 	reg iec_cycleD;
+	reg old_st0 = 0;
 
 	old_download <= ioctl_download;
 	iec_cycleD <= iec_cycle;
@@ -366,7 +368,7 @@ always @(negedge clk32) begin
 			else ioctl_req_wr <= 1;
 		end
 
-		if (ioctl_index == 3) begin
+		if (load_cart) begin
 			if (ioctl_addr == 0) begin
 				ioctl_load_addr <= 24'h100000;
 				cart_blk_len <= 0;
@@ -410,12 +412,13 @@ always @(negedge clk32) begin
 		end
 	end
 	
-	if (old_download != ioctl_download & ioctl_index == 3) begin
+	if (old_download != ioctl_download && load_cart) begin
 		cart_attached <= old_download;
 		erase_cram <= 1;
 	end 
 	
-	if (status[0] | buttons[1]) cart_attached <= 0;
+	old_st0 <= status[0];
+	if (~old_st0 & status[0]) cart_attached <= 0;
 	
 	if (!erasing && force_erase) begin
 		erasing <= 1;

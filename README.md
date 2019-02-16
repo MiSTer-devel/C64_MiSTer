@@ -24,9 +24,12 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 * F2,F4,F6,F8,Left/Up keys automatically activate Shift key.
 * F9 - pound key.
 * F10 - plus key.
-* F11 - restore key.
+* F11 - restore key. Also special key in AR/FC carts.
 * Alt - C= key.
 
 ### Loadable ROM
 Alternative ROM can be placed in C64 folder with the name boot.rom.
 Format is simple concatenation of Kernal.rom + C1541.rom
+
+### Autoload the cartridge
+Place the desired cartridge with the name boot3.rom in C64 folder to autoload it on start.
