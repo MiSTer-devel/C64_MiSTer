@@ -151,7 +151,7 @@ localparam CONF_STR = {
    
 
 wire pll_locked;
-wire clk32;
+wire clk_sys;
 wire clk64;
 
 pll pll
@@ -159,12 +159,12 @@ pll pll
 	.refclk(CLK_50M),
 	.outclk_0(clk64),
 	.outclk_1(SDRAM_CLK),
-	.outclk_2(clk32),
+	.outclk_2(clk_sys),
 	.locked(pll_locked)
 );
 
 reg reset_n;
-always @(posedge clk32) begin
+always @(posedge clk_sys) begin
 	integer reset_counter;
 
 	if (status[0] | buttons[1] | !pll_locked) begin
@@ -212,7 +212,7 @@ wire  [1:0] buttons;
 
 hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 (
-	.clk_sys(clk32),
+	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
 
 	.joystick_0(joyA),
@@ -272,7 +272,7 @@ cartridge cartridge
 	.mem_ce(~ram_ce),
 	.mem_ce_out(mem_ce),
 
-	.clk32(clk32),
+	.clk32(clk_sys),
 	.reset(reset_n),
 	.reset_out(reset_crt),
 
@@ -338,7 +338,7 @@ reg        erasing;
 
 wire       iec_cycle = (ces == 4'b1011);
 
-always @(negedge clk32) begin
+always @(negedge clk_sys) begin
 	reg [4:0] erase_to;
 	reg old_download;
 	reg erase_cram;
@@ -416,6 +416,8 @@ always @(negedge clk32) begin
 		cart_attached <= old_download;
 		erase_cram <= 1;
 	end 
+
+	start_strk <= (old_download && ~ioctl_download && ioctl_index == 2);
 	
 	old_st0 <= status[0];
 	if (~old_st0 & status[0]) cart_attached <= 0;
@@ -427,7 +429,7 @@ always @(negedge clk32) begin
 	
 	if (erasing && !ioctl_req_wr) begin
 		erase_to <= erase_to + 1'b1;
-		if (erase_to == 5'b11111) begin
+		if (&erase_to) begin
 			if (ioctl_load_addr < ({erase_cram, 16'hFFFF}))
 				ioctl_req_wr <= 1;
 			else begin
@@ -438,6 +440,35 @@ always @(negedge clk32) begin
 	end 
 end
 
+reg start_strk = 0;
+reg [10:0] key = 0;
+always @(posedge clk_sys) begin
+	reg [3:0] act = 0;
+	int to;
+
+	if(~reset_n) act <= 0;
+	else if(act) begin
+		to <= to + 1;
+		if(to > 640000) begin
+			to <= 0;
+			act <= act + 1'd1;
+			case(act)
+				1: key <= 'h2d;
+				3: key <= 'h3c;
+				5: key <= 'h31;
+				7: key <= 'h4c;
+				9: key <= 'h5a;
+				10:act <= 0;
+			endcase
+			key[9] <= act[0];
+		end
+	end
+	else begin
+		to <= 0;
+		key <= ps2_key;
+	end
+	if(start_strk) act <= 1;
+end
 
 assign SDRAM_CKE  = 1;
 assign SDRAM_DQML = 0;
@@ -490,10 +521,10 @@ wire        ntsc = status[2];
 
 fpga64_sid_iec fpga64
 (
-	.clk32(clk32),
+	.clk32(clk_sys),
 	.reset_n(reset_n),
 	.bios(status[15:14]),
-	.ps2_key(ps2_key),
+	.ps2_key(key),
 	.ramaddr(c64_addr),
 	.ramdataout(c64_data_out),
 	.ramdatain(SDRAM_DQ[7:0]),
@@ -558,7 +589,7 @@ fpga64_sid_iec fpga64
 );
 
 reg c64_iec_data_i, c64_iec_clk_i;
-always @(posedge clk32) begin
+always @(posedge clk_sys) begin
 	reg iec_data_d1, iec_clk_d1;
 	reg iec_data_d2, iec_clk_d2;
 
@@ -580,7 +611,7 @@ wire c1541_iec_data;
 c1541_sd c1541
 (
 	.clk_c1541(clk64 & ce_c1541),
-	.clk_sys(clk32),
+	.clk_sys(clk_sys),
 
 	.rom_addr(ioctl_addr[13:0]),
 	.rom_data(ioctl_data),
@@ -631,7 +662,7 @@ wire vsync_out;
 
 video_sync sync
 (
-	.clk32(clk32),
+	.clk32(clk_sys),
 	.hsync(hsync),
 	.vsync(vsync),
 	.ntsc(ntsc),
@@ -643,7 +674,7 @@ video_sync sync
 );
 
 reg hq2x160;
-always @(posedge clk32) begin
+always @(posedge clk_sys) begin
 	reg old_vsync;
 
 	old_vsync <= vsync_out;
@@ -697,7 +728,7 @@ wire [15:0] opl_out;
 wire  [7:0] opl_dout;
 opl3 opl_inst
 (
-	.clk(clk32),
+	.clk(clk_sys),
 	.clk_opl(clk64),
 	.rst_n(reset_n),
 
@@ -712,10 +743,10 @@ opl3 opl_inst
 );
 
 reg [31:0] ce_1m;
-always @(posedge clk32) ce_1m <= reset_n ? {ce_1m[30:0], ce_1m[31]} : 1;
+always @(posedge clk_sys) ce_1m <= reset_n ? {ce_1m[30:0], ce_1m[31]} : 1;
 
 reg ioe_we, iof_we;
-always @(posedge clk32) begin
+always @(posedge clk_sys) begin
 	reg old_ioe, old_iof;
 
 	old_ioe <= IOE;
@@ -732,7 +763,7 @@ wire [17:0] audio6581_r;
 wire  [7:0] data_6581;
 sid_top sid_6581
 (
-	.clock(clk32),
+	.clock(clk_sys),
 	.reset(~reset_n),
 	.start_iter(ce_1m[31]),
 
@@ -749,7 +780,7 @@ wire [17:0] audio8580_r;
 wire  [7:0] data_8580;
 sid8580 sid_8580
 (
-	.clk(clk32),
+	.clk(clk_sys),
 	.reset(~reset_n),
 	.ce_1m(ce_1m[31]),
 
@@ -765,7 +796,7 @@ sid8580 sid_8580
 wire [17:0] audio_r = status[16] ? audio8580_r : audio6581_r;
 
 reg [15:0] al,ar;
-always @(posedge clk32) begin
+always @(posedge clk_sys) begin
 	reg [16:0] alm,arm;
 
 	alm <= opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]};

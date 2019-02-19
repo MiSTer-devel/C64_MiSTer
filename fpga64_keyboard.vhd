@@ -306,9 +306,7 @@ begin
 				(pai(6) or not key_slash) and
 				(pai(7) or not key_runstop);
 
-			old_state <= ps2_key(10);
-			if old_state /= ps2_key(10) then
-				case ps2_key(7 downto 0) is
+			case ps2_key(7 downto 0) is
 				when X"05" => key_F1 <= pressed;
 				when X"06" => key_F2 <= pressed;
 				when X"04" => key_F3 <= pressed;
@@ -381,8 +379,7 @@ begin
 				when X"76" => key_runstop <= pressed; 
 				when X"78" => restore_key <= pressed; -- F11
 				when others => null;
-				end case;
-			end if;
+			end case;
 		end if;
 	end process;
 end architecture;
