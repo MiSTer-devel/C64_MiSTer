@@ -456,7 +456,7 @@ always @(posedge clk_sys) begin
 	int to;
 
 	if(~reset_n) act <= 0;
-	else if(act) begin
+	if(act) begin
 		to <= to + 1;
 		if(to > 640000) begin
 			to <= 0;
