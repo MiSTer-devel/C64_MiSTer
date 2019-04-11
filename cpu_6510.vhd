@@ -88,22 +88,14 @@ begin
 					end if;
 				end if;
 			end if;
+
+			currentIO <= (ioData and ioDir) or (std_logic_vector(diIO) and not ioDir);
+
 			if reset = '1' then
 				ioDir <= (others => '0');
+				ioData <= (others => '1');
+				currentIO <= (others => '1');
 			end if;
-		end if;
-	end process;
-
-	process(clk)
-	begin
-		if rising_edge(clk) then
-			for i in 0 to 7 loop
-				if ioDir(i) = '0' then
-					currentIO(i) <= std_logic(diIO(i));
-				else
-					currentIO(i) <= ioData(i);
-				end if;
-			end loop;
 		end if;
 	end process;
 
