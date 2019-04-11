@@ -130,6 +130,7 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_DISK = 0;
 assign LED_POWER = 0;
+assign LED_USER = c1541_led | ioctl_download | tape_led;
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -137,6 +138,10 @@ localparam CONF_STR = {
 	"S,D64,Mount Disk;",
 	"F,PRG,Load File;",
 	"F,CRT,Load Cartridge;",
+	"-;",
+	"F,TAP,Load Tape;",
+	"R7,Tape Play/Stop;",
+	"OB,Tape Sound,Off,On;",
 	"-;",
 	"O2,Video standard,PAL,NTSC;",
 	"O45,Aspect ratio,Original,Wide,Zoom;",
@@ -419,6 +424,11 @@ always @(negedge clk_sys) begin
 				end
 			end
 		end
+		
+		if (load_tap) begin
+			if (ioctl_addr == 0) ioctl_load_addr <= 'h200000;
+			ioctl_req_wr <= 1;
+		end
 	end
 	
 	if (old_download != ioctl_download && load_cart) begin
@@ -484,9 +494,9 @@ assign SDRAM_DQML = 0;
 assign SDRAM_DQMH = 0;
 assign SDRAM_DQ   = sdram_we ? {8'd0, sdram_data_out} : 'Z;
 
-wire        sdram_ce = (!iec_cycle) ?  mem_ce : ioctl_iec_cycle_used;
-wire        sdram_we = (!iec_cycle) ? ~ram_we : ioctl_iec_cycle_used;
-wire [24:0] sdram_addr     = (!iec_cycle) ? cart_addr    : ioctl_ram_addr;
+wire        sdram_ce = (!iec_cycle) ?  mem_ce : (ioctl_iec_cycle_used | tap_play_ce);
+wire        sdram_we = (!iec_cycle) ? ~ram_we : (ioctl_iec_cycle_used & ioctl_download);
+wire [24:0] sdram_addr     = (!iec_cycle) ? cart_addr    : ioctl_download ? ioctl_ram_addr : tap_play_addr;
 wire  [7:0] sdram_data_out = (!iec_cycle) ? c64_data_out : ioctl_ram_data;
 
 sdram sdr
@@ -584,6 +594,11 @@ fpga64_sid_iec fpga64
 	.c64rom_data(ioctl_data),
 	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
 
+	.cass_motor(cass_motor),
+	.cass_write(cass_write),
+	.cass_sense(~tap_play),
+	.cass_in(cass_do),
+
 	.uart_enable(status[1]),
 	.uart_txd(UART_TXD),
 	.uart_rts(!UART_RTS), // Trying inverting these, as I think they are breaking minicom and other terminal programs on the HPS? ElectronAsh.
@@ -616,6 +631,7 @@ wire c64_iec_data;
 wire c64_iec_atn;
 wire c1541_iec_clk;
 wire c1541_iec_data;
+wire c1541_led;
 
 c1541_sd c1541
 (
@@ -646,7 +662,7 @@ c1541_sd c1541
 	.sd_buff_din(sd_buff_din),
 	.sd_buff_wr(sd_buff_wr),
 
-	.led(LED_USER)
+	.led(c1541_led)
 );
 
 reg ce_c1541;
@@ -808,8 +824,8 @@ reg [15:0] al,ar;
 always @(posedge clk_sys) begin
 	reg [16:0] alm,arm;
 
-	alm <= opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]};
-	arm <= opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]};
+	alm <= (opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]}) + {status[11]&cass_do, 10'd0};
+	arm <= (opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]}) + {status[11]&cass_do, 10'd0};
 	al <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
 	ar <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
 end
@@ -818,5 +834,87 @@ assign AUDIO_L = al;
 assign AUDIO_R = ar;
 assign AUDIO_S = 1;
 assign AUDIO_MIX = status[19:18];
+
+//------------- TAP -------------------
+
+reg        tap_play_ce;
+reg [24:0] tap_play_addr;
+reg [24:0] tap_last_addr;
+reg        tap_reset;
+reg        tap_wrreq;
+wire       tap_wrfull;
+wire       tap_fifo_error;
+reg        tap_loaded;
+reg        tap_mode;
+reg        tap_play;
+wire       tap_play_btn = status[7];
+
+wire       load_tap = (ioctl_index == 4);
+
+always @(posedge clk_sys) begin
+	reg tap_play_btnD;
+	reg iec_cycle_rD;
+	reg ioctl_downloadD;  
+
+	tap_play_btnD <= tap_play_btn;
+	iec_cycle_rD <= iec_cycle;
+	tap_loaded <= (tap_play_addr < tap_last_addr);
+	ioctl_downloadD <= ioctl_download;
+
+	if(~reset_n) begin
+		tap_play_addr <= 0;
+		tap_last_addr <= 0;
+		tap_play <= 0;
+		tap_reset <= 1;
+		tap_play_ce <= 0;
+	end
+	else begin
+		if(~ioctl_download & ioctl_downloadD) tap_play <= 1;
+		if (tap_loaded & ~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
+		if (tap_fifo_error || ~tap_loaded) tap_play <= 0;
+
+		tap_wrreq <= 0;
+		if (~iec_cycle & iec_cycle_rD & tap_play & ~tap_wrfull) begin
+			tap_play_addr <= tap_play_addr + 1'd1;
+			tap_play_ce <= 1;
+		end
+
+		if (iec_cycle & iec_cycle_rD & tap_play_ce) begin
+			tap_play_ce <= 0;
+			tap_wrreq <= 1;
+		end
+
+		tap_reset <= 0;
+		if(ioctl_download && load_tap) begin
+			tap_play <= 0;
+			tap_play_addr <= 'h200000;
+			tap_last_addr <= ioctl_load_addr;
+			tap_reset <= 1;
+			if (ioctl_addr == 12 && ioctl_wr) tap_mode <= ioctl_data[0];
+		end
+	end
+end
+
+reg [26:0] act_cnt;
+always @(posedge clk_sys) act_cnt <= act_cnt + ((tap_play & ~cass_motor) ? 4'd8 : 4'd1);
+wire tape_led = tap_loaded && (act_cnt[26] ? act_cnt[25:18] > act_cnt[7:0] : act_cnt[25:18] <= act_cnt[7:0]);
+
+wire cass_motor;
+wire cass_write;
+wire cass_do;
+
+c1530 c1530
+(
+	.clk32(clk_sys),
+	.restart_tape(tap_reset),
+	.wav_mode(0),
+	.tap_mode1(tap_mode),
+	.host_tap_in(SDRAM_DQ[7:0]),
+	.host_tap_wrreq(tap_wrreq),
+	.tap_fifo_wrfull(tap_wrfull),
+	.tap_fifo_error(tap_fifo_error),
+	.play(~cass_motor & ~tap_reset),
+	.DO(cass_do)
+);
 
 endmodule

@@ -112,6 +112,11 @@ entity fpga64_sid_iec is
 		c64rom_data : in  std_logic_vector(7 downto 0);
 		c64rom_wr   : in  std_logic;
 
+		cass_motor  : out std_logic;
+		cass_write  : out std_logic;
+		cass_sense  : in  std_logic;
+		cass_in     : in  std_logic;
+
 		uart_enable : in  std_logic;
 
 		uart_txd    : out std_logic; -- CIA2, PortA(2) 
@@ -656,7 +661,7 @@ begin
 			pb_in => cia1_pbi,
 			pb_out => cia1_pbo,
 
-			flag_n => '1',
+			flag_n => cass_in,
 			sp_in => '1',
 			cnt_in => '1',
 
@@ -711,9 +716,12 @@ begin
 			do => cpuDo,
 			we => cpuWe,
 			
-			diIO => "00010111",
+			diIO => cpuIO(7) & cpuIO(6) & cpuIO(5) & cass_sense & cpuIO(3) & "111",
 			doIO => cpuIO
 		);
+
+	cass_motor <= cpuIO(5);
+	cass_write <= cpuIO(3);
 
 -- -----------------------------------------------------------------------
 -- Keyboard
