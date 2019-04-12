@@ -869,12 +869,12 @@ always @(posedge clk_sys) begin
 		tap_play_ce <= 0;
 	end
 	else begin
-		if(~ioctl_download & ioctl_downloadD) tap_play <= 1;
+		if (~ioctl_download & ioctl_downloadD & load_tap) tap_play <= 1;
 		if (tap_loaded & ~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
-		if (tap_fifo_error || ~tap_loaded) tap_play <= 0;
+		if (tap_fifo_error) tap_play <= 0;
 
 		tap_wrreq <= 0;
-		if (~iec_cycle & iec_cycle_rD & tap_play & ~tap_wrfull) begin
+		if (~iec_cycle && iec_cycle_rD && tap_play && ~tap_wrfull && tap_loaded) begin
 			tap_play_addr <= tap_play_addr + 1'd1;
 			tap_play_ce <= 1;
 		end
@@ -896,8 +896,8 @@ always @(posedge clk_sys) begin
 end
 
 reg [26:0] act_cnt;
-always @(posedge clk_sys) act_cnt <= act_cnt + ((tap_play & ~cass_motor) ? 4'd8 : 4'd1);
-wire tape_led = tap_loaded && (act_cnt[26] ? act_cnt[25:18] > act_cnt[7:0] : act_cnt[25:18] <= act_cnt[7:0]);
+always @(posedge clk_sys) act_cnt <= act_cnt + (tap_play ? 4'd8 : 4'd1);
+wire tape_led = tap_loaded && (act_cnt[26] ? (~(tap_play & cass_motor) && act_cnt[25:18] > act_cnt[7:0]) : act_cnt[25:18] <= act_cnt[7:0]);
 
 wire cass_motor;
 wire cass_write;
@@ -913,7 +913,7 @@ c1530 c1530
 	.host_tap_wrreq(tap_wrreq),
 	.tap_fifo_wrfull(tap_wrfull),
 	.tap_fifo_error(tap_fifo_error),
-	.play(~cass_motor & ~tap_reset),
+	.play(~cass_motor),
 	.DO(cass_do)
 );
 
