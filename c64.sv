@@ -368,12 +368,11 @@ always @(negedge clk_sys) begin
 		ioctl_iec_cycle_used <= 1;
 		ioctl_ram_addr <= ioctl_load_addr;
 		ioctl_load_addr <= ioctl_load_addr + 1'b1;
-		if (erasing) ioctl_ram_data <= 0;
+		if (erasing) ioctl_ram_data <= {8{ioctl_load_addr[6]}};
 		else ioctl_ram_data <= ioctl_data;
 	end
-	else begin
-		if (!iec_cycle) ioctl_iec_cycle_used <= 0;
-	end
+	
+	if (!iec_cycle) ioctl_iec_cycle_used <= 0;
 
 	if (ioctl_wr) begin
 		if (ioctl_index == 2) begin
@@ -495,8 +494,8 @@ assign SDRAM_DQMH = 0;
 assign SDRAM_DQ   = sdram_we ? {8'd0, sdram_data_out} : 'Z;
 
 wire        sdram_ce = (!iec_cycle) ?  mem_ce : (ioctl_iec_cycle_used | tap_play_ce);
-wire        sdram_we = (!iec_cycle) ? ~ram_we : (ioctl_iec_cycle_used & ioctl_download);
-wire [24:0] sdram_addr     = (!iec_cycle) ? cart_addr    : ioctl_download ? ioctl_ram_addr : tap_play_addr;
+wire        sdram_we = (!iec_cycle) ? ~ram_we : (ioctl_iec_cycle_used & (ioctl_download | erasing));
+wire [24:0] sdram_addr     = (!iec_cycle) ? cart_addr    : (ioctl_download | erasing) ? ioctl_ram_addr : tap_play_addr;
 wire  [7:0] sdram_data_out = (!iec_cycle) ? c64_data_out : ioctl_ram_data;
 
 sdram sdr
@@ -843,7 +842,7 @@ reg [24:0] tap_last_addr;
 reg        tap_reset;
 reg        tap_wrreq;
 wire       tap_wrfull;
-wire       tap_fifo_error;
+wire       tap_empty;
 reg        tap_loaded;
 reg        tap_mode;
 reg        tap_play;
@@ -871,15 +870,13 @@ always @(posedge clk_sys) begin
 	else begin
 		if (~ioctl_download & ioctl_downloadD & load_tap) tap_play <= 1;
 		if (tap_loaded & ~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
-		if (tap_fifo_error) tap_play <= 0;
+		if (tap_empty) tap_play <= 0;
 
 		tap_wrreq <= 0;
-		if (~iec_cycle && iec_cycle_rD && tap_play && ~tap_wrfull && tap_loaded) begin
-			tap_play_addr <= tap_play_addr + 1'd1;
-			tap_play_ce <= 1;
-		end
+		if (~iec_cycle && iec_cycle_rD && tap_play && ~tap_wrfull && tap_loaded) tap_play_ce <= 1;
 
 		if (iec_cycle & iec_cycle_rD & tap_play_ce) begin
+			tap_play_addr <= tap_play_addr + 1'd1;
 			tap_play_ce <= 0;
 			tap_wrreq <= 1;
 		end
@@ -912,7 +909,7 @@ c1530 c1530
 	.host_tap_in(SDRAM_DQ[7:0]),
 	.host_tap_wrreq(tap_wrreq),
 	.tap_fifo_wrfull(tap_wrfull),
-	.tap_fifo_error(tap_fifo_error),
+	.tap_fifo_error(tap_empty),
 	.play(~cass_motor),
 	.DO(cass_do)
 );
