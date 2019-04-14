@@ -1,2 +1,0 @@
-set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) sdram.v ]
-set_global_assignment -name SDC_FILE     [file join $::quartus(qip_path) sdram.sdc ]

@@ -168,14 +168,79 @@ wire pll_locked;
 wire clk_sys;
 wire clk64;
 
+assign SDRAM_CLK = ~clk64;
+
 pll pll
 (
 	.refclk(CLK_50M),
 	.outclk_0(clk64),
-	.outclk_1(SDRAM_CLK),
-	.outclk_2(clk_sys),
+	.outclk_1(clk_sys),
+	.reconfig_to_pll(reconfig_to_pll),
+	.reconfig_from_pll(reconfig_from_pll),
 	.locked(pll_locked)
 );
+
+wire [63:0] reconfig_to_pll;
+wire [63:0] reconfig_from_pll;
+wire        cfg_waitrequest;
+reg         cfg_write;
+reg   [5:0] cfg_address;
+reg  [31:0] cfg_data;
+
+pll_hdmi_cfg pll_cfg
+(
+	.mgmt_clk(CLK_50M),
+	.mgmt_reset(0),
+	.mgmt_waitrequest(cfg_waitrequest),
+	.mgmt_read(0),
+	.mgmt_readdata(),
+	.mgmt_write(cfg_write),
+	.mgmt_address(cfg_address),
+	.mgmt_writedata(cfg_data),
+	.reconfig_to_pll(reconfig_to_pll),
+	.reconfig_from_pll(reconfig_from_pll)
+);
+
+always @(posedge CLK_50M) begin
+	reg ntscd = 0, ntscd2 = 0;
+	reg [2:0] state = 0;
+	reg ntsc_r;
+
+	ntscd <= ntsc;
+	ntscd2 <= ntscd;
+
+	cfg_write <= 0;
+	if(ntscd2 == ntscd && ntscd2 != ntsc_r) begin
+		state <= 1;
+		ntsc_r <= ntscd2;
+	end
+
+	if(!cfg_waitrequest) begin
+		if(state) state<=state+1'd1;
+		case(state)
+			1: begin
+					cfg_address <= 0;
+					cfg_data <= 0;
+					cfg_write <= 1;
+				end
+			3: begin
+					cfg_address <= 4;
+					cfg_data <= ntsc_r ? 'h20504 : 'h404;
+					cfg_write <= 1;
+				end
+			5: begin
+					cfg_address <= 7;
+					cfg_data <= ntsc_r ? 702807747 : 3555492125;
+					cfg_write <= 1;
+				end
+			7: begin
+					cfg_address <= 2;
+					cfg_data <= 0;
+					cfg_write <= 1;
+				end
+		endcase
+	end
+end
 
 reg reset_n;
 always @(posedge clk_sys) begin
@@ -667,11 +732,14 @@ c1541_sd c1541
 reg ce_c1541;
 always @(negedge clk64) begin
 	int sum = 0;
+	int msum;
+	
+	msum <= ntsc ? 65454537 : 63055911;
 
 	ce_c1541 <= 0;
-	sum = sum + (ntsc ? 31288892 : 32506000);
-	if(sum >= 64000000) begin
-		sum = sum - 64000000;
+	sum = sum + 32000000;
+	if(sum >= msum) begin
+		sum = sum - msum;
 		ce_c1541 <= 1;
 	end
 end

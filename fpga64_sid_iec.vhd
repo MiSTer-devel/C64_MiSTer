@@ -647,8 +647,8 @@ begin
 			clk => clk32,
 			tod => vicVSync,
 			res_n => not reset,
-            phi2_p => enableCia_p,
-            phi2_n => enableCia_n,
+			phi2_p => enableCia_p,
+			phi2_n => enableCia_n,
 			cs_n => not cs_cia1,
 			rw => not cpuWe,
 
@@ -673,8 +673,8 @@ begin
 			clk => clk32,
 			tod => vicVSync,
 			res_n => not reset,
-            phi2_p => enableCia_p,
-            phi2_n => enableCia_n,
+			phi2_p => enableCia_p,
+			phi2_n => enableCia_n,
 			cs_n => not cs_cia2,
 			rw => not cpuWe,
 
