@@ -373,7 +373,6 @@ set_global_assignment -name VHDL_FILE dprom.vhd
 set_global_assignment -name VHDL_FILE spram.vhd
 set_global_assignment -name VERILOG_FILE cartridge.v
 set_global_assignment -name VHDL_FILE c1530.vhd
-set_global_assignment -name VHDL_FILE tap_fifo.vhd
 set_global_assignment -name VHDL_FILE video_sync.vhd
 set_global_assignment -name VHDL_FILE video_vicII_656x.vhd
 set_global_assignment -name VHDL_FILE fpga64_rgbcolor.vhd
