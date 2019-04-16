@@ -891,8 +891,8 @@ reg [15:0] al,ar;
 always @(posedge clk_sys) begin
 	reg [16:0] alm,arm;
 
-	alm <= (opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]}) + {status[11]&cass_do, 10'd0};
-	arm <= (opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]}) + {status[11]&cass_do, 10'd0};
+	alm <= (opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]}) + {tap_play&status[11]&cass_do, 10'd0};
+	arm <= (opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]}) + {tap_play&status[11]&cass_do, 10'd0};
 	al <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
 	ar <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
 end
@@ -937,8 +937,8 @@ always @(posedge clk_sys) begin
 	end
 	else begin
 		if (~ioctl_download & ioctl_downloadD & load_tap) tap_play <= 1;
-		if (tap_loaded & ~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
-		if (tap_empty) tap_play <= 0;
+		if (~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
+		//if (tap_empty) tap_play <= 0;
 
 		tap_wrreq <= 0;
 		if (~iec_cycle && iec_cycle_rD && tap_play && ~tap_wrfull && tap_loaded) tap_play_ce <= 1;
@@ -978,7 +978,7 @@ c1530 c1530
 	.host_tap_wrreq(tap_wrreq),
 	.tap_fifo_wrfull(tap_wrfull),
 	.tap_fifo_error(tap_empty),
-	.play(~cass_motor),
+	.play(~cass_motor & tap_play),
 	.DO(cass_do)
 );
 
