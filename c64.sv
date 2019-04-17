@@ -139,8 +139,9 @@ localparam CONF_STR = {
 	"F,PRG,Load File;",
 	"F,CRT,Load Cartridge;",
 	"-;",
-	"F,TAP,Load Tape;",
-	"R7,Tape Play/Stop;",
+	"F,TAP,Tape Load;",
+	"R7,Tape Play/Pause;",
+	"RN,Tape Unload;",
 	"OB,Tape Sound,Off,On;",
 	"-;",
 	"O2,Video standard,PAL,NTSC;",
@@ -417,6 +418,8 @@ reg        iec_cycle_we;
 reg [24:0] iec_cycle_addr;
 reg  [7:0] iec_cycle_data;
 
+localparam TAP_ADDR = 25'h200000;
+
 always @(posedge clk_sys) begin
 	reg [4:0] erase_to;
 	reg old_download;
@@ -431,7 +434,7 @@ always @(posedge clk_sys) begin
 	if (~iec_cycle & iec_cycleD) begin
 		iec_cycle_ce <= 1;
 		iec_cycle_we <= 0;
-		iec_cycle_addr <= tap_play_addr;
+		iec_cycle_addr <= tap_play_addr + TAP_ADDR;
 		if (ioctl_req_wr) begin
 			ioctl_req_wr <= 0;
 			iec_cycle_we <= 1;
@@ -495,7 +498,7 @@ always @(posedge clk_sys) begin
 		end
 		
 		if (load_tap) begin
-			if (ioctl_addr == 0) ioctl_load_addr <= 'h200000;
+			if (ioctl_addr == 0) ioctl_load_addr <= TAP_ADDR;
 			ioctl_req_wr <= 1;
 		end
 	end
@@ -893,8 +896,8 @@ reg [15:0] al,ar;
 always @(posedge clk_sys) begin
 	reg [16:0] alm,arm;
 
-	alm <= (opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]}) + {tap_play&status[11]&cass_do, 10'd0};
-	arm <= (opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]}) + {tap_play&status[11]&cass_do, 10'd0};
+	alm <= (opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]}) + {cass_snd, 10'd0};
+	arm <= (opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]}) + {cass_snd, 10'd0};
 	al <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
 	ar <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
 end
@@ -906,43 +909,45 @@ assign AUDIO_MIX = status[19:18];
 
 //------------- TAP -------------------
 
-reg        tap_play_ce;
 reg [24:0] tap_play_addr;
 reg [24:0] tap_last_addr;
-reg        tap_reset;
+wire       tap_reset = ~reset_n | (ioctl_download & load_tap) | status[23];
 reg        tap_wrreq;
 wire       tap_wrfull;
+wire       tap_finish;
 wire       tap_loaded = (tap_play_addr < tap_last_addr);
 reg        tap_play;
 wire       tap_play_btn = status[7];
 
 wire       load_tap = (ioctl_index == 4);
-reg        iec_cycle_rD;
 
 always @(posedge clk_sys) begin
+	reg iec_cycleD, tap_finishD;
+	reg read_cyc;
 	reg tap_play_btnD;
 
 	tap_play_btnD <= tap_play_btn;
-	iec_cycle_rD <= iec_cycle;
+	iec_cycleD <= iec_cycle;
+	tap_finishD <= tap_finish;
 	tap_wrreq <= 0;
 
-	if(~reset_n | (ioctl_download & load_tap)) begin
-		tap_play_addr <= 25'h200000;
-		tap_last_addr <= reset_n ? ioctl_load_addr : 25'h200000;
-		tap_play <= reset_n;
-		tap_reset <= 1;
-		tap_play_ce <= 0;
+	if(tap_reset) begin
+		//C1530 module requires one more byte at the end due to fifo early check.
+		tap_last_addr <= ioctl_download ? ioctl_addr+2'd2 : 25'd0;
+		tap_play_addr <= 0;
+		tap_play <= ioctl_download;
+		read_cyc <= 0;
 	end
 	else begin
 		if (~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
+		if (~tap_finishD & tap_finish) tap_play <= 0;
 
-		if (~iec_cycle & iec_cycle_rD & tap_play & ~tap_wrfull & tap_loaded) tap_play_ce <= 1;
-		if (iec_cycle & iec_cycle_rD & tap_play_ce) begin
+		if (~iec_cycle & iec_cycleD & ~tap_wrfull & tap_loaded) read_cyc <= 1;
+		if (iec_cycle & iec_cycleD & read_cyc) begin
 			tap_play_addr <= tap_play_addr + 1'd1;
-			tap_play_ce <= 0;
+			read_cyc <= 0;
 			tap_wrreq <= 1;
 		end
-		tap_reset <= 0;
 	end
 end
 
@@ -951,20 +956,24 @@ always @(posedge clk_sys) act_cnt <= act_cnt + (tap_play ? 4'd8 : 4'd1);
 wire tape_led = tap_loaded && (act_cnt[26] ? (~(tap_play & cass_motor) && act_cnt[25:18] > act_cnt[7:0]) : act_cnt[25:18] <= act_cnt[7:0]);
 
 wire cass_motor;
+wire cass_run = ~cass_motor & tap_play;
+wire cass_snd = cass_run & status[11] & cass_do;
 wire cass_do;
 
 c1530 c1530
 (
 	.clk(clk_sys),
-	.restart_tape(tap_reset),
+	.restart(tap_reset),
 
 	.clk_freq(32000000),
 	.cpu_freq(1000000),
 
-	.host_tap_in(sdram_data),
-	.host_tap_wrreq(tap_wrreq),
-	.tap_fifo_wrfull(tap_wrfull),
-	.play(~cass_motor & tap_play),
+	.din(sdram_data),
+	.wr(tap_wrreq),
+	.full(tap_wrfull),
+	.empty(tap_finish),
+
+	.play(cass_run),
 	.dout(cass_do)
 );
 
