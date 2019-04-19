@@ -911,7 +911,7 @@ assign AUDIO_MIX = status[19:18];
 
 reg [24:0] tap_play_addr;
 reg [24:0] tap_last_addr;
-wire       tap_reset = ~reset_n | (ioctl_download & load_tap) | status[23];
+wire       tap_reset = ~reset_n | (ioctl_download & load_tap) | status[23] | (cass_motor & ((tap_last_addr - tap_play_addr) < 80));
 reg        tap_wrreq;
 wire       tap_wrfull;
 wire       tap_finish;
