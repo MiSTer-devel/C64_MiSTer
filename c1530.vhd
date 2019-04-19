@@ -147,7 +147,7 @@ begin
 				if start_bytes = 13 then
 					tap_mode <= fifo_dout(1 downto 0);
 				end if;
-				if start_bytes < 20 then
+				if ((start_bytes < 20) and (tap_mode = 2)) or ((start_bytes < 26) and (tap_mode /= 2)) then
 					start_bytes <= start_bytes + 1;
 				else
 					skip_bytes <= '0';
