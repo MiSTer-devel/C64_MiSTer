@@ -182,6 +182,7 @@ integer hcnt;
 always @(posedge clk_vid) begin
 	integer vcnt;
 	reg old_vs= 0, old_de = 0, old_vmode = 0;
+	reg [3:0] resto = 0;
 	reg calch = 0;
 
 	if(ce_pix) begin
@@ -195,7 +196,12 @@ always @(posedge clk_vid) begin
 		if(old_vs & ~vs) begin
 			if(hcnt && vcnt) begin
 				old_vmode <= new_vmode;
-				if(vid_hcnt != hcnt || vid_vcnt != vcnt || old_vmode != new_vmode) vid_nres <= vid_nres + 1'd1;
+
+				//report new resolution after timeout
+				if(resto) resto <= resto + 1'd1;
+				if(vid_hcnt != hcnt || vid_vcnt != vcnt || old_vmode != new_vmode) resto <= 1;
+				if(&resto) vid_nres <= vid_nres + 1'd1;
+
 				vid_hcnt <= hcnt;
 				vid_vcnt <= vcnt;
 			end
