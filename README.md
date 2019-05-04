@@ -29,7 +29,19 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 
 ### Loadable ROM
 Alternative ROM can be placed in C64 folder with the name boot.rom.
-Format is simple concatenation of Kernal.rom + C1541.rom
+Format is simple concatenation of BASIC + Kernal.rom + C1541.rom
+
+To create the ROM in DOS or Windows, gather your files in one place and use the following command from the DOS prompt. 
+The easiest place to acquire the ROM files is from the VICE distribution. BASIC and KERNAL are in the C64 directory,
+and dos1541 is in the Drives directory.
+
+`COPY BASIC + KERNAL + dos1541 BOOT.ROM /B`
+
+To use JiffyDOS or another alternative kernel, replace the filenames with the name of your ROM or BIN file.  (Note, you muse use the 1541-II ROM. The ROM for the original 1541 only covers half the drive ROM and does not work with emulators.)
+
+`COPY BASIC + JiffyDOS_C64.bin + JiffyDOS_1541-II.bin BOOT.ROM /B`
+
+To confirm you have the correct image, the BOOT.ROM created must be exactly 32768 bytes long. 
 
 ### Autoload the cartridge
 Place the desired cartridge with the name boot3.rom in C64 folder to autoload it on start.
