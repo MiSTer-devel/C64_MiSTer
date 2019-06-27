@@ -89,6 +89,12 @@ entity fpga64_sid_iec is
 		joyB        : in  unsigned(6 downto 0);
 		joyC        : in  unsigned(6 downto 0);
 		joyD        : in  unsigned(6 downto 0);
+		
+		-- mouse interface
+		mouse_en    : in  std_logic_vector(1 downto 0);
+		mouse_x     : in  std_logic_vector(7 downto 0);
+		mouse_y     : in  std_logic_vector(7 downto 0);
+		mouse_btn   : in  std_logic_vector(1 downto 0);
 
 		-- serial port, for connection to pheripherals
 		serioclk    : out std_logic;
@@ -266,8 +272,10 @@ architecture rtl of fpga64_sid_iec is
 
 	signal clk_1MHz     : std_logic_vector(31 downto 0);
 	signal voice_volume : signed(17 downto 0);
-	signal pot_x        : std_logic_vector(7 downto 0);
-	signal pot_y        : std_logic_vector(7 downto 0);
+	signal pot_x1       : std_logic_vector(7 downto 0);
+	signal pot_y1       : std_logic_vector(7 downto 0);
+	signal pot_x2       : std_logic_vector(7 downto 0);
+	signal pot_y2       : std_logic_vector(7 downto 0);
 	signal audio_8580   : std_logic_vector(17 downto 0);
 
 	component sid8580
@@ -598,8 +606,11 @@ begin
 	sid_we_ext  <= sid_we and (not sid_mode(1) or not sid_sel_int);
 	sid_do      <= std_logic_vector(io_data) when sid_sel_int = '0' else sid_do6581 when sid_ver='0' else sid_do8580;
 
-	pot_x <= X"FF" when ((cia1_pao(7) and JoyA(5)) or (cia1_pao(6) and JoyB(5))) = '0' else X"00";
-	pot_y <= X"FF" when ((cia1_pao(7) and JoyA(6)) or (cia1_pao(6) and JoyB(6))) = '0' else X"00";
+	pot_x1 <= (others => '1' ) when cia1_pao(6) = '0' else mouse_x when mouse_en(0) = '1' else (others => not joyA(5));
+	pot_y1 <= (others => '1' ) when cia1_pao(6) = '0' else mouse_y when mouse_en(0) = '1' else (others => not joyA(6));
+
+	pot_x2 <= (others => '1' ) when cia1_pao(7) = '0' else mouse_x when mouse_en(1) = '1' else (others => not joyB(5));
+	pot_y2 <= (others => '1' ) when cia1_pao(7) = '0' else mouse_y when mouse_en(1) = '1' else (others => not joyB(6));
 
 	sid_6581: entity work.sid_top
 	port map (
@@ -611,8 +622,8 @@ begin
 		wdata => std_logic_vector(cpuDo),
 		rdata => sid_do6581,
 
-		potx => pot_x,
-		poty => pot_y,
+		potx => pot_x1 and pot_x2,
+		poty => pot_y1 and pot_y2,
 
 		comb_wave_l => '0',
 		comb_wave_r => '0',
@@ -633,11 +644,11 @@ begin
 		addr => std_logic_vector(cpuAddr(4 downto 0)),
 		data_in => std_logic_vector(cpuDo),
 		data_out => sid_do8580,
-		pot_x => pot_x,
-		pot_y => pot_y,
+		pot_x => pot_x1 and pot_x2,
+		pot_y => pot_y1 and pot_y2,
 		audio_data => audio_8580,
 		extfilter_en => extfilter_en
-	);	
+	);
 
 -- -----------------------------------------------------------------------
 -- CIAs
@@ -731,8 +742,8 @@ begin
 			clk => clk32,
 			ps2_key => ps2_key,
 
-			joyA => not joyA(4 downto 0),
-			joyB => not joyB(4 downto 0),
+			joyA => not joyA(4 downto 0) and not ((mouse_en(0) and mouse_btn(0))&"000"&(mouse_en(0) and mouse_btn(1))),
+			joyB => not joyB(4 downto 0) and not ((mouse_en(1) and mouse_btn(0))&"000"&(mouse_en(1) and mouse_btn(1))),
 			pai => cia1_pao,
 			pbi => cia1_pbo,
 			pao => cia1_pai,

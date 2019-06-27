@@ -158,8 +158,9 @@ localparam CONF_STR = {
 	"OC,Sound expander,No,OPL2;",
 	"OIJ,Stereo mix,none,25%,50%,100%;",
 	"-;",
-	"O3,Primary joystick,Port 2,Port 1;",
+	"O3,Swap joysticks,No,Yes;",
 	"O1,User port,Joysticks,UART;",
+	"OO,Mouse,Port 1,Port 2;",
 	"-;",
 	"OEF,Kernal,Loadable C64,Standard C64,C64GS;",
 	"R0,Reset & Detach cartridge;",
@@ -288,6 +289,7 @@ wire        sd_buff_wr;
 wire        sd_change;
 wire        disk_readonly;
 
+wire [24:0] ps2_mouse;
 wire [10:0] ps2_key;
 wire  [1:0] buttons;
 
@@ -320,6 +322,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.img_readonly(disk_readonly),
 
 	.ps2_key(ps2_key),
+	.ps2_mouse(ps2_mouse),
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
@@ -651,6 +654,10 @@ fpga64_sid_iec fpga64
 	.joyb(joyB_c64),
 	.joyc(joyC_c64),
 	.joyd(joyD_c64),
+	.mouse_en({mouse_en & status[24], mouse_en & ~status[24]}),
+	.mouse_x(mouse_x),
+	.mouse_y(mouse_y),
+	.mouse_btn(mouse_btn),
 	.ces(ces),
 	.idle(idle),
 	.sid_we_ext(sid_we),
@@ -683,6 +690,31 @@ fpga64_sid_iec fpga64
 	.uart_cts(1),
 	.uart_dsr(1)
 );
+
+wire [7:0] mouse_x;
+wire [7:0] mouse_y;
+wire [1:0] mouse_btn;
+
+c1351 mouse
+(
+	.clk_sys(clk_sys),
+	.reset(~reset_n),
+
+	.ps2_mouse(ps2_mouse),
+	
+	.potX(mouse_x),
+	.potY(mouse_y),
+	.button(mouse_btn)
+);
+
+reg mouse_en;
+always @(posedge clk_sys) begin
+	reg old_stb;
+	
+	old_stb <= ps2_mouse[24];
+	if(old_stb ^ ps2_mouse[24]) mouse_en <= 1;
+	if(joyA_c64 | joyB_c64) mouse_en <= 0;
+end
 
 reg c64_iec_data_i, c64_iec_clk_i;
 always @(posedge clk_sys) begin

@@ -151,7 +151,7 @@ begin
 		if rising_edge(clk) then
 
 			-- reading A, scan pattern on B
-			pao(0) <= pai(0) and joyA(0) and
+			pao(0) <= pai(0) and joyB(0) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_del) and
 				(pbi(1) or not key_return) and
@@ -161,7 +161,7 @@ begin
 				(pbi(5) or not (key_f3 or key_f4)) and
 				(pbi(6) or not (key_f5 or key_f6)) and
 				(pbi(7) or not (key_up or key_down))));
-			pao(1) <= pai(1) and joyA(1) and
+			pao(1) <= pai(1) and joyB(1) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_3) and
 				(pbi(1) or not key_W) and
@@ -171,7 +171,7 @@ begin
 				(pbi(5) or not key_S) and
 				(pbi(6) or not key_E) and
 				(pbi(7) or not (key_left or key_up or key_shiftL or key_f2 or key_f4 or key_f6 or key_f8))));
-			pao(2) <= pai(2) and joyA(2) and
+			pao(2) <= pai(2) and joyB(2) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_5) and
 				(pbi(1) or not key_R) and
@@ -181,7 +181,7 @@ begin
 				(pbi(5) or not key_F) and
 				(pbi(6) or not key_T) and
 				(pbi(7) or not key_X)));
-			pao(3) <= pai(3) and joyA(3) and
+			pao(3) <= pai(3) and joyB(3) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_7) and
 				(pbi(1) or not key_Y) and
@@ -191,7 +191,7 @@ begin
 				(pbi(5) or not key_H) and
 				(pbi(6) or not key_U) and
 				(pbi(7) or not key_V)));
-			pao(4) <= pai(4) and joyA(4) and
+			pao(4) <= pai(4) and joyB(4) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_9) and
 				(pbi(1) or not key_I) and
@@ -233,7 +233,7 @@ begin
 				(pbi(7) or not key_runstop)));
 
 			-- reading B, scan pattern on A
-			pbo(0) <= pbi(0) and joyB(0) and 
+			pbo(0) <= pbi(0) and joyA(0) and 
 				(pai(0) or not key_del) and
 				(pai(1) or not key_3) and
 				(pai(2) or not key_5) and
@@ -242,7 +242,7 @@ begin
 				(pai(5) or not key_plus) and
 				(pai(6) or not key_pound) and
 				(pai(7) or not key_1);
-			pbo(1) <= pbi(1) and joyB(1) and
+			pbo(1) <= pbi(1) and joyA(1) and
 				(pai(0) or not key_return) and
 				(pai(1) or not key_W) and
 				(pai(2) or not key_R) and
@@ -251,7 +251,7 @@ begin
 				(pai(5) or not key_P) and
 				(pai(6) or not key_star) and
 				(pai(7) or not key_arrowleft);
-			pbo(2) <= pbi(2) and joyB(2) and
+			pbo(2) <= pbi(2) and joyA(2) and
 				(pai(0) or not (key_left or key_right)) and
 				(pai(1) or not key_A) and
 				(pai(2) or not key_D) and
@@ -260,7 +260,7 @@ begin
 				(pai(5) or not key_L) and
 				(pai(6) or not key_semicolon) and
 				(pai(7) or not key_ctrl);
-			pbo(3) <= pbi(3) and joyB(3) and
+			pbo(3) <= pbi(3) and joyA(3) and
 				(pai(0) or not (key_F7 or key_F8)) and
 				(pai(1) or not key_4) and
 				(pai(2) or not key_6) and
@@ -269,7 +269,7 @@ begin
 				(pai(5) or not key_minus) and
 				(pai(6) or not key_home) and
 				(pai(7) or not key_2);
-			pbo(4) <= pbi(4) and joyB(4) and
+			pbo(4) <= pbi(4) and joyA(4) and
 				(pai(0) or not (key_F1 or key_F2)) and
 				(pai(1) or not key_Z) and
 				(pai(2) or not key_C) and
