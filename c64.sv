@@ -138,8 +138,9 @@ assign LED_USER = c1541_1_led | c1541_2_led | ioctl_download | tape_led;
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;;",
-	"S0,D64,Mount Disk #8;",
-	"S1,D64,Mount Disk #9;",
+	"S0,D64,Mount Drive #8;",
+	"D0S1,D64,Mount Drive #9;",
+	"OP,Enable Drive #9,No,Yes;",
 	"-;",
 	"F,PRG,Load File;",
 	"F,CRT,Load Cartridge;",
@@ -310,6 +311,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.conf_str(CONF_STR),
 
 	.status(status),
+	.status_menumask(~status[25]),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 
@@ -347,7 +349,7 @@ wire nmi;
 wire reset_crt;
 
 wire [24:0] cart_addr;
-wire load_cart = (ioctl_index == 4) || (ioctl_index == 'hC0);
+wire load_cart = (ioctl_index == 5) || (ioctl_index == 'hC0);
 
 cartridge cartridge
 (
@@ -458,7 +460,7 @@ always @(posedge clk_sys) begin
 	if (iec_cycle & iec_cycleD) {iec_cycle_ce, iec_cycle_we} <= 0;
 
 	if (ioctl_wr) begin
-		if (ioctl_index == 3) begin
+		if (ioctl_index == 4) begin
 			if (ioctl_addr == 0) ioctl_load_addr[7:0] <= ioctl_data;
 			else if (ioctl_addr == 1) ioctl_load_addr[15:8] <= ioctl_data;
 			else ioctl_req_wr <= 1;
@@ -518,7 +520,7 @@ always @(posedge clk_sys) begin
 		erase_cram <= 1;
 	end 
 
-	start_strk <= (old_download && ~ioctl_download && ioctl_index == 3);
+	start_strk <= (old_download && ~ioctl_download && ioctl_index == 4);
 	
 	old_st0 <= status[0];
 	if (~old_st0 & status[0]) cart_attached <= 0;
@@ -720,16 +722,18 @@ always @(posedge clk_sys) begin
 	if(joyA_c64 | joyB_c64) mouse_en <= 0;
 end
 
+wire drive9 = status[25];
+
 reg c64_iec_data_i, c64_iec_clk_i;
 always @(posedge clk_sys) begin
 	reg iec_data_d1, iec_clk_d1;
 	reg iec_data_d2, iec_clk_d2;
 
-	iec_data_d1 <= c1541_iec_data;
+	iec_data_d1 <= c1541_1_iec_data | (drive9 & c1541_2_iec_data);
 	iec_data_d2 <= iec_data_d1;
 	if(iec_data_d1 == iec_data_d2) c64_iec_data_i <= iec_data_d2;
 
-	iec_clk_d1 <= c1541_iec_clk;
+	iec_clk_d1 <= c1541_1_iec_clk  | (drive9 & c1541_2_iec_clk);
 	iec_clk_d2 <= iec_clk_d1;
 	if(iec_clk_d1 == iec_clk_d2) c64_iec_clk_i <= iec_clk_d2;
 end
@@ -737,8 +741,6 @@ end
 wire c64_iec_clk;
 wire c64_iec_data;
 wire c64_iec_atn;
-wire c1541_iec_clk  = c1541_1_iec_clk  | c1541_2_iec_clk;
-wire c1541_iec_data = c1541_1_iec_data | c1541_2_iec_data;
 
 wire c1541_1_iec_clk;
 wire c1541_1_iec_data;
@@ -797,9 +799,9 @@ c1541_sd c1541_2
 	.disk_readonly(disk_readonly),
 	.drive_num(1),
 
-	.iec_atn_i(c64_iec_atn),
-	.iec_data_i(c64_iec_data),
-	.iec_clk_i(c64_iec_clk),
+	.iec_atn_i(c64_iec_atn & drive9),
+	.iec_data_i(c64_iec_data & drive9),
+	.iec_clk_i(c64_iec_clk & drive9),
 	.iec_data_o(c1541_2_iec_data),
 	.iec_clk_o(c1541_2_iec_clk),
 	.iec_reset_i(~reset_n),
@@ -1001,7 +1003,7 @@ wire       tap_loaded = (tap_play_addr < tap_last_addr);
 reg        tap_play;
 wire       tap_play_btn = status[7];
 
-wire       load_tap = (ioctl_index == 5);
+wire       load_tap = (ioctl_index == 6);
 wire       tape_download = ioctl_download & load_tap;
 
 always @(posedge clk_sys) begin
