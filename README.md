@@ -39,7 +39,7 @@ and dos1541 is in the Drives directory.
 
 To use JiffyDOS or another alternative kernel, replace the filenames with the name of your ROM or BIN file.  (Note, you muse use the 1541-II ROM. The ROM for the original 1541 only covers half the drive ROM and does not work with emulators.)
 
-`COPY BASIC + JiffyDOS_C64.bin + JiffyDOS_1541-II.bin BOOT.ROM /B`
+`COPY /B BASIC.bin +JiffyDOS_C64.bin +JiffyDOS_1541-II.bin BOOT.ROM`
 
 To confirm you have the correct image, the BOOT.ROM created must be exactly 32768 bytes long. 
 
