@@ -165,6 +165,8 @@ localparam CONF_STR = {
 	"OO,Mouse,Port 1,Port 2;",
 	"-;",
 	"OEF,Kernal,Loadable C64,Standard C64,C64GS;",
+	"-;",
+	"RH,Reset;",
 	"R0,Reset & Detach cartridge;",
 	"J,Button 1,Button 2,Button 3;",
 	"V,v",`BUILD_DATE
@@ -251,7 +253,7 @@ reg reset_n;
 always @(posedge clk_sys) begin
 	integer reset_counter;
 
-	if (status[0] | buttons[1] | !pll_locked) begin
+	if (status[0] | status[17] | buttons[1] | !pll_locked) begin
 		reset_counter <= 100000;
 		reset_n <= 0;
 	end
