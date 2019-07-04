@@ -133,12 +133,14 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_DISK = 0;
 assign LED_POWER = 0;
-assign LED_USER = c1541_led | ioctl_download | tape_led;
+assign LED_USER = c1541_1_led | c1541_2_led | ioctl_download | tape_led;
 
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;;",
-	"S,D64,Mount Disk;",
+	"S0,D64,Mount Disk #8;",
+	"S1,D64,Mount Disk #9;",
+	"-;",
 	"F,PRG,Load File;",
 	"F,CRT,Load Cartridge;",
 	"-;",
@@ -278,22 +280,22 @@ wire  [7:0] ioctl_data;
 wire  [7:0] ioctl_index;
 wire        ioctl_download;
 
-wire [31:0] sd_lba;
-wire        sd_rd;
-wire        sd_wr;
+wire [31:0] sd_lba1, sd_lba2;
+wire  [1:0] sd_rd;
+wire  [1:0] sd_wr;
 wire        sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
-wire  [7:0] sd_buff_din;
+wire  [7:0] sd_buff_din1, sd_buff_din2;
 wire        sd_buff_wr;
-wire        sd_change;
+wire  [1:0] sd_change;
 wire        disk_readonly;
 
 wire [24:0] ps2_mouse;
 wire [10:0] ps2_key;
 wire  [1:0] buttons;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
+hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -309,14 +311,14 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 
-	.sd_lba(sd_lba),
+	.sd_lba(c1541_1_busy ? sd_lba1 : sd_lba2),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
+	.sd_buff_din(c1541_1_busy ? sd_buff_din1 : sd_buff_din2),
 	.sd_buff_wr(sd_buff_wr),
 	.img_mounted(sd_change),
 	.img_readonly(disk_readonly),
@@ -343,7 +345,7 @@ wire nmi;
 wire reset_crt;
 
 wire [24:0] cart_addr;
-wire load_cart = (ioctl_index == 3) || (ioctl_index == 'hC0);
+wire load_cart = (ioctl_index == 4) || (ioctl_index == 'hC0);
 
 cartridge cartridge
 (
@@ -454,7 +456,7 @@ always @(posedge clk_sys) begin
 	if (iec_cycle & iec_cycleD) {iec_cycle_ce, iec_cycle_we} <= 0;
 
 	if (ioctl_wr) begin
-		if (ioctl_index == 2) begin
+		if (ioctl_index == 3) begin
 			if (ioctl_addr == 0) ioctl_load_addr[7:0] <= ioctl_data;
 			else if (ioctl_addr == 1) ioctl_load_addr[15:8] <= ioctl_data;
 			else ioctl_req_wr <= 1;
@@ -514,7 +516,7 @@ always @(posedge clk_sys) begin
 		erase_cram <= 1;
 	end 
 
-	start_strk <= (old_download && ~ioctl_download && ioctl_index == 2);
+	start_strk <= (old_download && ~ioctl_download && ioctl_index == 3);
 	
 	old_st0 <= status[0];
 	if (~old_st0 & status[0]) cart_attached <= 0;
@@ -733,11 +735,15 @@ end
 wire c64_iec_clk;
 wire c64_iec_data;
 wire c64_iec_atn;
-wire c1541_iec_clk;
-wire c1541_iec_data;
-wire c1541_led;
+wire c1541_iec_clk  = c1541_1_iec_clk  | c1541_2_iec_clk;
+wire c1541_iec_data = c1541_1_iec_data | c1541_2_iec_data;
 
-c1541_sd c1541
+wire c1541_1_iec_clk;
+wire c1541_1_iec_data;
+wire c1541_1_led;
+wire c1541_1_busy;
+
+c1541_sd c1541_1
 (
 	.clk_c1541(clk64 & ce_c1541),
 	.clk_sys(clk_sys),
@@ -747,26 +753,65 @@ c1541_sd c1541
 	.rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
 
-	.disk_change(sd_change),
+	.disk_change(sd_change[0]),
 	.disk_readonly(disk_readonly),
+	.drive_num(0),
 
 	.iec_atn_i(c64_iec_atn),
 	.iec_data_i(c64_iec_data),
 	.iec_clk_i(c64_iec_clk),
-	.iec_data_o(c1541_iec_data),
-	.iec_clk_o(c1541_iec_clk),
+	.iec_data_o(c1541_1_iec_data),
+	.iec_clk_o(c1541_1_iec_clk),
 	.iec_reset_i(~reset_n),
 
-	.sd_lba(sd_lba),
-	.sd_rd(sd_rd),
-	.sd_wr(sd_wr),
+	.sd_lba(sd_lba1),
+	.sd_rd(sd_rd[0]),
+	.sd_wr(sd_wr[0]),
 	.sd_ack(sd_ack),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
+	.sd_buff_din(sd_buff_din1),
+	.sd_buff_wr(sd_buff_wr),
+	.sd_busy(c1541_1_busy),
+
+	.led(c1541_1_led)
+);
+
+wire c1541_2_iec_clk;
+wire c1541_2_iec_data;
+wire c1541_2_led;
+
+c1541_sd c1541_2
+(
+	.clk_c1541(clk64 & ce_c1541),
+	.clk_sys(clk_sys),
+
+	.rom_addr(ioctl_addr[13:0]),
+	.rom_data(ioctl_data),
+	.rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
+	.rom_std(status[14]),
+
+	.disk_change(sd_change[1]),
+	.disk_readonly(disk_readonly),
+	.drive_num(1),
+
+	.iec_atn_i(c64_iec_atn),
+	.iec_data_i(c64_iec_data),
+	.iec_clk_i(c64_iec_clk),
+	.iec_data_o(c1541_2_iec_data),
+	.iec_clk_o(c1541_2_iec_clk),
+	.iec_reset_i(~reset_n),
+
+	.sd_lba(sd_lba2),
+	.sd_rd(sd_rd[1]),
+	.sd_wr(sd_wr[1]),
+	.sd_ack(sd_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din(sd_buff_din2),
 	.sd_buff_wr(sd_buff_wr),
 
-	.led(c1541_led)
+	.led(c1541_2_led)
 );
 
 reg ce_c1541;
@@ -946,7 +991,7 @@ assign AUDIO_MIX = status[19:18];
 
 reg [24:0] tap_play_addr;
 reg [24:0] tap_last_addr;
-wire       tap_reset = ~reset_n | (ioctl_download & load_tap) | status[23] | (cass_motor & ((tap_last_addr - tap_play_addr) < 80));
+wire       tap_reset = ~reset_n | tape_download | status[23] | (cass_motor & ((tap_last_addr - tap_play_addr) < 80));
 reg        tap_wrreq;
 wire       tap_wrfull;
 wire       tap_finish;
@@ -954,7 +999,8 @@ wire       tap_loaded = (tap_play_addr < tap_last_addr);
 reg        tap_play;
 wire       tap_play_btn = status[7];
 
-wire       load_tap = (ioctl_index == 4);
+wire       load_tap = (ioctl_index == 5);
+wire       tape_download = ioctl_download & load_tap;
 
 always @(posedge clk_sys) begin
 	reg iec_cycleD, tap_finishD;
@@ -968,9 +1014,9 @@ always @(posedge clk_sys) begin
 
 	if(tap_reset) begin
 		//C1530 module requires one more byte at the end due to fifo early check.
-		tap_last_addr <= ioctl_download ? ioctl_addr+2'd2 : 25'd0;
+		tap_last_addr <= tape_download ? ioctl_addr+2'd2 : 25'd0;
 		tap_play_addr <= 0;
-		tap_play <= ioctl_download;
+		tap_play <= tape_download;
 		read_cyc <= 0;
 	end
 	else begin

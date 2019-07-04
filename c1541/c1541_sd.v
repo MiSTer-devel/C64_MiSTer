@@ -45,6 +45,7 @@ module c1541_sd
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din,
 	input         sd_buff_wr,
+	output        sd_busy,
 
 	input  [13:0] rom_addr,
 	input   [7:0] rom_data,
@@ -65,6 +66,7 @@ always @(posedge clk_c1541) begin
 	reset <= reset_r;
 end
 
+reg readonly = 0;
 reg ch_state;
 always @(posedge clk_c1541) begin
 	integer ch_timeout;
@@ -75,7 +77,10 @@ always @(posedge clk_c1541) begin
 		ch_timeout <= ch_timeout - 1;
 		ch_state <= 1;
 	end else ch_state <= 0;
-	if (~prev_change & disk_change) ch_timeout <= 15000000;
+	if (~prev_change & disk_change) begin
+		ch_timeout <= 15000000;
+		readonly <= disk_readonly;
+	end
 end
 
 wire       mode; // read/write
@@ -111,7 +116,7 @@ c1541_logic c1541_logic
 	.freq(),
 	.sync_n(sync_n),
 	.byte_n(byte_n),
-	.wps_n(~disk_readonly ^ ch_state),
+	.wps_n(~readonly ^ ch_state),
 	.tr00_sense_n(|track),
 	.act(act)
 );
@@ -147,8 +152,6 @@ c1541_gcr c1541_gcr
 
 	.ram_ready(~sd_busy)
 );
-
-wire sd_busy;
 
 c1541_track c1541_track
 (

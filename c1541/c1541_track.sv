@@ -57,12 +57,13 @@ always @(posedge sd_clk) begin
 	sd_rd <= rd1;
 end
 
+wire sd_b_ack = sd_ack & busy;
 trk_dpram buffer
 (
 	.clock_a(sd_clk),
 	.address_a(sd_buff_base + base_fix + sd_buff_addr),
 	.data_a(sd_buff_dout),
-	.wren_a(sd_ack & sd_buff_wr),
+	.wren_a(sd_b_ack & sd_buff_wr),
 	.q_a(sd_buff_din),
 
 	.clock_b(clk),
@@ -91,7 +92,7 @@ always @(posedge clk) begin
 	old_change <= change;
 	if(~old_change & change) ready <= 1;
 	
-	ack1 <= sd_ack;
+	ack1 <= sd_b_ack;
 	ack2 <= ack1;
 	if(ack2 == ack1) ack <= ack1;
 
