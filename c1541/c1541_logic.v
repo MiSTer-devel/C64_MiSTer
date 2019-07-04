@@ -23,6 +23,7 @@ module c1541_logic
    input [13:0] c1541rom_addr,
    input [7:0]  c1541rom_data,
    input        c1541rom_wr,
+   input        c1541stdrom_wr,
    input        c1541std,
 
    // drive-side interface
@@ -102,17 +103,17 @@ wire        cpu_so_n = byte_n | ~soe;
 
 T65 cpu
 (
-	.mode(0),
+	.mode(2'b00),
 	.res_n(~reset),
 	.enable(p2_h_f),
 	.clk(clk32),
-	.rdy(1),
-	.abort_n(1),
+	.rdy(1'b1),
+	.abort_n(1'b1),
 	.irq_n(cpu_irq_n),
-	.nmi_n(1),
+	.nmi_n(1'b1),
 	.so_n(cpu_so_n),
 	.r_w_n(cpu_rw),
-	.a(cpu_a),
+	.a({8'h00,cpu_a}),
 	.di(cpu_di),
 	.do(cpu_do)
 );
@@ -124,6 +125,7 @@ always @(posedge clk32) rom_do <= rom[cpu_a[13:0]];
 
 reg [7:0] romstd_do;
 (* ram_init_file = "c1541/c1541_rom.mif" *) reg [7:0] romstd[16384];
+always @(posedge c1541rom_clk) if (c1541stdrom_wr) romstd[c1541rom_addr] <= c1541rom_data;
 always @(posedge clk32) romstd_do <= romstd[cpu_a[13:0]];
 
 reg [7:0] ram[2048];
@@ -152,13 +154,13 @@ c1541_via6522 uc1
 
 	// port a
 	.ca1_i(~sb_atn_in),
-	.ca2_i(0),
+	.ca2_i(1'b0),
 
-	.port_a_i(tr00_sense_n),
+	.port_a_i({7'd0,tr00_sense_n}),
 
 	// port b
-	.cb1_i(0),
-	.cb2_i(0),
+	.cb1_i(1'b0),
+	.cb2_i(1'b0),
 
 	.port_b_i({~iec_atn, ds, 2'b00, ~iec_clk | sb_clk_out, 1'b0, ~iec_data | sb_data_out}),
 	.port_b_o(uc1_pb_o),
@@ -197,7 +199,7 @@ c1541_via6522 uc3
 
 	// port a
 	.ca1_i(cpu_so_n),
-	.ca2_i(0),
+	.ca2_i(1'b0),
 	.ca2_o(uc3_ca2_o),
 	.ca2_t_l(uc3_ca2_oe_n),
 
@@ -206,8 +208,8 @@ c1541_via6522 uc3
 	.port_a_t_l(uc3_pa_oe_n),
 
 	// port b
-	.cb1_i(0),
-	.cb2_i(0),
+	.cb1_i(1'b0),
+	.cb2_i(1'b0),
 	.cb2_o(uc3_cb2_o),
 	.cb2_t_l(uc3_cb2_oe_n),
 

@@ -50,6 +50,7 @@ module c1541_sd
 	input  [13:0] rom_addr,
 	input   [7:0] rom_data,
 	input         rom_wr,
+	input         stdrom_wr,
 	input         rom_std
 );
 
@@ -104,6 +105,7 @@ c1541_logic c1541_logic
 	.c1541rom_addr(rom_addr),
 	.c1541rom_data(rom_data),
 	.c1541rom_wr(rom_wr),
+	.c1541stdrom_wr(stdrom_wr),
 	.c1541std(rom_std),
 
 	// drive-side interface
