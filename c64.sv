@@ -559,8 +559,7 @@ always @(posedge clk_sys) begin
 				1: key <= 'h2d;
 				3: key <= 'h3c;
 				5: key <= 'h31;
-				7: key <= 'h4c;
-				9: key <= 'h5a;
+				7: key <= 'h5a;  // We can't follow with colon without breaking compatibility.
 				10:act <= 0;
 			endcase
 			key[9] <= act[0];
