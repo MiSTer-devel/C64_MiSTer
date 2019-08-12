@@ -556,12 +556,14 @@ always @(posedge clk_sys) begin
 			to <= 0;
 			act <= act + 1'd1;
 			case(act)
-				1: key <= 'h2d;
-				3: key <= 'h3c;
-				5: key <= 'h31;
-				7: key <= 'h4c;
-				9: key <= 'h5a;
-				10:act <= 0;
+				1: key <= 'h12;
+				2: key <= 'h6c;   // CLR instead of ending with ":" so not to break compatibility (eg "a mind is born")
+				5: key <= 'h12;   // Unstuck shift
+				7: key <= 'h2d;
+				9: key <= 'h3c;
+				11: key <= 'h31;
+				13: key <= 'h5a;  
+				15:act <= 0;
 			endcase
 			key[9] <= act[0];
 		end
