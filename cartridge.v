@@ -121,6 +121,8 @@ always @(posedge clk32) begin
 	reg        count_ena;
 	reg        cart_disable = 0;
 
+	if (!cart_attached) allow_freeze <= 1;  // Otherwise it defaults to 0 and freeze/restore does not work after dettaching a freezer (just once).
+	
 	old_freeze <= freeze_key;
 	if(freeze_req & allow_freeze) nmi <= 1;
 
