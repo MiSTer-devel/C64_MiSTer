@@ -177,12 +177,14 @@ localparam CONF_STR = {
 wire pll_locked;
 wire clk_sys;
 wire clk64;
+wire clk96;
 
 pll pll
 (
 	.refclk(CLK_50M),
-	.outclk_0(clk64),
-	.outclk_1(clk_sys),
+	.outclk_0(clk96),
+	.outclk_1(clk64),
+	.outclk_2(clk_sys),
 	.reconfig_to_pll(reconfig_to_pll),
 	.reconfig_from_pll(reconfig_from_pll),
 	.locked(pll_locked)
@@ -231,14 +233,16 @@ always @(posedge CLK_50M) begin
 					cfg_data <= 0;
 					cfg_write <= 1;
 				end
+				/*
 			3: begin
 					cfg_address <= 4;
 					cfg_data <= ntsc_r ? 'h20504 : 'h404;
 					cfg_write <= 1;
 				end
+				*/
 			5: begin
 					cfg_address <= 7;
-					cfg_data <= ntsc_r ? 702807747 : 3555492125;
+					cfg_data <= ntsc_r ? 3357876127 : 1503512573;
 					cfg_write <= 1;
 				end
 			7: begin
@@ -866,13 +870,24 @@ always @(posedge clk_sys) begin
 	end
 end
 
-reg [3:0] clkdivpix;
-always @(posedge clk64) clkdivpix <= clkdivpix + 1'b1;
+reg ce_pix;
+always @(posedge clk96) begin
+	reg [3:0] div;
+	reg       lores;
 
-wire ce_pix = (~clkdivpix[3] | ~hq2x160) & ~clkdivpix[2] & ~clkdivpix[1] & ~clkdivpix[0];
+	div <= div + 1'b1;
+
+	if(div == 11) begin
+		div <= 0;
+		lores <= ~lores;
+	end
+	
+	ce_pix <= (~lores | ~hq2x160) && !div;
+end
+
 wire scandoubler = status[10:8] || forced_scandoubler;
 
-assign CLK_VIDEO = clk64;
+assign CLK_VIDEO = clk96;
 assign VIDEO_ARX = status[5:4] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[5:4] ? 8'd9  : 8'd3;
 assign VGA_SL    = (status[10:8] > 2) ? status[9:8] - 2'd2 : 2'd0;
@@ -880,7 +895,7 @@ assign VGA_F1    = 0;
 
 video_mixer video_mixer
 (
-	.clk_sys(clk64),
+	.clk_sys(clk96),
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
