@@ -113,9 +113,19 @@ T65 cpu
 	.nmi_n(1'b1),
 	.so_n(cpu_so_n),
 	.r_w_n(cpu_rw),
+	.sync(),
+	.ef(),
+	.mf(),
+	.xf(),
+	.ml_n(),
+	.vp_n(),
+	.vda(),
+	.vpa(),
 	.a({8'h00,cpu_a}),
 	.di(cpu_di),
-	.do(cpu_do)
+	.do(cpu_do),
+	.debug(),
+	.nmi_ack()
 );
 
 reg [7:0] rom_do;
@@ -147,6 +157,8 @@ c1541_via6522 uc1
 	.data_in(cpu_do),
 	.data_out(uc1_do),
 
+	.phi2_ref(),
+
 	.ren(cpu_rw & uc1_cs),
 	.wen(~cpu_rw & uc1_cs),
 
@@ -155,12 +167,20 @@ c1541_via6522 uc1
 	// port a
 	.ca1_i(~sb_atn_in),
 	.ca2_i(1'b0),
+	.ca2_o(),
+	.ca2_t_l(),
 
 	.port_a_i({7'd0,tr00_sense_n}),
+	.port_a_o(),
+	.port_a_t_l(),
 
 	// port b
 	.cb1_i(1'b0),
+	.cb1_o(),
+	.cb1_t_l(),
 	.cb2_i(1'b0),
+	.cb2_o(),
+	.cb2_t_l(),
 
 	.port_b_i({~iec_atn, ds, 2'b00, ~iec_clk | sb_clk_out, 1'b0, ~iec_data | sb_data_out}),
 	.port_b_o(uc1_pb_o),
@@ -192,6 +212,8 @@ c1541_via6522 uc3
 	.data_in(cpu_do),
 	.data_out(uc3_do),
 
+	.phi2_ref(),
+
 	.ren(cpu_rw & uc3_cs),
 	.wen(~cpu_rw & uc3_cs),
 
@@ -209,6 +231,8 @@ c1541_via6522 uc3
 
 	// port b
 	.cb1_i(1'b0),
+	.cb1_o(),
+	.cb1_t_l(),
 	.cb2_i(1'b0),
 	.cb2_o(uc3_cb2_o),
 	.cb2_t_l(uc3_cb2_oe_n),

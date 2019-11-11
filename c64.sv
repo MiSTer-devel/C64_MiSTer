@@ -188,6 +188,7 @@ wire clk96;
 pll pll
 (
 	.refclk(CLK_50M),
+	.rst(1'b0),
 	.outclk_0(clk96),
 	.outclk_1(clk64),
 	.outclk_2(clk_sys),
@@ -206,9 +207,9 @@ reg  [31:0] cfg_data;
 pll_cfg pll_cfg
 (
 	.mgmt_clk(CLK_50M),
-	.mgmt_reset(0),
+	.mgmt_reset(1'b0),
 	.mgmt_waitrequest(cfg_waitrequest),
-	.mgmt_read(0),
+	.mgmt_read(1'b0),
 	.mgmt_readdata(),
 	.mgmt_write(cfg_write),
 	.mgmt_address(cfg_address),
@@ -282,13 +283,13 @@ always @(posedge clk_sys) begin
 end 
 
 
-wire [15:0] joyA,joyB,joyC,joyD;
+wire [31:0] joyA,joyB,joyC,joyD;
 
 wire [31:0] status;
 wire        forced_scandoubler;
 
 wire        ioctl_wr;
-wire [24:0] ioctl_addr;
+wire [26:0] ioctl_addr;
 wire  [7:0] ioctl_data;
 wire  [7:0] ioctl_index;
 wire        ioctl_download;
@@ -317,11 +318,24 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.joystick_1(joyB),
 	.joystick_2(joyC),
 	.joystick_3(joyD),
+	.joystick_4(),
+	.joystick_5(),
+	.joystick_analog_0(),
+	.joystick_analog_1(),
+	.joystick_analog_2(),
+	.joystick_analog_3(),
+	.joystick_analog_4(),
+	.joystick_analog_5(),
 
 	.conf_str(CONF_STR),
 
 	.status(status),
-	.status_menumask(~status[25]),
+	.status_in(32'b0),
+	.status_set(1'b0),
+	.status_menumask({15'b0, ~status[25]}),
+
+	.new_vmode(1'b0),
+
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 
@@ -334,18 +348,43 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_din(c1541_1_busy ? sd_buff_din1 : sd_buff_din2),
 	.sd_buff_wr(sd_buff_wr),
+	.sd_req_type(16'b0),
+
 	.img_mounted(sd_change),
 	.img_readonly(disk_readonly),
+	.img_size(),
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
+	.ps2_mouse_ext(),
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_data),
+	.ioctl_file_ext(),
 	.ioctl_wait(ioctl_req_wr),
+
+	.sdram_sz(),
+
+	.RTC(),
+
+	.TIMESTAMP(),
+
+	.ps2_kbd_clk_out(),
+	.ps2_kbd_data_out(),
+	.ps2_kbd_clk_in(1'b0),
+	.ps2_kbd_data_in(1'b0),
+
+	.ps2_kbd_led_status(3'b0),
+	.ps2_kbd_led_use(3'b0),
+
+	.ps2_mouse_clk_out(),
+	.ps2_mouse_data_out(),
+	.ps2_mouse_clk_in(1'b0),
+	.ps2_mouse_data_in(1'b0),
+
 	.uart_mode(16'b000_11111_000_11111)
 );
 
@@ -656,11 +695,12 @@ fpga64_sid_iec fpga64
 	.max_ram(max_ram),
 	.umaxromh(UMAXromH),
 	.cpu_hasbus(),
-	.irq_n(1),
+	.irq_n(1'b1),
 	.nmi_n(~nmi),
 	.nmi_ack(nmi_ack),
 	.freeze_key(freeze_key),
 	.dma_n(1'b1),
+	.ba(),
 	.roml(romL),
 	.romh(romH),
 	.ioe(IOE),
@@ -676,6 +716,7 @@ fpga64_sid_iec fpga64
 	.mouse_x(mouse_x),
 	.mouse_y(mouse_y),
 	.mouse_btn(mouse_btn),
+	.serioclk(),
 	.ces(ces),
 	.idle(idle),
 	.sid_we_ext(sid_we),
@@ -693,6 +734,7 @@ fpga64_sid_iec fpga64
 	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
 
 	.cass_motor(cass_motor),
+	.cass_write(),
 	.cass_sense(~tap_play),
 	.cass_in(cass_do),
 
@@ -703,10 +745,10 @@ fpga64_sid_iec fpga64
 	.uart_ri_out(),
 	.uart_dcd_out(),
 	.uart_rxd(UART_RXD),
-	.uart_ri_in(1),	    // I think these are active-High on the User Port? (even those TXD and RXD seem to be active-low.) ElectronAsh.
-	.uart_dcd_in(1),
-	.uart_cts(1),
-	.uart_dsr(1)
+	.uart_ri_in(1'b1),	    // I think these are active-High on the User Port? (even those TXD and RXD seem to be active-low.) ElectronAsh.
+	.uart_dcd_in(1'b1),
+	.uart_cts(1'b1),
+	.uart_dsr(1'b1)
 );
 
 wire [7:0] mouse_x;
@@ -768,10 +810,11 @@ c1541_sd c1541_1
 	.rom_data(ioctl_data),
 	.rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
+	.stdrom_wr(1'b0),
 
 	.disk_change(sd_change[0]),
 	.disk_readonly(disk_readonly),
-	.drive_num(0),
+	.drive_num(2'b0),
 
 	.iec_atn_i(c64_iec_atn),
 	.iec_data_i(c64_iec_data),
@@ -806,10 +849,11 @@ c1541_sd c1541_2
 	.rom_data(ioctl_data),
 	.rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
+	.stdrom_wr(1'b0),
 
 	.disk_change(sd_change[1]),
 	.disk_readonly(disk_readonly),
-	.drive_num(1),
+	.drive_num(2'b1),
 
 	.iec_atn_i(c64_iec_atn & drive9),
 	.iec_data_i(c64_iec_data & drive9),
@@ -826,6 +870,7 @@ c1541_sd c1541_2
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_din(sd_buff_din2),
 	.sd_buff_wr(sd_buff_wr),
+	.sd_busy(),
 
 	.led(c1541_2_led)
 );
@@ -905,14 +950,14 @@ video_mixer video_mixer
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
-	.scanlines(0),
+	.scanlines(2'b0),
 	.hq2x(~status[10] & (status[9] ^ status[8])),
 	.scandoubler(scandoubler),
 
 	.R(r),
 	.G(g),
 	.B(b),
-	.mono(0),
+	.mono(1'b0),
 
 	.HSync(hsync_out),
 	.VSync(vsync_out),
@@ -935,15 +980,17 @@ opl3 opl_inst
 	.clk(clk_sys),
 	.clk_opl(clk64),
 	.rst_n(reset_n),
+	.irq_n(),
 
-	.period_80us(2560),
+	.period_80us(13'd2560),
 
-	.addr(c64_addr[4]),
+	.addr({1'b0, c64_addr[4]}),
 	.dout(opl_dout),
 	.we(~ram_we & IOF & opl_en & c64_addr[6] & ~c64_addr[5]),
 	.din(c64_data_out),
 
-	.sample_l(opl_out)
+	.sample_l(opl_out),
+	.sample_r(16'b0)
 );
 
 reg [31:0] ce_1m;
@@ -971,13 +1018,20 @@ sid_top sid_6581
 	.reset(~reset_n),
 	.start_iter(ce_1m[31]),
 
-	.addr(c64_addr[4:0]),
+	.addr({3'b0, c64_addr[4:0]}),
 	.wren(sid2_we),
 	.wdata(c64_data_out),
 	.rdata(data_6581),
 
+	.potx(8'b0),
+	.poty(8'b0),
+
+	.comb_wave_l(1'b0),
+	.comb_wave_r(1'b0),
+
 	.extfilter_en(~status[6]),
-	.sample_left(audio6581_r)
+	.sample_left(audio6581_r),
+	.sample_right()
 );
 
 wire [17:0] audio8580_r;
@@ -992,6 +1046,9 @@ sid8580 sid_8580
 	.we(sid2_we),
 	.data_in(c64_data_out),
 	.data_out(data_8580),
+
+	.pot_x(8'b0),
+	.pot_y(8'b0),
 
 	.extfilter_en(~status[6]),
 	.audio_data(audio8580_r)
@@ -1041,7 +1098,7 @@ always @(posedge clk_sys) begin
 
 	if(tap_reset) begin
 		//C1530 module requires one more byte at the end due to fifo early check.
-		tap_last_addr <= tape_download ? ioctl_addr+2'd2 : 25'd0;
+		tap_last_addr <= tape_download ? ioctl_addr[24:0]+2'd2 : 25'd0;
 		tap_play_addr <= 0;
 		tap_play <= tape_download;
 		read_cyc <= 0;

@@ -82,7 +82,7 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 wire timer1_pulse;
-timer timer1( clk, period_80us, timer1_preset, timer1_active, timer1_pulse );
+timer timer1( clk, {2'b00, period_80us}, timer1_preset, timer1_active, timer1_pulse );
 
 reg timer1_overflow;
 always @(posedge clk or negedge rst_n) begin

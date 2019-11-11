@@ -170,8 +170,8 @@ NextZ80 Z80
 	.M1(),
 	.CLK(clk),
 	.RESET(reset),
-	.INT(0),
-	.NMI(0),
+	.INT(1'b0),
+	.NMI(1'b0),
 	.WAIT(!CE)
 );
 
