@@ -84,16 +84,23 @@ always @(posedge clk32) begin
 	p2_h_f <=  div[4] && !div[3:0];
 end
 
-wire uc1_cs = (cpu_a[15:4] == 'h180); // UC1 $1800-$180F
-wire uc3_cs = (cpu_a[15:4] == 'h1C0); // UC3 $1C00-$1C0F
-wire ram_cs = !cpu_a[15:11];          // RAM $0000-$07FF (2KB)
-wire rom_cs = &cpu_a[15:14];          // ROM $C000-$FFFF (16KB)
+// The address decoder only sees A15 A12 A11 and A10, which means the
+// 0x0000-0x1FFF address map repeats 4 times (A14 & A13).
+// Also, it means the smallest chip addressing space is
+// 0x400-addresses-long (A9 to A0).
+// Above that, cpu_a[15] is set, which selects the ROM.
+wire ram_cs =(({cpu_a[15], cpu_a[12]   } == 2'b0__0__) ||
+	      ({cpu_a[15], cpu_a[12:11]} == 3'b0__10_));// RAM $0000-$17FF (2KB + mirrors)
+wire uc1_cs = ({cpu_a[15], cpu_a[12:10]} == 4'b0__110); // UC1 $1800-$1BFF (16B + mirrors)
+wire uc3_cs = ({cpu_a[15], cpu_a[12:10]} == 4'b0__111); // UC3 $1C00-$1FFF (16B + mirrors)
 
-wire  [7:0] cpu_di = rom_cs ? (c1541std ? romstd_do : rom_do) :
-					ram_cs ? ram_do :
-					uc1_cs ? uc1_do :
-					uc3_cs ? uc3_do :
-					8'hFF;
+wire  [7:0] cpu_di = (
+	!cpu_rw ? cpu_do :
+	ram_cs ? ram_do :
+	uc1_cs ? uc1_do :
+	uc3_cs ? uc3_do :
+	(c1541std ? romstd_do : rom_do)
+);
 
 wire [15:0] cpu_a;
 wire  [7:0] cpu_do;
