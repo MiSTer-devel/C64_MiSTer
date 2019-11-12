@@ -131,8 +131,8 @@ always @(posedge clk32) romstd_do <= romstd[cpu_a[13:0]];
 reg [7:0] ram[2048];
 reg [7:0] ram_do;
 wire      ram_wr = ram_cs & ~cpu_rw;
-always @(posedge clk32) if (ram_wr) ram[cpu_a[13:0]] <= cpu_do;
-always @(posedge clk32) ram_do <= ram[cpu_a[13:0]];
+always @(posedge clk32) if (ram_wr) ram[cpu_a[10:0]] <= cpu_do;
+always @(posedge clk32) ram_do <= ram[cpu_a[10:0]];
 
 
 // UC1 (VIA6522) signals
