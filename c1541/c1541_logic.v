@@ -41,8 +41,8 @@ module c1541_logic
    output       act			// activity LED
 );
 
-assign sb_data_out = (uc1_pb_o[1] & (~uc1_pb_oe_n[1])) | (uc1_pb_o[4] ^ ~sb_atn_in);
-assign sb_clk_out  = uc1_pb_o[3] & ~uc1_pb_oe_n[3];
+assign sb_data_out = ~(uc1_pb_o[1] | uc1_pb_oe_n[1]) & ~((uc1_pb_o[4] | uc1_pb_oe_n[4]) ^ ~sb_atn_in);
+assign sb_clk_out  = ~(uc1_pb_o[3] | uc1_pb_oe_n[3]);
 
 assign dout = uc3_pa_o | uc3_pa_oe_n;
 assign mode = uc3_cb2_o | uc3_cb2_oe_n;
@@ -162,7 +162,7 @@ c1541_via6522 uc1
 	.cb1_i(1'b0),
 	.cb2_i(1'b0),
 
-	.port_b_i({~iec_atn, ds, 2'b00, ~iec_clk | sb_clk_out, 1'b0, ~iec_data | sb_data_out}),
+	.port_b_i({~iec_atn, ds, 2'b00, ~(iec_clk & sb_clk_out), 1'b0, ~(iec_data & sb_data_out)}),
 	.port_b_o(uc1_pb_o),
 	.port_b_t_l(uc1_pb_oe_n),
 
