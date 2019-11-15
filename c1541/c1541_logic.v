@@ -41,8 +41,8 @@ module c1541_logic
    output       act			// activity LED
 );
 
-assign sb_data_out = (uc1_pb_o[1] & (~uc1_pb_oe_n[1])) | (uc1_pb_o[4] ^ ~sb_atn_in);
-assign sb_clk_out  = uc1_pb_o[3] & ~uc1_pb_oe_n[3];
+assign sb_data_out = ~(uc1_pb_o[1] | uc1_pb_oe_n[1]) & ~((uc1_pb_o[4] | uc1_pb_oe_n[4]) ^ ~sb_atn_in);
+assign sb_clk_out  = ~(uc1_pb_o[3] | uc1_pb_oe_n[3]);
 
 assign dout = uc3_pa_o | uc3_pa_oe_n;
 assign mode = uc3_cb2_o | uc3_cb2_oe_n;
@@ -131,8 +131,8 @@ always @(posedge clk32) romstd_do <= romstd[cpu_a[13:0]];
 reg [7:0] ram[2048];
 reg [7:0] ram_do;
 wire      ram_wr = ram_cs & ~cpu_rw;
-always @(posedge clk32) if (ram_wr) ram[cpu_a[13:0]] <= cpu_do;
-always @(posedge clk32) ram_do <= ram[cpu_a[13:0]];
+always @(posedge clk32) if (ram_wr) ram[cpu_a[10:0]] <= cpu_do;
+always @(posedge clk32) ram_do <= ram[cpu_a[10:0]];
 
 
 // UC1 (VIA6522) signals
@@ -153,7 +153,7 @@ c1541_via6522 uc1
 	.irq_l(uc1_irq_n),
 
 	// port a
-	.ca1_i(~sb_atn_in),
+	.ca1_i(~iec_atn),
 	.ca2_i(1'b0),
 
 	.port_a_i({7'd0,tr00_sense_n}),
@@ -162,7 +162,7 @@ c1541_via6522 uc1
 	.cb1_i(1'b0),
 	.cb2_i(1'b0),
 
-	.port_b_i({~iec_atn, ds, 2'b00, ~iec_clk | sb_clk_out, 1'b0, ~iec_data | sb_data_out}),
+	.port_b_i({~iec_atn, ds, 2'b00, ~(iec_clk & sb_clk_out), 1'b0, ~(iec_data & sb_data_out)}),
 	.port_b_o(uc1_pb_o),
 	.port_b_t_l(uc1_pb_oe_n),
 

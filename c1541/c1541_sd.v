@@ -95,9 +95,9 @@ c1541_logic c1541_logic
 	.reset(reset),
 
 	// serial bus
-	.sb_clk_in(~iec_clk_i),
-	.sb_data_in(~iec_data_i),
-	.sb_atn_in(~iec_atn_i),
+	.sb_clk_in(iec_clk_i),
+	.sb_data_in(iec_data_i),
+	.sb_atn_in(iec_atn_i),
 	.sb_clk_out(iec_clk_o),
 	.sb_data_out(iec_data_o),
 

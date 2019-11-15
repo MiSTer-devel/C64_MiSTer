@@ -741,11 +741,11 @@ always @(posedge clk_sys) begin
 	reg iec_data_d1, iec_clk_d1;
 	reg iec_data_d2, iec_clk_d2;
 
-	iec_data_d1 <= c1541_1_iec_data | (drive9 & c1541_2_iec_data);
+	iec_data_d1 <= c1541_1_iec_data & (~drive9 | c1541_2_iec_data);
 	iec_data_d2 <= iec_data_d1;
 	if(iec_data_d1 == iec_data_d2) c64_iec_data_i <= iec_data_d2;
 
-	iec_clk_d1 <= c1541_1_iec_clk  | (drive9 & c1541_2_iec_clk);
+	iec_clk_d1 <= c1541_1_iec_clk & (~drive9 | c1541_2_iec_clk);
 	iec_clk_d2 <= iec_clk_d1;
 	if(iec_clk_d1 == iec_clk_d2) c64_iec_clk_i <= iec_clk_d2;
 end
@@ -811,9 +811,9 @@ c1541_sd c1541_2
 	.disk_readonly(disk_readonly),
 	.drive_num(1),
 
-	.iec_atn_i(c64_iec_atn & drive9),
-	.iec_data_i(c64_iec_data & drive9),
-	.iec_clk_i(c64_iec_clk & drive9),
+	.iec_atn_i(c64_iec_atn | ~drive9),
+	.iec_data_i(c64_iec_data | ~drive9),
+	.iec_clk_i(c64_iec_clk | ~drive9),
 	.iec_data_o(c1541_2_iec_data),
 	.iec_clk_o(c1541_2_iec_clk),
 	.iec_reset_i(~reset_n),
