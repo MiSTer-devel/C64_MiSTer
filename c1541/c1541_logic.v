@@ -153,7 +153,7 @@ c1541_via6522 uc1
 	.irq_l(uc1_irq_n),
 
 	// port a
-	.ca1_i(~sb_atn_in),
+	.ca1_i(~iec_atn),
 	.ca2_i(1'b0),
 
 	.port_a_i({7'd0,tr00_sense_n}),
