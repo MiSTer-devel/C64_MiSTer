@@ -189,37 +189,37 @@ reg [5:0] track;
 reg       save_track;
 always @(posedge clk_c1541) begin
 	reg       track_modified;
-	reg [6:0] track_num;
+	reg [6:0] half_track;
 	reg [1:0] stp_r;
 	reg       act_r;
 
 	stp_r <= stp;
 	act_r <= act;
 	save_track <= 0;
-	track <= track_num[6:1];
+	track <= half_track[6:1];
 
 	if (buff_we) track_modified <= 1;
 	if (disk_change) track_modified <= 0;
 
 	if (reset) begin
-		track_num <= 36;
+		half_track <= 36;
 		track_modified <= 0;
 	end else begin
 		if (mtr) begin
-			if ( (stp_r == 0 & stp == 2)
-				| (stp_r == 2 & stp == 1)
-				| (stp_r == 1 & stp == 3)
+			if ( (stp_r == 0 & stp == 1)
+				| (stp_r == 1 & stp == 2)
+				| (stp_r == 2 & stp == 3)
 				| (stp_r == 3 & stp == 0)) begin
-				if (track_num < 80) track_num <= track_num + 1'b1;
+				if (half_track < 80) half_track <= half_track + 1'b1;
 				save_track <= track_modified;
 				track_modified <= 0;
 			end
 
 			if ( (stp_r == 0 & stp == 3)
-				| (stp_r == 2 & stp == 0)
-				| (stp_r == 1 & stp == 2)
-				| (stp_r == 3 & stp == 1)) begin
-				if (track_num > 1) track_num <= track_num - 1'b1;
+				| (stp_r == 3 & stp == 2)
+				| (stp_r == 2 & stp == 1)
+				| (stp_r == 1 & stp == 0)) begin
+				if (half_track > 1) half_track <= half_track - 1'b1;
 				save_track <= track_modified;
 				track_modified <= 0;
 			end

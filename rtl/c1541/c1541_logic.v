@@ -30,9 +30,9 @@ module c1541_logic
 	input  [1:0] ds,			// device select
 	input  [7:0] din,			// disk read data
 	output [7:0] dout,		// disk write data
-	output       mode,		// read/write
+	output       mode,		// 1=read, 0=write
 	output [1:0] stp,			// stepper motor control
-	output       mtr,			// stepper motor on/off
+	output       mtr,			// spindle motor on/off
 	output [1:0] freq,		// motor frequency
 	input        sync_n,		// reading SYNC bytes
 	input        byte_n,		// byte ready
@@ -47,8 +47,7 @@ assign sb_clk_out  = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
 assign dout = uc3_pa_o  | ~uc3_pa_oe;
 assign mode = uc3_cb2_o | ~uc3_cb2_oe;
 
-assign stp[1] = uc3_pb_o[0]   | ~uc3_pb_oe[0];
-assign stp[0] = uc3_pb_o[1]   | ~uc3_pb_oe[1];
+assign stp    = uc3_pb_o[1:0] | ~uc3_pb_oe[1:0];
 assign mtr    = uc3_pb_o[2]   | ~uc3_pb_oe[2];
 assign act    = uc3_pb_o[3]   | ~uc3_pb_oe[3];
 assign freq   = uc3_pb_o[6:5] | ~uc3_pb_oe[6:5];

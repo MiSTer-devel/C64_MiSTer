@@ -21,7 +21,7 @@ module c1541_gcr
 	output reg [7:0] dout,    // data from ram to 1541 logic
 	input      [7:0] din,     // data from 1541 logic to ram
 	input            mode,    // read/write
-	input            mtr,     // stepper motor on/off
+	input            mtr,     // spindle motor on/off
 	input      [1:0] freq,    // motor (gcr_bit) frequency
 	output           sync_n,  // reading SYNC bytes
 	output reg       byte_n,  // byte ready
