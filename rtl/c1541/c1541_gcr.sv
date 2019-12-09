@@ -15,230 +15,150 @@
 //
 //-------------------------------------------------------------------------------
 
+module sn74ls193 (
+	input            clk,
+
+	input            up,
+	input            down,
+	input      [3:0] data_in,
+	input            clr,
+	input            load_n,
+
+	output reg       carry_n,
+	output reg       borrow_n,
+	output reg [3:0] data_out
+);
+always @(posedge clk) begin
+	reg up1, down1;
+	up1 <= up;
+	down1 <= down;
+	borrow_n <= |{down, data_out};
+	carry_n <= ~&{data_out, ~up};
+	if (clr) data_out <= 4'b0;
+	else if (~load_n) data_out <= data_in;
+	else if (up1 && ~up) data_out <= data_out + 4'b1;
+	else if (down1 && ~down) data_out <= data_out - 4'b1;
+	// else, no change
+end
+endmodule
+
 module c1541_gcr
 (
 	input            clk32,
-	output reg [7:0] dout,    // data from ram to 1541 logic
+	output     [7:0] dout,    // data from ram to 1541 logic
 	input      [7:0] din,     // data from 1541 logic to ram
 	input            mode,    // read/write
-	input            mtr,     // spindle motor on/off
+	input            soe,     // serial output enable
+	input            wps_n,   // write-protect
 	input      [1:0] freq,    // motor (gcr_bit) frequency
 	output           sync_n,  // reading SYNC bytes
 	output reg       byte_n,  // byte ready
 
 	input      [5:0] track,
-	output reg [4:0] sector,
-	output reg [7:0] byte_addr,
 
-	input      [7:0] ram_do,
-	output reg [7:0] ram_di,
+	input            ram_do,
+	output reg       ram_di,
 	output reg       ram_we,
 	input            ram_ready
 );
 
-assign sync_n = ~(mtr & ram_ready) | sync_in_n;
+reg clk16; // c1541 internal crystal
+always @(posedge clk32) clk16 <= ~clk16;
 
-wire [4:0] sector_max=	(track < 18) ? 5'd20 :
-								(track < 25) ? 5'd18 :
-								(track < 31) ? 5'd17 :
-													5'd16;
+reg read_data;
+always @(posedge clk32) begin
+	reg ram_do1;
+	reg [6:0] time_domain_filter_counter;
+	reg time_domain_filter_out1;
+	reg [2:0] one_shot_counter;
+	ram_do1 <= ram_do;
 
-wire [7:0] data_header= (byte_cnt == 0) ? 8'h08 :
-								(byte_cnt == 1) ? track ^ sector :
-								(byte_cnt == 2) ? sector :
-								(byte_cnt == 3) ? track :
-								(byte_cnt == 4) ? 8'h20 :
-								(byte_cnt == 5) ? 8'h20 :
-														8'h0F;
+	// Time domain filter times out after about 41 16MHz cycles.
+	if (ram_do && !ram_do1)
+		time_domain_filter_counter <= 7'd82;
+	else if (time_domain_filter_counter)
+		time_domain_filter_counter <= time_domain_filter_counter - 7'b1;
+	// else: stable state, stay at 0
 
-wire [7:0] data_body=	(byte_cnt == 0)   ? 8'h07 :
-								(byte_cnt == 257) ? data_cks :
-								(byte_cnt == 258) ? 8'h00 :
-								(byte_cnt == 259) ? 8'h00 :
-								(byte_cnt >= 260) ? 8'h0F :
-														  ram_do;
+	// One-shot counter times out after 2 16MHz cycles.
+	time_domain_filter_out1 <= |time_domain_filter_counter;
+	if (|time_domain_filter_counter && !time_domain_filter_out1)
+		one_shot_counter <= 3'd4;
+	else if (one_shot_counter)
+		one_shot_counter <= one_shot_counter - 3'b1;
+	// else: stable state, stay at 0
 
-wire [7:0] data = state ? data_body : data_header;
-wire [4:0] gcr_nibble = gcr_lut[nibble ? data[3:0] : data[7:4]];
-
-wire [4:0] gcr_lut[16] = '{
-	5'b01010, 5'b11010, 5'b01001, 5'b11001,
-	5'b01110, 5'b11110, 5'b01101, 5'b11101,
-	5'b10010, 5'b10011, 5'b01011, 5'b11011,
-	5'b10110, 5'b10111, 5'b01111, 5'b10101
-};
-
-wire [3:0] nibble_out;
-always_comb begin
-	case(gcr_nibble_out)
-		5'b01010: nibble_out = 'h0;
-		5'b01011: nibble_out = 'h1;
-		5'b10010: nibble_out = 'h2;
-		5'b10011: nibble_out = 'h3;
-		5'b01110: nibble_out = 'h4;
-		5'b01111: nibble_out = 'h5;
-		5'b10110: nibble_out = 'h6;
-		5'b10111: nibble_out = 'h7;
-		5'b01001: nibble_out = 'h8;
-		5'b11001: nibble_out = 'h9;
-		5'b11010: nibble_out = 'hA;
-		5'b11011: nibble_out = 'hB;
-		5'b01101: nibble_out = 'hC;
-		5'b11101: nibble_out = 'hD;
-		5'b11110: nibble_out = 'hE;
-		default:  nibble_out = 'hF;
-	endcase
+	read_data <= |one_shot_counter;
 end
 
-wire [7:0] bit_clk_div = (freq == 3) ? 8'h67 : (freq == 2) ? 8'h6F : (freq == 1) ? 8'h77 : 8'h7F;
+wire raw_bit_clock; // speed-zone-adjusted clock
+sn74ls193 raw_bit_clock_ic(
+	.clk(clk32),
+	.up(clk16),
+	.down(1'b1),
+	.data_in({2'b0, freq}),
+	.clr(1'b0),
+	.load_n(raw_bit_clock & ~read_data),
 
-reg bit_clk_en;
+	.carry_n(raw_bit_clock),
+	.borrow_n(),
+	.data_out()
+);
+
+// state counter:
+// state[0] clocks parallel input on byte boundary and high state[1]
+// state[1] clocks bit counter, bit shifters, and when low clocks byte ready
+//          and is mixed with serial output
+// state[3:2] counts how many bits ago a magnetic flux inversion was last
+//            sensed.
+wire [3:0] state;
+sn74ls193 state_counter_ic(
+	.clk(clk32),
+	.up(~raw_bit_clock),
+	.down(1'b1),
+	.data_in(4'b0),
+	.clr(read_data),
+	.load_n(1'b1),
+
+	.carry_n(),
+	.borrow_n(),
+	.data_out(state)
+);
+
+reg parallel_to_serial_load_edge;
+reg bit_clock_posedge;
+reg bit_clock_negedge;
 always @(posedge clk32) begin
-	reg [7:0] bit_clk_cnt;
-	reg       mode_r1;
+	reg parallel_to_serial_load1;
+	reg bit_clock1;
+	bit_clock1 <= state[1];
+	bit_clock_negedge <= bit_clock1 && !state[1];
+	bit_clock_posedge <= !bit_clock1 && state[1];
+	parallel_to_serial_load1 <= parallel_to_serial_load;
+	parallel_to_serial_load_edge <= !parallel_to_serial_load1 && parallel_to_serial_load;
+end
 
-	mode_r1 <= mode;
+reg [2:0] bit_count;
+wire whole_byte = &bit_count;
+wire parallel_to_serial_load = &{whole_byte, state[1], state[0]};
+reg [9:0] read_shift_register;
+reg [7:0] write_shift_register;
+assign dout = read_shift_register[7:0];
 
-	if (mode_r1 ^ mode) begin		// read <-> write change
-		bit_clk_cnt = 0;
-		byte_n <= 1;
-		bit_clk_en <= 0;
-	end else begin
-		bit_clk_en <= 0;
-		if (bit_clk_cnt == bit_clk_div) begin
-			bit_clk_en <= 1;
-			bit_clk_cnt = 0;
-		end else
-		bit_clk_cnt = bit_clk_cnt + 1'b1;
-
-		byte_n <= 1;
-		if (~byte_in_n & mtr & ram_ready) begin
-			if (bit_clk_cnt > 16) begin
-				if (bit_clk_cnt < 94) byte_n <= 0;
-			end
-		end
+always @(posedge clk32) begin
+	sync_n <= ~&{mode, read_shift_register};
+	ram_di <= write_shift_register[7] & ~state[1];
+	if (bit_clock_posedge) begin
+		bit_count <= sync_n ? bit_count + 3'b1 : 3'b0;
+		read_shift_register <= {read_shift_register[8:0], ~|state[3:2]};
+		write_shift_register <= {write_shift_register[6:0], 1'b0};
+		ram_we <= (~mode && wps_n);
 	end
-end
-
-reg       sync_in_n;
-reg       byte_in_n;
-reg [8:0] byte_cnt;
-reg       nibble;
-reg       state;
-reg [7:0] data_cks;
-reg [7:0] gcr_byte_out;
-reg [4:0] gcr_nibble_out;
-
-always @(posedge clk32) begin
-	reg       mode_r2;
-	reg [5:0] old_track;
-	reg       autorise_write;
-	reg       autorise_count;
-	reg [5:0] sync_cnt;
-	reg [7:0] gcr_byte;
-	reg [2:0] bit_cnt;
-	reg [3:0] gcr_bit_cnt;
-
-	ram_we <= 0;
-	old_track <= track;
-
-	if (old_track != track) sector <= 0;		//reset sector number on track change
-	else if (bit_clk_en) begin
-		mode_r2 <= mode;
-		if (mode) autorise_write <= 0;
-
-		if (mode ^ mode_r2) begin
-			if (mode) begin		// leaving write mode
-				sync_in_n <= 0;
-				sync_cnt <= 0;
-				state <= 0;
-			end else begin
-				// entering write mode
-				byte_cnt <= 0;
-				nibble <= 0;
-				gcr_bit_cnt <= 0;
-				bit_cnt <= 0;
-				gcr_byte <= 0;
-				data_cks <= 0;
-			end
-		end
-
-		if (~sync_in_n & mode) begin
-			byte_cnt <= 0;
-			nibble <= 0;
-			gcr_bit_cnt <= 0;
-			bit_cnt <= 0;
-			dout <= 0;
-			gcr_byte <= 0;
-			data_cks <= 0;
-			if (sync_cnt == 49) begin
-				sync_cnt <= 0;
-				sync_in_n <= 1;
-			end else begin
-				sync_cnt <= sync_cnt + 1'b1;
-			end
-		end
-		else begin
-			gcr_bit_cnt <= gcr_bit_cnt + 1'b1;
-			if (gcr_bit_cnt == 4) begin
-				gcr_bit_cnt <= 0;
-				if (nibble) begin
-					nibble <= 0;
-					byte_addr <= byte_cnt[7:0];
-					if (!byte_cnt) data_cks <= 0;
-					else data_cks <= data_cks ^ data;
-
-					if (mode | (~mode & autorise_count)) byte_cnt <= byte_cnt + 1'b1;
-				end else begin
-					nibble <= 1;
-					if (~mode && ram_di == 'h07) begin
-						autorise_write <= 1;
-						autorise_count <= 1;
-					end
-					if (byte_cnt[8]) begin
-						autorise_write <= 0;
-						autorise_count <= 0;
-					end
-				end
-			end
-
-			bit_cnt <= bit_cnt + 1'b1;
-			byte_in_n <= 1;
-			if (bit_cnt == 7) begin
-				byte_in_n <= 0;
-				gcr_byte_out <= din;
-			end
-
-			if (~state) begin
-				if (byte_cnt == 16) begin
-					sync_in_n <= 0;
-					state <= 1;
-				end
-			end
-			else if (byte_cnt == 273) begin
-				sync_in_n <= 0;
-				state <= 0;
-				if (sector == sector_max) sector <= 0;
-				else sector <= sector + 1'b1;
-			end
-
-			// demux byte from floppy (ram)
-			gcr_byte <= {gcr_byte[6:0], gcr_nibble[gcr_bit_cnt]};
-
-			if (bit_cnt == 7) dout <= {gcr_byte[6:0], gcr_nibble[gcr_bit_cnt]};
-
-			// serialise/convert byte to floppy (ram)
-			gcr_nibble_out <= {gcr_nibble_out[3:0], gcr_byte_out[~bit_cnt]};
-
-			if (!gcr_bit_cnt) begin
-				if (nibble) ram_di[7:4] <= nibble_out;
-				else ram_di[3:0] <= nibble_out;
-			end
-
-			if (gcr_bit_cnt == 1 && ~nibble) begin
-				if (autorise_write) ram_we <= 1;
-			end
-		end
+	if (bit_clock_negedge) begin
+		byte_n <= ~&{whole_byte, soe};
+	end
+	if (parallel_to_serial_load_edge) begin
+		write_shift_register <= din;
 	end
 end
 

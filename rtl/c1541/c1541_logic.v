@@ -33,7 +33,8 @@ module c1541_logic
 	output       mode,		// 1=read, 0=write
 	output [1:0] stp,			// stepper motor control
 	output       mtr,			// spindle motor on/off
-	output [1:0] freq,		// motor frequency
+	output       soe,		// serial output enable
+	output [1:0] freq,		// bit clock adjustment for track density
 	input        sync_n,		// reading SYNC bytes
 	input        byte_n,		// byte ready
 	input        wps_n,		// write-protect sense
@@ -46,6 +47,7 @@ assign sb_clk_out  = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
 
 assign dout = uc3_pa_o  | ~uc3_pa_oe;
 assign mode = uc3_cb2_o | ~uc3_cb2_oe;
+assign soe  = uc3_ca2_o | ~uc3_ca2_oe;
 
 assign stp    = uc3_pb_o[1:0] | ~uc3_pb_oe[1:0];
 assign mtr    = uc3_pb_o[2]   | ~uc3_pb_oe[2];
@@ -105,7 +107,7 @@ wire [23:0] cpu_a;
 wire  [7:0] cpu_do;
 wire        cpu_rw;
 wire        cpu_irq_n = ~(uc1_irq | uc3_irq);
-wire        cpu_so_n = byte_n | ~soe;
+wire        cpu_so_n = byte_n | ~soe; // XXX: ~soe unneeded ?
 
 T65 cpu
 (
@@ -187,7 +189,6 @@ wire       uc3_cb2_oe;
 wire [7:0] uc3_pa_oe;
 wire [7:0] uc3_pb_o;
 wire [7:0] uc3_pb_oe;
-wire       soe = uc3_ca2_o | ~uc3_ca2_oe;
 
 c1541_via6522 uc3
 (

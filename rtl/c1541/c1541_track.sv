@@ -34,18 +34,16 @@ module c1541_track
 	output  [7:0] sd_buff_din,
 	input         sd_buff_wr,
 
-	input         save_track,
-	input         change,
-	input   [5:0] track,
-	input   [4:0] sector,
-	input   [7:0] buff_addr,
-	output  [7:0] buff_dout,
-	input   [7:0] buff_din,
+	input         disk_change,
+	input   [1:0] stp,
+	input         mtr,
+	input         act,
+	output reg    tr00_sense_n,
+	output reg    buff_dout,
+	input         buff_din,
 	input         buff_we,
 	output reg    busy
 );
-
-assign sd_lba = lba;
 
 always @(posedge sd_clk) begin
 	reg wr1,rd1;
@@ -57,41 +55,153 @@ always @(posedge sd_clk) begin
 	sd_rd <= rd1;
 end
 
+wire [62:0] rnd;
+lfsr random(rnd);
+
+assign sd_buff_din = ~metadata_track ? sd_track_buff_din :
+		     sd_buff_addr[2:0] == 3'b000 ? sd_metadata_buff_din[63:56] :
+		     sd_buff_addr[2:0] == 3'b001 ? sd_metadata_buff_din[55:48] :
+		     sd_buff_addr[2:0] == 3'b010 ? sd_metadata_buff_din[47:40] :
+		     sd_buff_addr[2:0] == 3'b011 ? sd_metadata_buff_din[39:32] :
+		     sd_buff_addr[2:0] == 3'b100 ? sd_metadata_buff_din[31:24] :
+		     sd_buff_addr[2:0] == 3'b101 ? sd_metadata_buff_din[23:16] :
+		     sd_buff_addr[2:0] == 3'b110 ? sd_metadata_buff_din[15: 8] :
+						   sd_metadata_buff_din[ 7: 0];
+
 wire sd_b_ack = sd_ack & busy;
+reg [15:0] buff_bit_addr;
+wire [15:0] next_buff_bit_addr = buff_bit_addr + 16'b1;
+wire [7:0] buff_dout_byte;
+wire flux_change = buff_dout_byte[~buff_bit_addr[2:0]];
+wire buff_din_posedge = buff_we && !old_buff_din && buff_din;
+reg old_buff_din;
+reg buff_din_latched;
+
+wire [7:0] sd_track_buff_din;
+wire [7:0] buff_din_byte = buff_bit_addr[2:0] == 3'd0 ? {                     buff_din_latched, buff_dout_byte[6:0]} :
+			   buff_bit_addr[2:0] == 3'd1 ? {buff_dout_byte[7  ], buff_din_latched, buff_dout_byte[5:0]} :
+			   buff_bit_addr[2:0] == 3'd2 ? {buff_dout_byte[7:6], buff_din_latched, buff_dout_byte[4:0]} :
+			   buff_bit_addr[2:0] == 3'd3 ? {buff_dout_byte[7:5], buff_din_latched, buff_dout_byte[3:0]} :
+			   buff_bit_addr[2:0] == 3'd4 ? {buff_dout_byte[7:4], buff_din_latched, buff_dout_byte[2:0]} :
+			   buff_bit_addr[2:0] == 3'd5 ? {buff_dout_byte[7:3], buff_din_latched, buff_dout_byte[1:0]} :
+			   buff_bit_addr[2:0] == 3'd6 ? {buff_dout_byte[7:2], buff_din_latched, buff_dout_byte[  0]} :
+							{buff_dout_byte[7:1], buff_din_latched                     };
 trk_dpram buffer
 (
 	.clock_a(sd_clk),
-	.address_a(sd_buff_base + base_fix + sd_buff_addr),
+	.address_a({sd_buff_base, sd_buff_addr}),
 	.data_a(sd_buff_dout),
-	.wren_a(sd_b_ack & sd_buff_wr),
-	.q_a(sd_buff_din),
+	.wren_a(sd_b_ack & sd_buff_wr & ~metadata_track),
+	.q_a(sd_track_buff_din),
 
 	.clock_b(clk),
-	.address_b({sector, buff_addr}),
-	.data_b(buff_din),
-	.wren_b(buff_we),
-	.q_b(buff_dout)
+	.address_b(buff_bit_addr[15:3]),
+	.data_b(buff_din_byte),
+	.wren_b(buff_we/* && !busy*/),
+	.q_b(buff_dout_byte)
 );
 
-wire [9:0] start_sectors[41] =
-		'{  0,  0, 21, 42, 63, 84,105,126,147,168,189,210,231,252,273,294,315,336,357,376,395,
-		  414,433,452,471,490,508,526,544,562,580,598,615,632,649,666,683,700,717,734,751};
+wire [63:0] sd_metadata_buff_din;
+wire [63:0] sd_metadata_buff_dout = sd_buff_addr[2:0] == 3'b000 ? {                             sd_buff_dout, sd_metadata_buff_din[55:0]} :
+				    sd_buff_addr[2:0] == 3'b001 ? {sd_metadata_buff_din[63:56], sd_buff_dout, sd_metadata_buff_din[47:0]} :
+				    sd_buff_addr[2:0] == 3'b010 ? {sd_metadata_buff_din[63:48], sd_buff_dout, sd_metadata_buff_din[39:0]} :
+				    sd_buff_addr[2:0] == 3'b011 ? {sd_metadata_buff_din[63:40], sd_buff_dout, sd_metadata_buff_din[31:0]} :
+				    sd_buff_addr[2:0] == 3'b100 ? {sd_metadata_buff_din[63:32], sd_buff_dout, sd_metadata_buff_din[23:0]} :
+				    sd_buff_addr[2:0] == 3'b101 ? {sd_metadata_buff_din[63:24], sd_buff_dout, sd_metadata_buff_din[15:0]} :
+				    sd_buff_addr[2:0] == 3'b110 ? {sd_metadata_buff_din[63:16], sd_buff_dout, sd_metadata_buff_din[ 7:0]} :
+								  {sd_metadata_buff_din[63: 8], sd_buff_dout                            };
+wire [1:0] freq;
+wire [13:0] bit_clock_delay; // 6.8 fixed-point
+wire [15:0] track_length;
+wire [15:0] previous_track_length_ratio; // 1.15 fixed-point
+wire [15:0] next_track_length_ratio; // 1.15 fixed-point
 
-reg [31:0] lba;
-reg [12:0] base_fix;
-reg [12:0] sd_buff_base;
+trk_dpram #(.DATAWIDTH(64), .ADDRWIDTH(7)) metadata_buffer
+(
+	.clock_a(sd_clk),
+	.address_a({sd_buff_base[0], sd_buff_addr[8:3]}),
+	.data_a(sd_metadata_buff_dout),
+	.wren_a(sd_b_ack & sd_buff_wr & metadata_track),
+	.q_a(sd_metadata_buff_din),
+
+	.clock_b(clk),
+	.address_b(cur_half_track),
+	// XXX: no drive-side write support: drive will not be able to resize tracks, and will write at pre-existing track speed.
+	.data_b(),
+	.wren_b(1'b0),
+	.q_b({freq, bit_clock_delay, track_length, previous_track_length_ratio, next_track_length_ratio})
+);
+
+reg [3:0] sd_buff_base;
+reg [6:0] cur_half_track;
+wire metadata_track = cur_half_track == 7'd84;
+assign sd_lba = {cur_half_track, sd_buff_base};
 reg rd,wr;
+
+wire [45:0] previous_scaled_buff_bit_addr_long = {buff_bit_addr, 15'b0} * previous_track_length_ratio; // 16.15 * 1.15 fixed point = 16.30 fixed point result = 46 bits
+wire [15:0] previous_scaled_buff_bit_addr = previous_scaled_buff_bit_addr_long[45:30];
+wire [45:0] next_scaled_buff_bit_addr_long = {buff_bit_addr, 15'b0} * next_track_length_ratio; // 16.15 * 1.15 fixed point = 16.30 fixed point result = 46 bits
+wire [15:0] next_scaled_buff_bit_addr = next_scaled_buff_bit_addr_long[45:30];
+
+// Where a track change should start reading.
+// Start reading as close as possible to current head position, but far enough ahead that once it has seen any new-track byte it will not see any old-track byte.
+// Assuming tracks are received from hard processor at least 10 times faster than they are read,
+// and assuming LBAs are received in increasing sd_buff_addr order,
+// it is safe to read the LBA the head is currently on if it is further than 51.2 bytes away from its end. Round it to 64, or when the 3 MSb are 1.
+wire [3:0] previous_next_lba = previous_scaled_buff_bit_addr[15:12] + &previous_scaled_buff_bit_addr[11:9];
+wire [3:0] current_next_lba = buff_bit_addr[15:12] + &buff_bit_addr[11:9];
+wire [3:0] next_next_lba = next_scaled_buff_bit_addr[15:12] + &next_scaled_buff_bit_addr[11:9];
+
 
 always @(posedge clk) begin
 	reg ack1,ack2,ack;
 	reg old_ack;
-	reg [5:0] cur_track = 0;
-	reg old_change, ready = 0;
+	reg old_disk_change, ready = 0;
 	reg saving = 0;
+	reg [62:0] rnd_reg;
+	reg [7:0] clk_counter;
+	reg [7:0] clk_counter_max_integer;
+	reg [7:0] clk_counter_max_fractional;
+	reg [1:0] no_flux_change_count;
+	reg [3:0] lba_count;
 
-	old_change <= change;
-	if(~old_change & change) ready <= 1;
-	
+	old_disk_change <= disk_change;
+	if (~old_disk_change && disk_change) ready <= 1;
+
+	old_buff_din <= buff_din;
+	if (mtr) begin
+		if (clk_counter == clk_counter_max_integer) begin
+			// number of 32MHz clock periods until next bit is: next_delay = track_delay * 2 + (32 * 2 - 1).next_delay_fract
+			// "32" because track_delay is stored offset by -32.
+			// "* 2" because our clock is 32 MHz, while track delay is in 16MHz cycles.
+			// "- 1" because we are already one 32MHz cycle into the next bit.
+			// Note: clk_counter_max_fractional[0] is always 0 and is optimised away during synthesis, but removing it here makes the "* 2" harder to notice.
+			{clk_counter_max_integer, clk_counter_max_fractional} <= {1'b0, bit_clock_delay, 1'b0} + {8'd63, clk_counter_max_fractional};
+			buff_bit_addr <= next_buff_bit_addr[15:3] < track_length ? next_buff_bit_addr : 16'b0;
+			buff_din_latched <= buff_din_posedge;
+			rnd_reg <= rnd;
+			clk_counter <= 0;
+		end else begin
+			// Emit current bit. XXX: emitting a flux inversion from counter 1 to 8 is completely arbitrary. Drive electronics do not care about the actual length.
+			if (clk_counter == 8'd1) begin
+				if (flux_change) begin
+					buff_dout <= ~buff_we;// & ~busy;
+					no_flux_change_count <= 0;
+				end else begin
+					if (no_flux_change_count == 2'd3) begin
+						buff_dout <= ~buff_we /*& ~busy*/ & rnd_reg[0];
+					end else begin
+						buff_dout <= 0;
+						no_flux_change_count <= no_flux_change_count + 2'b1;
+					end
+				end
+			end else if (clk_counter == 8'd8)
+				buff_dout <= 0;
+			buff_din_latched <= buff_din_latched | buff_din_posedge;
+			clk_counter <= clk_counter + 8'b1;
+		end
+	end
+
 	ack1 <= sd_b_ack;
 	ack2 <= ack1;
 	if(ack2 == ack1) ack <= ack1;
@@ -100,7 +210,7 @@ always @(posedge clk) begin
 	if(ack) {rd,wr} <= 0;
 
 	if(reset) begin
-		cur_track <= 'b111111;
+		cur_half_track <= 0;
 		busy  <= 0;
 		rd <= 0;
 		wr <= 0;
@@ -109,49 +219,125 @@ always @(posedge clk) begin
 	else
 	if(busy) begin
 		if(old_ack && ~ack) begin
-			if(sd_buff_base < 'h1800) begin
-				sd_buff_base <= sd_buff_base + 13'd512;
-				lba <= lba + 1'd1;
+			if(( metadata_track && lba_count != 4'b1) ||
+			   (!metadata_track && lba_count != 4'b1111)) begin
+				// Not done yet ? Load/writeback next LBA.
+				sd_buff_base <= sd_buff_base + 4'b1;
+				lba_count <= lba_count + 4'b1;
 				if(saving) wr <= 1;
 					else rd <= 1;
 			end
 			else
-			if(saving && (cur_track != track)) begin
-				saving <= 0;
-				cur_track <= track;
+			if(metadata_track) begin
+				// metadata_track loading done, start loading track data.
+				cur_half_track <= half_track;
 				sd_buff_base <= 0;
-				base_fix <= start_sectors[track][0] ? 13'h1F00 : 13'h0000;
-				lba <= start_sectors[track][9:1];
+				lba_count <= 0;
+				rd <= 1; // metadata_track is only read on disk change.
+			end
+			else
+			if(saving && (cur_half_track != half_track)) begin
+				// Was saving ? Load next track.
+				saving <= 0;
+				if (cur_half_track < half_track) begin
+					buff_bit_addr <= next_scaled_buff_bit_addr;
+					sd_buff_base <= next_next_lba;
+				end else begin
+					buff_bit_addr <= previous_scaled_buff_bit_addr;
+					sd_buff_base <= previous_next_lba;
+				end
+				cur_half_track <= half_track;
+
+				lba_count <= 0;
 				rd <= 1;
 			end
 			else
 			begin
+				// Done loading track.
 				busy <= 0;
 			end
 		end
 	end
 	else
 	if(ready) begin
-		if(save_track && cur_track != 'b111111) begin
+		if(save_track) begin
 			saving <= 1;
-			sd_buff_base <= 0;
-			lba <= start_sectors[cur_track][9:1];
+			sd_buff_base <= current_next_lba;
+			lba_count <= 0;
 			wr <= 1;
 			busy <= 1;
 		end
 		else
-		if((cur_track != track) || (old_change && ~change)) begin
+		if (
+			(cur_half_track != half_track) ||
+			(old_disk_change && ~disk_change)
+		) begin
 			saving <= 0;
-			cur_track <= track;
-			sd_buff_base <= 0;
-			base_fix <= start_sectors[track][0] ? 13'h1F00 : 13'h0000;
-			lba <= start_sectors[track][9:1];
+			if (old_disk_change && ~disk_change) begin
+				cur_half_track <= 7'd84;
+				sd_buff_base <= 0;
+			end else begin
+				cur_half_track <= half_track;
+				if (cur_half_track < half_track) begin
+					buff_bit_addr <= next_scaled_buff_bit_addr;
+					sd_buff_base <= next_next_lba;
+				end else begin
+					buff_bit_addr <= previous_scaled_buff_bit_addr;
+					sd_buff_base <= previous_next_lba;
+				end
+			end
+			lba_count <= 0;
 			rd <= 1;
 			busy <= 1;
 		end
 	end
 end
 
+reg [6:0] half_track;
+reg       save_track;
+always @(posedge clk) begin
+	reg       track_modified;
+	reg [1:0] stp_r;
+	reg       act_r;
+
+	tr00_sense_n <= |half_track;
+	stp_r <= stp;
+	act_r <= act;
+	save_track <= 0;
+
+	if (buff_we) track_modified <= 1;
+	if (disk_change) track_modified <= 0;
+
+	if (reset) begin
+		half_track <= 36;
+		track_modified <= 0;
+	end else begin
+		if (mtr) begin
+			if ((stp_r == 0 && stp == 1)
+				|| (stp_r == 1 && stp == 2)
+				|| (stp_r == 2 && stp == 3)
+				|| (stp_r == 3 && stp == 0)) begin
+				if (half_track < 83) half_track <= half_track + 7'b1;
+				save_track <= track_modified;
+				track_modified <= 0;
+			end
+
+			if ((stp_r == 0 && stp == 3)
+				|| (stp_r == 3 && stp == 2)
+				|| (stp_r == 2 && stp == 1)
+				|| (stp_r == 1 && stp == 0)) begin
+				if (half_track) half_track <= half_track - 7'b1;
+				save_track <= track_modified;
+				track_modified <= 0;
+			end
+		end
+
+		if (act_r && ~act) begin		// stopping activity
+			save_track <= track_modified;
+			track_modified <= 0;
+		end
+	end
+end
 endmodule
 
 module trk_dpram #(parameter DATAWIDTH=8, ADDRWIDTH=13)

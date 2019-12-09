@@ -202,8 +202,8 @@ assign VGA_SCALER = 0;
 localparam CONF_STR = {
 	"C64;UART2400;",
 	"h0-;",
-	"S0,D64T64,Mount Drive #8;",
-	"H0S1,D64T64,Mount Drive #9;",
+	"S0,I64T64,Mount Drive #8;",
+	"H0S1,I64T64,Mount Drive #9;",
 	"-;",
 	"F4,PRG,Load File;",
 	"F5,CRT,Load Cartridge;",

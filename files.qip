@@ -18,4 +18,5 @@ set_global_assignment -name VHDL_FILE rtl/fpga64_keyboard.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_bustiming.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_buslogic.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_sid_iec.vhd
+set_global_assignment -name VERILOG_FILE rtl/lfsr.v
 set_global_assignment -name SYSTEMVERILOG_FILE c64.sv
