@@ -307,6 +307,8 @@ wire        disk_readonly;
 wire [24:0] ps2_mouse;
 wire [10:0] ps2_key;
 wire  [1:0] buttons;
+wire [21:0] gamma_bus;
+
 
 hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 (
@@ -324,6 +326,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.status_menumask(~status[25]),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
+	.gamma_bus(gamma_bus),
 
 	.sd_lba(c1541_1_busy ? sd_lba1 : sd_lba2),
 	.sd_rd(sd_rd),
@@ -899,15 +902,16 @@ assign VIDEO_ARY = status[5:4] ? 8'd9  : 8'd3;
 assign VGA_SL    = (status[10:8] > 2) ? status[9:8] - 2'd2 : 2'd0;
 assign VGA_F1    = 0;
 
-video_mixer video_mixer
+video_mixer #(.GAMMA(1)) video_mixer
 (
-	.clk_sys(clk96),
+	.clk_vid(clk96),
 	.ce_pix(ce_pix),
 	.ce_pix_out(CE_PIXEL),
 
 	.scanlines(0),
 	.hq2x(~status[10] & (status[9] ^ status[8])),
 	.scandoubler(scandoubler),
+	.gamma_bus(gamma_bus),
 
 	.R(r),
 	.G(g),
