@@ -588,7 +588,6 @@ always @(posedge clk_sys) begin
 	if(start_strk) act <= 1;
 end
 
-assign SDRAM_CLK  = ~clk64;
 assign SDRAM_CKE  = 1;
 assign SDRAM_DQML = 0;
 assign SDRAM_DQMH = 0;
@@ -603,6 +602,7 @@ sdram sdram
 	.sd_we(SDRAM_nWE),
 	.sd_ras(SDRAM_nRAS),
 	.sd_cas(SDRAM_nCAS),
+	.sd_clk(SDRAM_CLK),
 
 	.clk(clk64),
 	.init(~pll_locked),

@@ -30,14 +30,15 @@ module sdram (
 	output 				sd_we,      // write enable
 	output 				sd_ras,     // row address select
 	output 				sd_cas,     // columns address select
+	output 				sd_clk,
 
 	// cpu/chipset interface
 	input 		 		init,			// init signal after FPGA config to initialize RAM
 	input 		 		clk,			// sdram is accessed at up to 128MHz
 	
-	input  [24:0]   	addr,       // 25 bit byte address
-	input  [ 7:0]   	din,
-	output [ 7:0]  		dout,
+	input      [24:0] addr,       // 25 bit byte address
+	input      [ 7:0] din,
+	output reg [ 7:0]	dout,
 
 	input 		 		refresh,    // refresh cycle
 	input 		 		ce,         // cpu/chipset access
@@ -45,7 +46,7 @@ module sdram (
 );
 
 // no burst configured
-localparam RASCAS_DELAY   = 3'd2;   // tRCD>=20ns -> 2 cycles@64MHz
+localparam RASCAS_DELAY   = 3'd1;   // tRCD>=20ns -> 2 cycles@64MHz
 localparam BURST_LENGTH   = 3'b000; // 000=none, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE    = 1'b0;   // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd2;   // 2/3 allowed
@@ -95,22 +96,19 @@ end
 // ---------------------------------------------------------------------
 
 // all possible commands
-localparam CMD_INHIBIT         = 4'b1111;
-localparam CMD_NOP             = 4'b0111;
-localparam CMD_ACTIVE          = 4'b0011;
-localparam CMD_READ            = 4'b0101;
-localparam CMD_WRITE           = 4'b0100;
-localparam CMD_BURST_TERMINATE = 4'b0110;
-localparam CMD_PRECHARGE       = 4'b0010;
-localparam CMD_AUTO_REFRESH    = 4'b0001;
-localparam CMD_LOAD_MODE       = 4'b0000;
+localparam CMD_NOP             = 3'b111;
+localparam CMD_ACTIVE          = 3'b011;
+localparam CMD_READ            = 3'b101;
+localparam CMD_WRITE           = 3'b100;
+localparam CMD_BURST_TERMINATE = 3'b110;
+localparam CMD_PRECHARGE       = 3'b010;
+localparam CMD_AUTO_REFRESH    = 3'b001;
+localparam CMD_LOAD_MODE       = 3'b000;
 
-reg [3:0] sd_cmd;   // current command sent to sd ram
-
-assign dout = sd_data[7:0];
+reg [2:0] sd_cmd;   // current command sent to sd ram
 
 // drive control signals according to current command
-assign sd_cs  = sd_cmd[3];
+assign sd_cs  = 0;
 assign sd_ras = sd_cmd[2];
 assign sd_cas = sd_cmd[1];
 assign sd_we  = sd_cmd[0];
@@ -118,10 +116,12 @@ wire [12:0] reset_addr = (reset == 13)?13'b0010000000000:MODE;
 wire [12:0] run_addr = (q == STATE_CMD_START)?addr[20:8]:{ 4'b0010, addr[23], addr[7:0]};
 
 always @(posedge clk) begin
-	sd_cmd  <= CMD_INHIBIT;
+	sd_cmd  <= CMD_NOP;
 	sd_addr <= (reset != 0)?reset_addr:run_addr;
 	sd_ba   <= addr[22:21];
-	sd_data <= 16'bZZZZZZZZZZZZZZZZ;
+	sd_data <= 16'bZ;
+
+	dout <= sd_data[7:0];
 
 	if(reset != 0) begin
 		if(q == STATE_IDLE) begin
@@ -133,11 +133,36 @@ always @(posedge clk) begin
 			if(ce && !last_ce)           sd_cmd <= CMD_ACTIVE;
 			if(refresh && !last_refresh) sd_cmd <= CMD_AUTO_REFRESH;
 		end else if((q == STATE_CMD_CONT)&&(!refresh)) begin
-			if(we)		 sd_cmd <= CMD_WRITE;
-			else if(ce)  sd_cmd <= CMD_READ;
-            if(we) sd_data <= {din, din};
+			if(we)		sd_cmd <= CMD_WRITE;
+			else if(ce) sd_cmd <= CMD_READ;
+			if(we)     sd_data <= {din, din};
 		end
 	end
 end
+
+altddio_out
+#(
+	.extend_oe_disable("OFF"),
+	.intended_device_family("Cyclone V"),
+	.invert_output("OFF"),
+	.lpm_hint("UNUSED"),
+	.lpm_type("altddio_out"),
+	.oe_reg("UNREGISTERED"),
+	.power_up_high("OFF"),
+	.width(1)
+)
+sdramclk_ddr
+(
+	.datain_h(1'b0),
+	.datain_l(1'b1),
+	.outclock(clk),
+	.dataout(sd_clk),
+	.aclr(1'b0),
+	.aset(1'b0),
+	.oe(1'b1),
+	.outclocken(1'b1),
+	.sclr(1'b0),
+	.sset(1'b0)
+);
 
 endmodule
