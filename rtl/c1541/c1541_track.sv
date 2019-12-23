@@ -219,6 +219,11 @@ always @(posedge clk) begin
 	else
 	if(busy) begin
 		if(old_ack && ~ack) begin
+			if((!metadata_track && !saving && cur_half_track != half_track)) begin
+				// Was loading, but track changed. Stop so a new read is initiated.
+				busy <= 0;
+			end
+			else
 			if(( metadata_track && lba_count != 4'b1) ||
 			   (!metadata_track && lba_count != 4'b1111)) begin
 				// Not done yet ? Load/writeback next LBA.
