@@ -293,7 +293,7 @@ wire  [7:0] ioctl_data;
 wire  [7:0] ioctl_index;
 wire        ioctl_download;
 
-wire [31:0] sd_lba1, sd_lba2;
+wire [31:0] sd_lba1, sd_lba2, sd_lba3; // drive 1, drive 2, gmod2 cart save
 wire  [1:0] sd_rd;
 wire  [1:0] sd_wr;
 wire        sd_ack;
@@ -309,6 +309,16 @@ wire [10:0] ps2_key;
 wire  [1:0] buttons;
 wire [21:0] gamma_bus;
 
+
+reg [31:0] sd_lba;
+always @* begin
+    if (c1541_1_busy)
+        sd_lba = sd_lba1;
+    else if (c1541_2_busy)
+        sd_lba = sd_lba2; 
+    else 
+        sd_lba = sd_lba3;
+end
 
 hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 (
@@ -328,7 +338,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
 
-	.sd_lba(c1541_1_busy ? sd_lba1 : sd_lba2),
+	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
@@ -363,6 +373,8 @@ wire reset_crt;
 
 wire [24:0] cart_addr;
 wire load_cart = (ioctl_index == 5) || (ioctl_index == 'hC0);
+
+wire cart_wr_busy;
 
 cartridge cartridge
 (
@@ -405,6 +417,18 @@ cartridge cartridge
 	.freeze_key(freeze_key),
 	.nmi(nmi),
 	.nmi_ack(nmi_ack)
+
+    .sd_lba(sd_lba3),
+	.sd_rd(sd_rd[0]),
+	.sd_wr(sd_wr[0]),
+	.sd_ack(sd_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din(sd_buff_din1),
+	.sd_buff_wr(sd_buff_wr),
+	.sd_busy(cart_wr_busy), //todo
+
+	
 );
 
 // rearrange joystick contacts for c64
