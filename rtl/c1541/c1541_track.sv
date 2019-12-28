@@ -37,7 +37,6 @@ module c1541_track
 	input         disk_change,
 	input   [1:0] stp,
 	input         mtr,
-	input         act,
 	output reg    tr00_sense_n,
 	output reg    buff_dout,
 	input         buff_din,
@@ -71,6 +70,9 @@ assign sd_buff_din = ~metadata_track ? sd_track_buff_din :
 wire sd_b_ack = sd_ack & busy;
 reg [15:0] buff_bit_addr;
 wire [15:0] next_buff_bit_addr = buff_bit_addr + 16'b1;
+wire [15:0] next_buff_bit_addr_wrapped = next_buff_bit_addr[15:3] < track_length ? next_buff_bit_addr : 16'b0;
+wire [3:0] buff_bit_addr_lba = buff_bit_addr[15:12];
+wire [3:0] next_buff_bit_addr_wrapped_lba = next_buff_bit_addr_wrapped[15:12];
 wire [7:0] buff_dout_byte;
 wire flux_change = buff_dout_byte[~buff_bit_addr[2:0]];
 wire buff_din_posedge = buff_we && !old_buff_din && buff_din;
@@ -149,7 +151,6 @@ wire [15:0] next_scaled_buff_bit_addr = next_scaled_buff_bit_addr_long[45:30];
 // and assuming LBAs are received in increasing sd_buff_addr order,
 // it is safe to read the LBA the head is currently on if it is further than 51.2 bytes away from its end. Round it to 64, or when the 3 MSb are 1.
 wire [3:0] previous_next_lba = previous_scaled_buff_bit_addr[15:12] + &previous_scaled_buff_bit_addr[11:9];
-wire [3:0] current_next_lba = buff_bit_addr[15:12] + &buff_bit_addr[11:9];
 wire [3:0] next_next_lba = next_scaled_buff_bit_addr[15:12] + &next_scaled_buff_bit_addr[11:9];
 
 
@@ -164,6 +165,7 @@ always @(posedge clk) begin
 	reg [7:0] clk_counter_max_fractional;
 	reg [1:0] no_flux_change_count;
 	reg [3:0] lba_count;
+	reg is_current_lba_dirty = 0;
 
 	old_disk_change <= disk_change;
 	if (~old_disk_change && disk_change) ready <= 1;
@@ -177,7 +179,17 @@ always @(posedge clk) begin
 			// "- 1" because we are already one 32MHz cycle into the next bit.
 			// Note: clk_counter_max_fractional[0] is always 0 and is optimised away during synthesis, but removing it here makes the "* 2" harder to notice.
 			{clk_counter_max_integer, clk_counter_max_fractional} <= {1'b0, bit_clock_delay, 1'b0} + {8'd63, clk_counter_max_fractional};
-			buff_bit_addr <= next_buff_bit_addr[15:3] < track_length ? next_buff_bit_addr : 16'b0;
+			buff_bit_addr <= next_buff_bit_addr_wrapped;
+			if (buff_bit_addr_lba != next_buff_bit_addr_wrapped_lba) begin
+				if (is_current_lba_dirty) begin
+					saving <= 1; /// XXX: what if we are already saving (ex: previous LBA took more to send to hard CPU than drive head to exit current one) ?
+					sd_buff_base <= buff_bit_addr_lba;
+					lba_count <= 4'b1111; // XXX: to just save one LBA
+					wr <= 1;
+					busy <= 1;
+				end
+				is_current_lba_dirty <= buff_we & ~disk_change;
+			end
 			buff_din_latched <= buff_din_posedge;
 			rnd_reg <= rnd;
 			clk_counter <= 0;
@@ -198,6 +210,7 @@ always @(posedge clk) begin
 			end else if (clk_counter == 8'd8)
 				buff_dout <= 0;
 			buff_din_latched <= buff_din_latched | buff_din_posedge;
+			is_current_lba_dirty <= (is_current_lba_dirty | buff_we) & ~disk_change;
 			clk_counter <= clk_counter + 8'b1;
 		end
 	end
@@ -215,6 +228,7 @@ always @(posedge clk) begin
 		rd <= 0;
 		wr <= 0;
 		saving<= 0;
+		is_current_lba_dirty <= 0;
 	end
 	else
 	if(busy) begin
@@ -242,7 +256,7 @@ always @(posedge clk) begin
 			end
 			else
 			if(saving && (cur_half_track != half_track)) begin
-				// Was saving ? Load next track.
+				// Was saving and changing track ? Load next track.
 				saving <= 0;
 				if (cur_half_track < half_track) begin
 					buff_bit_addr <= next_scaled_buff_bit_addr;
@@ -265,15 +279,13 @@ always @(posedge clk) begin
 	end
 	else
 	if(ready) begin
-		if(save_track) begin
-			saving <= 1;
-			sd_buff_base <= current_next_lba;
-			lba_count <= 0;
+		if (is_current_lba_dirty && cur_half_track != half_track) begin
+			saving <= 1; /// XXX: what if we are already saving (ex: previous LBA took more to send to hard CPU than drive head to exit current one) ?
+			sd_buff_base <= buff_bit_addr_lba;
+			lba_count <= 4'b1111; // XXX: to just save one LBA
 			wr <= 1;
 			busy <= 1;
-		end
-		else
-		if (
+		end else if (
 			(cur_half_track != half_track) ||
 			(old_disk_change && ~disk_change)
 		) begin
@@ -299,23 +311,14 @@ always @(posedge clk) begin
 end
 
 reg [6:0] half_track;
-reg       save_track;
 always @(posedge clk) begin
-	reg       track_modified;
 	reg [1:0] stp_r;
-	reg       act_r;
 
 	tr00_sense_n <= |half_track;
 	stp_r <= stp;
-	act_r <= act;
-	save_track <= 0;
-
-	if (buff_we) track_modified <= 1;
-	if (disk_change) track_modified <= 0;
 
 	if (reset) begin
 		half_track <= 36;
-		track_modified <= 0;
 	end else begin
 		if (mtr) begin
 			if ((stp_r == 0 && stp == 1)
@@ -323,8 +326,6 @@ always @(posedge clk) begin
 				|| (stp_r == 2 && stp == 3)
 				|| (stp_r == 3 && stp == 0)) begin
 				if (half_track < 83) half_track <= half_track + 7'b1;
-				save_track <= track_modified;
-				track_modified <= 0;
 			end
 
 			if ((stp_r == 0 && stp == 3)
@@ -332,14 +333,7 @@ always @(posedge clk) begin
 				|| (stp_r == 2 && stp == 1)
 				|| (stp_r == 1 && stp == 0)) begin
 				if (half_track) half_track <= half_track - 7'b1;
-				save_track <= track_modified;
-				track_modified <= 0;
 			end
-		end
-
-		if (act_r && ~act) begin		// stopping activity
-			save_track <= track_modified;
-			track_modified <= 0;
 		end
 	end
 end

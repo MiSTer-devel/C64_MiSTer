@@ -174,7 +174,6 @@ c1541_track c1541_track
 	.disk_change(disk_change),
 	.stp(stp),
 	.mtr(mtr),
-	.act(act),
 	.tr00_sense_n(tr00_sense_n),
 
 	.clk(clk_c1541),
