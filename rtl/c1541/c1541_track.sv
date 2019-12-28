@@ -57,15 +57,27 @@ end
 wire [62:0] rnd;
 lfsr random(rnd);
 
-assign sd_buff_din = ~metadata_track ? sd_track_buff_din :
-		     sd_buff_addr[2:0] == 3'b000 ? sd_metadata_buff_din[63:56] :
-		     sd_buff_addr[2:0] == 3'b001 ? sd_metadata_buff_din[55:48] :
-		     sd_buff_addr[2:0] == 3'b010 ? sd_metadata_buff_din[47:40] :
-		     sd_buff_addr[2:0] == 3'b011 ? sd_metadata_buff_din[39:32] :
-		     sd_buff_addr[2:0] == 3'b100 ? sd_metadata_buff_din[31:24] :
-		     sd_buff_addr[2:0] == 3'b101 ? sd_metadata_buff_din[23:16] :
-		     sd_buff_addr[2:0] == 3'b110 ? sd_metadata_buff_din[15: 8] :
-						   sd_metadata_buff_din[ 7: 0];
+function [7:0] bitSwap8(input [7:0] data);
+	integer i;
+	for (i = 0; i < 8; i = i + 1) begin
+		bitSwap8[7 - i] = data[i];
+	end
+endfunction
+function [63:0] bitSwap64(input [63:0] data);
+	bitSwap64 = {
+		data[ 7: 0],
+		data[15: 8],
+		data[23:16],
+		data[31:24],
+		data[39:32],
+		data[47:40],
+		data[55:48],
+		data[63:56]
+        };
+endfunction
+
+assign sd_buff_din = metadata_track ? sd_metadata_buff_din : bitSwap8(sd_track_buff_din);
+wire [7:0] swapped_sd_buff_dout = bitSwap8(sd_buff_dout);
 
 wire sd_b_ack = sd_ack & busy;
 reg [15:0] buff_bit_addr;
@@ -73,65 +85,57 @@ wire [15:0] next_buff_bit_addr = buff_bit_addr + 16'b1;
 wire [15:0] next_buff_bit_addr_wrapped = next_buff_bit_addr[15:3] < track_length ? next_buff_bit_addr : 16'b0;
 wire [3:0] buff_bit_addr_lba = buff_bit_addr[15:12];
 wire [3:0] next_buff_bit_addr_wrapped_lba = next_buff_bit_addr_wrapped[15:12];
-wire [7:0] buff_dout_byte;
-wire flux_change = buff_dout_byte[~buff_bit_addr[2:0]];
 wire buff_din_posedge = buff_we && !old_buff_din && buff_din;
 reg old_buff_din;
 reg buff_din_latched;
 
 wire [7:0] sd_track_buff_din;
-wire [7:0] buff_din_byte = buff_bit_addr[2:0] == 3'd0 ? {                     buff_din_latched, buff_dout_byte[6:0]} :
-			   buff_bit_addr[2:0] == 3'd1 ? {buff_dout_byte[7  ], buff_din_latched, buff_dout_byte[5:0]} :
-			   buff_bit_addr[2:0] == 3'd2 ? {buff_dout_byte[7:6], buff_din_latched, buff_dout_byte[4:0]} :
-			   buff_bit_addr[2:0] == 3'd3 ? {buff_dout_byte[7:5], buff_din_latched, buff_dout_byte[3:0]} :
-			   buff_bit_addr[2:0] == 3'd4 ? {buff_dout_byte[7:4], buff_din_latched, buff_dout_byte[2:0]} :
-			   buff_bit_addr[2:0] == 3'd5 ? {buff_dout_byte[7:3], buff_din_latched, buff_dout_byte[1:0]} :
-			   buff_bit_addr[2:0] == 3'd6 ? {buff_dout_byte[7:2], buff_din_latched, buff_dout_byte[  0]} :
-							{buff_dout_byte[7:1], buff_din_latched                     };
-trk_dpram buffer
+wire flux_change;
+dpram_difclk #(.addr_width_a(13), .data_width_a(8), .addr_width_b(16), .data_width_b(1)) buffer
 (
-	.clock_a(sd_clk),
+	.clock0(sd_clk),
 	.address_a({sd_buff_base, sd_buff_addr}),
-	.data_a(sd_buff_dout),
+	.data_a(swapped_sd_buff_dout),
+	.enable_a(1'b1),
 	.wren_a(sd_b_ack & sd_buff_wr & ~metadata_track),
 	.q_a(sd_track_buff_din),
+	.cs_a(1'b1),
 
-	.clock_b(clk),
-	.address_b(buff_bit_addr[15:3]),
-	.data_b(buff_din_byte),
+	.clock1(clk),
+	.address_b(buff_bit_addr),
+	.enable_b(1'b1),
+	.data_b(buff_din_latched),
 	.wren_b(buff_we/* && !busy*/),
-	.q_b(buff_dout_byte)
+	.q_b(flux_change),
+	.cs_b(1'b1)
 );
 
-wire [63:0] sd_metadata_buff_din;
-wire [63:0] sd_metadata_buff_dout = sd_buff_addr[2:0] == 3'b000 ? {                             sd_buff_dout, sd_metadata_buff_din[55:0]} :
-				    sd_buff_addr[2:0] == 3'b001 ? {sd_metadata_buff_din[63:56], sd_buff_dout, sd_metadata_buff_din[47:0]} :
-				    sd_buff_addr[2:0] == 3'b010 ? {sd_metadata_buff_din[63:48], sd_buff_dout, sd_metadata_buff_din[39:0]} :
-				    sd_buff_addr[2:0] == 3'b011 ? {sd_metadata_buff_din[63:40], sd_buff_dout, sd_metadata_buff_din[31:0]} :
-				    sd_buff_addr[2:0] == 3'b100 ? {sd_metadata_buff_din[63:32], sd_buff_dout, sd_metadata_buff_din[23:0]} :
-				    sd_buff_addr[2:0] == 3'b101 ? {sd_metadata_buff_din[63:24], sd_buff_dout, sd_metadata_buff_din[15:0]} :
-				    sd_buff_addr[2:0] == 3'b110 ? {sd_metadata_buff_din[63:16], sd_buff_dout, sd_metadata_buff_din[ 7:0]} :
-								  {sd_metadata_buff_din[63: 8], sd_buff_dout                            };
-wire [1:0] freq;
+wire [7:0] sd_metadata_buff_din;
+wire [63:0] metadata_buffer_64;
+wire [1:0] freq; // XXX: unused
 wire [13:0] bit_clock_delay; // 6.8 fixed-point
 wire [15:0] track_length;
 wire [15:0] previous_track_length_ratio; // 1.15 fixed-point
 wire [15:0] next_track_length_ratio; // 1.15 fixed-point
-
-trk_dpram #(.DATAWIDTH(64), .ADDRWIDTH(7)) metadata_buffer
+assign {freq, bit_clock_delay, track_length, previous_track_length_ratio, next_track_length_ratio} = bitSwap64(metadata_buffer_64);
+dpram_difclk #(.addr_width_a(10), .data_width_a(8), .addr_width_b(7), .data_width_b(64)) metadata_buffer
 (
-	.clock_a(sd_clk),
-	.address_a({sd_buff_base[0], sd_buff_addr[8:3]}),
-	.data_a(sd_metadata_buff_dout),
+	.clock0(sd_clk),
+	.address_a({sd_buff_base[0], sd_buff_addr}),
+	.enable_a(1'b1),
+	.data_a(sd_buff_dout),
 	.wren_a(sd_b_ack & sd_buff_wr & metadata_track),
 	.q_a(sd_metadata_buff_din),
+	.cs_a(1'b1),
 
-	.clock_b(clk),
+	.clock1(clk),
 	.address_b(cur_half_track),
+	.enable_b(1'b1),
 	// XXX: no drive-side write support: drive will not be able to resize tracks, and will write at pre-existing track speed.
 	.data_b(),
 	.wren_b(1'b0),
-	.q_b({freq, bit_clock_delay, track_length, previous_track_length_ratio, next_track_length_ratio})
+	.q_b(metadata_buffer_64),
+	.cs_b(1'b1)
 );
 
 reg [3:0] sd_buff_base;
@@ -337,41 +341,4 @@ always @(posedge clk) begin
 		end
 	end
 end
-endmodule
-
-module trk_dpram #(parameter DATAWIDTH=8, ADDRWIDTH=13)
-(
-	input	                     clock_a,
-	input	     [ADDRWIDTH-1:0] address_a,
-	input	     [DATAWIDTH-1:0] data_a,
-	input	                     wren_a,
-	output reg [DATAWIDTH-1:0] q_a,
-
-	input	                     clock_b,
-	input	     [ADDRWIDTH-1:0] address_b,
-	input	     [DATAWIDTH-1:0] data_b,
-	input	                     wren_b,
-	output reg [DATAWIDTH-1:0] q_b
-);
-
-logic [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
-
-always_ff@(posedge clock_a) begin
-	if(wren_a) begin
-		ram[address_a] <= data_a;
-		q_a <= data_a;
-	end else begin
-		q_a <= ram[address_a];
-	end
-end
-
-always_ff@(posedge clock_b) begin
-	if(wren_b) begin
-		ram[address_b] <= data_b;
-		q_b <= data_b;
-	end else begin
-		q_b <= ram[address_b];
-	end
-end
-
 endmodule
