@@ -76,37 +76,66 @@ function [63:0] bitSwap64(input [63:0] data);
         };
 endfunction
 
-assign sd_buff_din = metadata_track ? sd_metadata_buff_din : bitSwap8(sd_track_buff_din);
+assign sd_buff_din = metadata_track ? sd_metadata_buff_din :
+		     sd_to_buffer == 0 ? bitSwap8(sd_track_buff0_din) :
+					 bitSwap8(sd_track_buff1_din);
 wire [7:0] swapped_sd_buff_dout = bitSwap8(sd_buff_dout);
 
 wire sd_b_ack = sd_ack & busy;
 reg [15:0] buff_bit_addr;
 wire [15:0] next_buff_bit_addr = buff_bit_addr + 16'b1;
 wire [15:0] next_buff_bit_addr_wrapped = next_buff_bit_addr[15:3] < track_length ? next_buff_bit_addr : 16'b0;
+wire [3:0] buff_last_lba = track_length[15:12];
+wire [3:0] lba_count_to_next_track_lba = (buff_last_lba == buff_bit_addr[15:12] ? ~buff_bit_addr[15:12] : 4'b0) + 4'b1;
 wire [3:0] buff_bit_addr_lba = buff_bit_addr[15:12];
 wire [3:0] next_buff_bit_addr_wrapped_lba = next_buff_bit_addr_wrapped[15:12];
 wire buff_din_posedge = buff_we && !old_buff_din && buff_din;
 reg old_buff_din;
 reg buff_din_latched;
 
-wire [7:0] sd_track_buff_din;
-wire flux_change;
-dpram_difclk #(.addr_width_a(13), .data_width_a(8), .addr_width_b(16), .data_width_b(1)) buffer
+reg sd_to_buffer = 0;
+reg head_to_buffer = 0;
+wire flux_change = head_to_buffer == 0 ? flux_change0 : flux_change1;
+
+wire [7:0] sd_track_buff0_din;
+wire flux_change0;
+dpram_difclk #(.addr_width_a(13), .data_width_a(8), .addr_width_b(16), .data_width_b(1)) buffer0
 (
 	.clock0(sd_clk),
 	.address_a({sd_buff_base, sd_buff_addr}),
 	.data_a(swapped_sd_buff_dout),
 	.enable_a(1'b1),
-	.wren_a(sd_b_ack & sd_buff_wr & ~metadata_track),
-	.q_a(sd_track_buff_din),
+	.wren_a(sd_b_ack && sd_buff_wr && !metadata_track && sd_to_buffer == 0),
+	.q_a(sd_track_buff0_din),
 	.cs_a(1'b1),
 
 	.clock1(clk),
 	.address_b(buff_bit_addr),
 	.enable_b(1'b1),
 	.data_b(buff_din_latched),
-	.wren_b(buff_we/* && !busy*/),
-	.q_b(flux_change),
+	.wren_b(buff_we && head_to_buffer == 0),
+	.q_b(flux_change0),
+	.cs_b(1'b1)
+);
+
+wire [7:0] sd_track_buff1_din;
+wire flux_change1;
+dpram_difclk #(.addr_width_a(13), .data_width_a(8), .addr_width_b(16), .data_width_b(1)) buffer1
+(
+	.clock0(sd_clk),
+	.address_a({sd_buff_base, sd_buff_addr}),
+	.data_a(swapped_sd_buff_dout),
+	.enable_a(1'b1),
+	.wren_a(sd_b_ack && sd_buff_wr && !metadata_track && sd_to_buffer == 1),
+	.q_a(sd_track_buff1_din),
+	.cs_a(1'b1),
+
+	.clock1(clk),
+	.address_b(buff_bit_addr),
+	.enable_b(1'b1),
+	.data_b(buff_din_latched),
+	.wren_b(buff_we && head_to_buffer == 1),
+	.q_b(flux_change1),
 	.cs_b(1'b1)
 );
 
@@ -157,6 +186,9 @@ wire [15:0] next_scaled_buff_bit_addr = next_scaled_buff_bit_addr_long[45:30];
 wire [3:0] previous_next_lba = previous_scaled_buff_bit_addr[15:12] + &previous_scaled_buff_bit_addr[11:9];
 wire [3:0] next_next_lba = next_scaled_buff_bit_addr[15:12] + &next_scaled_buff_bit_addr[11:9];
 
+reg is_current_lba_dirty = 0;
+reg [3:0] dirty_lba_count = 0;
+wire [3:0] next_dirty_lba_count = &dirty_lba_count ? dirty_lba_count : (dirty_lba_count + (is_current_lba_dirty ? lba_count_to_next_track_lba : 4'b0));
 
 always @(posedge clk) begin
 	reg ack1,ack2,ack;
@@ -169,7 +201,6 @@ always @(posedge clk) begin
 	reg [7:0] clk_counter_max_fractional;
 	reg [1:0] no_flux_change_count;
 	reg [3:0] lba_count; // zero-complement of the number of LBAs to write to sd
-	reg is_current_lba_dirty = 0;
 
 	old_disk_change <= disk_change;
 	if (~old_disk_change && disk_change) ready <= 1;
@@ -185,12 +216,17 @@ always @(posedge clk) begin
 			{clk_counter_max_integer, clk_counter_max_fractional} <= {1'b0, bit_clock_delay, 1'b0} + {8'd63, clk_counter_max_fractional};
 			buff_bit_addr <= next_buff_bit_addr_wrapped;
 			if (buff_bit_addr_lba != next_buff_bit_addr_wrapped_lba) begin // moving to next LBA on next bit address increment ...
-				if (is_current_lba_dirty) begin
-					saving <= 1; /// XXX: what if we are already saving (ex: previous LBA took more to send to hard CPU than drive head to exit current one) ?
-					sd_buff_base <= buff_bit_addr_lba;
-					lba_count <= 4'b1111; // XXX: to just save one LBA
-					wr <= 1;
-					busy <= 1;
+				if (next_dirty_lba_count) begin // ... and we have some dirty LBAs
+					if (busy) begin // ... which cannot be written back yet, keep counting
+						dirty_lba_count <= next_dirty_lba_count;
+					end else begin // ... which can be written back now
+						saving <= 1;
+						sd_buff_base <= buff_bit_addr_lba - next_dirty_lba_count;
+						lba_count <= ~next_dirty_lba_count;
+						wr <= 1;
+						busy <= 1;
+						dirty_lba_count <= 0;
+					end
 				end
 				is_current_lba_dirty <= 0;
 			end
@@ -234,6 +270,8 @@ always @(posedge clk) begin
 		wr <= 0;
 		saving<= 0;
 		is_current_lba_dirty <= 0;
+		sd_to_buffer <= 0;
+		head_to_buffer <= 0;
 	end
 	else
 	if(busy) begin
@@ -274,6 +312,8 @@ always @(posedge clk) begin
 
 				lba_count <= 0;
 				rd <= 1;
+				// Move sd to the buffer the head is currently on.
+				sd_to_buffer <= head_to_buffer;
 			end
 			else
 			begin
@@ -284,12 +324,16 @@ always @(posedge clk) begin
 	end
 	else
 	if(ready) begin
-		if (is_current_lba_dirty && cur_half_track != half_track) begin
-			saving <= 1; /// XXX: what if we are already saving (ex: previous LBA took more to send to hard CPU than drive head to exit current one) ?
-			sd_buff_base <= buff_bit_addr_lba;
-			lba_count <= 4'b1111; // XXX: to just save one LBA
+		if (next_dirty_lba_count && cur_half_track != half_track) begin
+			saving <= 1;
+			sd_buff_base <= buff_bit_addr_lba - next_dirty_lba_count;
+			lba_count <= ~next_dirty_lba_count;
 			wr <= 1;
 			busy <= 1;
+			is_current_lba_dirty <= 0;
+			dirty_lba_count <= 0;
+			// Move head to the other buffer, keep sd on current buffer for writeback
+			head_to_buffer <= head_to_buffer + 1'b1;
 		end else if (
 			(cur_half_track != half_track) ||
 			(old_disk_change && !disk_change)
@@ -311,6 +355,7 @@ always @(posedge clk) begin
 			lba_count <= 0;
 			rd <= 1;
 			busy <= 1;
+			// Reuse current buffer
 		end
 	end
 end
