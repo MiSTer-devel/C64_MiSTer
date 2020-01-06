@@ -168,7 +168,7 @@ always @(posedge clk) begin
 	reg [7:0] clk_counter_max_integer;
 	reg [7:0] clk_counter_max_fractional;
 	reg [1:0] no_flux_change_count;
-	reg [3:0] lba_count;
+	reg [3:0] lba_count; // zero-complement of the number of LBAs to write to sd
 	reg is_current_lba_dirty = 0;
 
 	old_disk_change <= disk_change;
@@ -184,7 +184,7 @@ always @(posedge clk) begin
 			// Note: clk_counter_max_fractional[0] is always 0 and is optimised away during synthesis, but removing it here makes the "* 2" harder to notice.
 			{clk_counter_max_integer, clk_counter_max_fractional} <= {1'b0, bit_clock_delay, 1'b0} + {8'd63, clk_counter_max_fractional};
 			buff_bit_addr <= next_buff_bit_addr_wrapped;
-			if (buff_bit_addr_lba != next_buff_bit_addr_wrapped_lba) begin
+			if (buff_bit_addr_lba != next_buff_bit_addr_wrapped_lba) begin // moving to next LBA on next bit address increment ...
 				if (is_current_lba_dirty) begin
 					saving <= 1; /// XXX: what if we are already saving (ex: previous LBA took more to send to hard CPU than drive head to exit current one) ?
 					sd_buff_base <= buff_bit_addr_lba;
@@ -211,10 +211,11 @@ always @(posedge clk) begin
 						no_flux_change_count <= no_flux_change_count + 2'b1;
 					end
 				end
-			end else if (clk_counter == 8'd8)
+			end else if (clk_counter == 8'd8) begin
 				buff_dout <= 0;
-			buff_din_latched <= buff_din_latched | buff_din_posedge;
-			is_current_lba_dirty <= (is_current_lba_dirty | buff_we) & ~disk_change;
+			end
+			buff_din_latched <= buff_din_latched || buff_din_posedge;
+			is_current_lba_dirty <= (is_current_lba_dirty || buff_we) && !disk_change;
 			clk_counter <= clk_counter + 8'b1;
 		end
 	end
@@ -248,7 +249,7 @@ always @(posedge clk) begin
 				sd_buff_base <= sd_buff_base + 4'b1;
 				lba_count <= lba_count + 4'b1;
 				if(saving) wr <= 1;
-					else rd <= 1;
+				else rd <= 1;
 			end
 			else
 			if(metadata_track) begin
@@ -291,10 +292,10 @@ always @(posedge clk) begin
 			busy <= 1;
 		end else if (
 			(cur_half_track != half_track) ||
-			(old_disk_change && ~disk_change)
+			(old_disk_change && !disk_change)
 		) begin
 			saving <= 0;
-			if (old_disk_change && ~disk_change) begin
+			if (old_disk_change && !disk_change) begin
 				cur_half_track <= 7'd84;
 				sd_buff_base <= 0;
 			end else begin
