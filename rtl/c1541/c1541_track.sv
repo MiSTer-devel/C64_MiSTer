@@ -175,7 +175,7 @@ always @(posedge clk) begin
 	if (~old_disk_change && disk_change) ready <= 1;
 
 	old_buff_din <= buff_din;
-	if (mtr) begin
+	if (ready && mtr) begin
 		if (clk_counter == clk_counter_max_integer) begin
 			// number of 32MHz clock periods until next bit is: next_delay = track_delay * 2 + (32 * 2 - 1).next_delay_fract
 			// "32" because track_delay is stored offset by -32.
