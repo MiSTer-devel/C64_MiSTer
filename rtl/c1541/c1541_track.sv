@@ -192,7 +192,7 @@ always @(posedge clk) begin
 					wr <= 1;
 					busy <= 1;
 				end
-				is_current_lba_dirty <= buff_we & ~disk_change;
+				is_current_lba_dirty <= 0;
 			end
 			buff_din_latched <= buff_din_posedge;
 			rnd_reg <= rnd;
