@@ -148,7 +148,7 @@ localparam CONF_STR = {
 	"D0S1,D64,Mount Drive #9;",
 	"OP,Enable Drive #9,No,Yes;",
 	"-;",
-	"F,PRG,Load File;",
+	"F,PRGT64,Load File;",
 	"F,CRT,Load Cartridge;",
 	"-;",
 	"F,TAP,Tape Load;",
@@ -272,7 +272,7 @@ always @(posedge clk_sys) begin
 		reset_counter <= 255;
 		reset_n <= 0;
 	end
-	else if (ioctl_download);
+	else if (ioctl_download || inj_meminit);
 	else if (erasing) force_erase <= 0;
 	else if (!reset_counter) reset_n <= 1;
 	else begin
@@ -434,8 +434,17 @@ reg  [3:0] cart_hdr_cnt;
 reg        cart_hdr_wr;
 reg [31:0] cart_blk_len;
 
+reg [15:0] inj_start;
+reg [15:0] inj_end;
+
 reg        force_erase;
 reg        erasing;
+
+wire       load_inj = (ioctl_index[5:0] == 4);
+wire       load_prg = (ioctl_index[7:6] == 0) && load_inj;
+wire       load_t64 = (ioctl_index[7:6] == 1) && load_inj;
+reg        inj_meminit = 0;
+reg  [7:0] inj_meminit_data;
 
 wire       iec_cycle = (ces == 4'b1011);
 reg        iec_cycle_ce;
@@ -451,10 +460,12 @@ always @(posedge clk_sys) begin
 	reg erase_cram;
 	reg iec_cycleD;
 	reg old_st0 = 0;
+	reg old_meminit;
 
 	old_download <= ioctl_download;
 	iec_cycleD <= iec_cycle;
 	cart_hdr_wr <= 0;
+	old_meminit <= inj_meminit;
 	
 	if (~iec_cycle & iec_cycleD) begin
 		iec_cycle_ce <= 1;
@@ -466,6 +477,7 @@ always @(posedge clk_sys) begin
 			iec_cycle_addr <= ioctl_load_addr;
 			ioctl_load_addr <= ioctl_load_addr + 1'b1;
 			if (erasing) iec_cycle_data <= {8{ioctl_load_addr[6]}};
+			else if (inj_meminit) iec_cycle_data <= inj_meminit_data;
 			else iec_cycle_data <= ioctl_data;
 		end
 	end
@@ -473,10 +485,42 @@ always @(posedge clk_sys) begin
 	if (iec_cycle & iec_cycleD) {iec_cycle_ce, iec_cycle_we} <= 0;
 
 	if (ioctl_wr) begin
-		if (ioctl_index == 4) begin
-			if (ioctl_addr == 0) ioctl_load_addr[7:0] <= ioctl_data;
-			else if (ioctl_addr == 1) ioctl_load_addr[15:8] <= ioctl_data;
-			else ioctl_req_wr <= 1;
+		if (load_inj) begin
+			if (load_prg) begin
+				// PRG
+				if      (ioctl_addr == 0) begin ioctl_load_addr[7:0]  <= ioctl_data; inj_start[7:0]  <= ioctl_data; inj_end[7:0]  <= ioctl_data; end
+				else if (ioctl_addr == 1) begin ioctl_load_addr[15:8] <= ioctl_data; inj_start[15:8] <= ioctl_data; inj_end[15:8] <= ioctl_data; end
+				else begin ioctl_req_wr <= 1; inj_end <= inj_end + 1'b1; end
+			end
+			else if (load_t64) begin
+				// T64
+				reg [31:0] t64_ioctl_offset;
+				reg [15:0] t64_cnt;
+				reg t64_valid;
+				reg t64_load;
+
+				// valid used to both not write the header and, for future use, invalidate based on header contents
+				if      (ioctl_addr == 'h00) begin ioctl_load_addr <= 0; t64_valid <= 1; t64_load <= 0; end
+				// txt start
+				else if (ioctl_addr == 'h42) begin ioctl_load_addr[7:0]  <= ioctl_data; inj_start[7:0]  <= ioctl_data; inj_end[7:0]  <= ioctl_data; end
+				else if (ioctl_addr == 'h43) begin ioctl_load_addr[15:8] <= ioctl_data; inj_start[15:8] <= ioctl_data; inj_end[15:8] <= ioctl_data; end
+				// txt end. for size computation. negate rather than substract so final value written at cnt = 0
+				else if (ioctl_addr == 'h44) t64_cnt[7:0]  <= ioctl_data;
+				else if (ioctl_addr == 'h45) t64_cnt[15:0] <= {ioctl_data,t64_cnt[7:0]} + ~ioctl_load_addr[15:0];
+				// file offset
+				else if (ioctl_addr == 'h48) t64_ioctl_offset[7:0]   <= ioctl_data;
+				else if (ioctl_addr == 'h49) t64_ioctl_offset[15:8]  <= ioctl_data;
+				else if (ioctl_addr == 'h4A) t64_ioctl_offset[23:16] <= ioctl_data;
+				else if (ioctl_addr == 'h4B) t64_ioctl_offset[31:24] <= ioctl_data;
+				// last byte of first record
+				else if (ioctl_addr == 'h5F) t64_load <= t64_valid;
+				else if (ioctl_addr >= t64_ioctl_offset && t64_load) begin
+					t64_load <= |t64_cnt;
+					t64_cnt <= t64_cnt - 1'b1;
+					inj_end <= inj_end + 1'b1;
+					ioctl_req_wr <= 1;
+				end
+			end
 		end
 
 		if (load_cart) begin
@@ -533,7 +577,35 @@ always @(posedge clk_sys) begin
 		erase_cram <= 1;
 	end 
 
-	start_strk <= (old_download && ~ioctl_download && ioctl_index == 4);
+	// meminit for RAM injection
+	if (old_download != ioctl_download && load_inj && !inj_meminit) begin
+		inj_meminit <= 1;
+		ioctl_load_addr <= 0;
+	end
+
+	if (inj_meminit) begin
+		if (!ioctl_req_wr) begin
+			// check if done
+			if (ioctl_load_addr == 'h100) begin
+				inj_meminit <= 0;
+			end
+			else begin
+			   // TXT (2B-2C), SAVE_START (AC-AD)
+				if      (ioctl_load_addr == 'h2B || ioctl_load_addr == 'hAC) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_start[7:0];  end
+				else if (ioctl_load_addr == 'h2C || ioctl_load_addr == 'hAD) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_start[15:8]; end
+				// VAR (2D-2E), ARY (2F-30)
+				else if (ioctl_load_addr == 'h2D || ioctl_load_addr == 'h2F) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[7:0];    end
+				else if (ioctl_load_addr == 'h2E || ioctl_load_addr == 'h30) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[15:8];   end
+				// STR (31-32), LOAD_END (AE-AF)
+				else if (ioctl_load_addr == 'h31 || ioctl_load_addr == 'hAE) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[7:0];    end
+				else if (ioctl_load_addr == 'h32 || ioctl_load_addr == 'hAF) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[15:8];   end
+				// advance the address
+				else ioctl_load_addr <= ioctl_load_addr + 1'b1;
+			end
+		end
+	end
+
+	start_strk <= (old_meminit && !inj_meminit);
 	
 	old_st0 <= status[0];
 	if (~old_st0 & status[0]) cart_attached <= 0;
@@ -541,8 +613,8 @@ always @(posedge clk_sys) begin
 	if (!erasing && force_erase) begin
 		erasing <= 1;
 		ioctl_load_addr <= 0;
-	end 
-	
+	end
+
 	if (erasing && !ioctl_req_wr) begin
 		erase_to <= erase_to + 1'b1;
 		if (&erase_to) begin
@@ -552,8 +624,8 @@ always @(posedge clk_sys) begin
 				erasing <= 0;
 				erase_cram <= 0;
 			end
-		end 
-	end 
+		end
+	end
 end
 
 reg start_strk = 0;
@@ -569,14 +641,15 @@ always @(posedge clk_sys) begin
 			to <= 0;
 			act <= act + 1'd1;
 			case(act)
-				1: key <= 'h12;
-				2: key <= 'h6c;   // CLR instead of ending with ":" so not to break compatibility (eg "a mind is born")
-				5: key <= 'h12;   // Unstuck shift
-				7: key <= 'h2d;
-				9: key <= 'h3c;
-				11: key <= 'h31;
-				13: key <= 'h5a;  
-				15:act <= 0;
+				// PS/2 scan codes
+				1:  key <= 'h12;
+				2:  key <= 'h6c;  // <HOME/CLR> instead of ending with ":" so not to break compatibility (eg "a mind is born")
+				5:  key <= 'h12;  // Unstuck shift
+				7:  key <= 'h2d;  // R
+				9:  key <= 'h3c;  // U
+				11: key <= 'h31;  // N
+				13: key <= 'h5a;  // <RETURN>
+				15: act <= 0;
 			endcase
 			key[9] <= act[0];
 		end
