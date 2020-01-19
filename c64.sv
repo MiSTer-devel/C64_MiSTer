@@ -144,11 +144,11 @@ assign BUTTONS   = 0;
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;;",
-	"S0,D64,Mount Drive #8;",
-	"D0S1,D64,Mount Drive #9;",
+	"S0,D64T64,Mount Drive #8;",
+	"D0S1,D64T64,Mount Drive #9;",
 	"OP,Enable Drive #9,No,Yes;",
 	"-;",
-	"F,PRGT64,Load File;",
+	"F,PRG,Load File;",
 	"F,CRT,Load Cartridge;",
 	"-;",
 	"F,TAP,Tape Load;",
@@ -442,7 +442,6 @@ reg        erasing;
 
 wire       load_inj = (ioctl_index[5:0] == 4);
 wire       load_prg = (ioctl_index[7:6] == 0) && load_inj;
-wire       load_t64 = (ioctl_index[7:6] == 1) && load_inj;
 reg        inj_meminit = 0;
 reg  [7:0] inj_meminit_data;
 
@@ -491,35 +490,6 @@ always @(posedge clk_sys) begin
 				if      (ioctl_addr == 0) begin ioctl_load_addr[7:0]  <= ioctl_data; inj_start[7:0]  <= ioctl_data; inj_end[7:0]  <= ioctl_data; end
 				else if (ioctl_addr == 1) begin ioctl_load_addr[15:8] <= ioctl_data; inj_start[15:8] <= ioctl_data; inj_end[15:8] <= ioctl_data; end
 				else begin ioctl_req_wr <= 1; inj_end <= inj_end + 1'b1; end
-			end
-			else if (load_t64) begin
-				// T64
-				reg [31:0] t64_ioctl_offset;
-				reg [15:0] t64_cnt;
-				reg t64_valid;
-				reg t64_load;
-
-				// valid used to both not write the header and, for future use, invalidate based on header contents
-				if      (ioctl_addr == 'h00) begin ioctl_load_addr <= 0; t64_valid <= 1; t64_load <= 0; end
-				// txt start
-				else if (ioctl_addr == 'h42) begin ioctl_load_addr[7:0]  <= ioctl_data; inj_start[7:0]  <= ioctl_data; inj_end[7:0]  <= ioctl_data; end
-				else if (ioctl_addr == 'h43) begin ioctl_load_addr[15:8] <= ioctl_data; inj_start[15:8] <= ioctl_data; inj_end[15:8] <= ioctl_data; end
-				// txt end. for size computation. negate rather than substract so final value written at cnt = 0
-				else if (ioctl_addr == 'h44) t64_cnt[7:0]  <= ioctl_data;
-				else if (ioctl_addr == 'h45) t64_cnt[15:0] <= {ioctl_data,t64_cnt[7:0]} + ~ioctl_load_addr[15:0];
-				// file offset
-				else if (ioctl_addr == 'h48) t64_ioctl_offset[7:0]   <= ioctl_data;
-				else if (ioctl_addr == 'h49) t64_ioctl_offset[15:8]  <= ioctl_data;
-				else if (ioctl_addr == 'h4A) t64_ioctl_offset[23:16] <= ioctl_data;
-				else if (ioctl_addr == 'h4B) t64_ioctl_offset[31:24] <= ioctl_data;
-				// last byte of first record
-				else if (ioctl_addr == 'h5F) t64_load <= t64_valid;
-				else if (ioctl_addr >= t64_ioctl_offset && t64_load) begin
-					t64_load <= |t64_cnt;
-					t64_cnt <= t64_cnt - 1'b1;
-					inj_end <= inj_end + 1'b1;
-					ioctl_req_wr <= 1;
-				end
 			end
 		end
 
