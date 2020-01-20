@@ -928,18 +928,13 @@ always @(posedge CLK_VIDEO) begin
 	reg       lores;
 
 	div <= div + 1'b1;
-
-	if(div == 5) begin
-		div <= 0;
-		lores <= ~lores;
-	end
-	
+	if(&div) lores <= ~lores;
 	ce_pix <= (~lores | ~hq2x160) && !div;
 end
 
 wire scandoubler = status[10:8] || forced_scandoubler;
 
-assign CLK_VIDEO = clk48;
+assign CLK_VIDEO = clk64;
 assign VIDEO_ARX = status[5:4] ? 8'd16 : 8'd4;
 assign VIDEO_ARY = status[5:4] ? 8'd9  : 8'd3;
 assign VGA_SL    = (status[10:8] > 2) ? status[9:8] - 2'd2 : 2'd0;
@@ -977,13 +972,11 @@ video_mixer #(.GAMMA(1)) video_mixer
 wire        opl_en = status[12];
 wire [15:0] opl_out;
 wire  [7:0] opl_dout;
-opl3 opl_inst
+opl3 #(.OPLCLK(47291931)) opl_inst
 (
 	.clk(clk_sys),
-	.clk_opl(clk64),
+	.clk_opl(clk48),
 	.rst_n(reset_n),
-
-	.period_80us(2560),
 
 	.addr(c64_addr[4]),
 	.dout(opl_dout),

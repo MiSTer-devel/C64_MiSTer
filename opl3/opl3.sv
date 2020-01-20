@@ -26,23 +26,21 @@
 
 module opl3
 #(
-	parameter            OPLCLK = 64000000 // opl_clk in Hz
+	parameter     OPLCLK // opl_clk in Hz (minimum 45Mhz)
 )
 (
-	input                clk,
-	input                clk_opl,
-	input                rst_n,
-	output reg           irq_n,
+	input         clk,
+	input         clk_opl,
+	input         rst_n,
+	output reg    irq_n,
 
-	input         [12:0] period_80us, // from clk
+	input   [1:0] addr,
+	output  [7:0] dout,
+	input   [7:0] din,
+	input         we,
 
-	input          [1:0] addr,
-	output         [7:0] dout,
-	input          [7:0] din,
-	input                we,
-
-	output signed [15:0] sample_l,
-	output signed [15:0] sample_r
+	output [15:0] sample_l,
+	output [15:0] sample_r
 );
 
 //------------------------------------------------------------------------------
@@ -82,7 +80,7 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 wire timer1_pulse;
-timer timer1( clk, period_80us, timer1_preset, timer1_active, timer1_pulse );
+timer #(OPLCLK) timer1( clk, 12500, timer1_preset, timer1_active, timer1_pulse );
 
 reg timer1_overflow;
 always @(posedge clk or negedge rst_n) begin
@@ -110,7 +108,7 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 wire timer2_pulse;
-timer timer2( clk, {period_80us, 2'b00}, timer2_preset, timer2_active, timer2_pulse );
+timer #(OPLCLK) timer2( clk, 3125, timer2_preset, timer2_active, timer2_pulse );
 
 reg timer2_overflow;
 always @(posedge clk or negedge rst_n) begin
@@ -149,32 +147,34 @@ opl3sw #(OPLCLK) opl3
 
 endmodule
 
-module timer
+module timer #(parameter OPLCLK)
 (
 	input         clk,
-	input  [14:0] resolution,
+	input  [14:0] hz,
 	input   [7:0] init,
 	input         active,
 	output reg    overflow_pulse
 );
 
+reg  [31:0] sum;
+wire [31:0] next = sum + hz;
+
 always @(posedge clk) begin
-	reg  [7:0] counter     = 0;
-	reg [14:0] sub_counter = 0;
-	reg        old_act;
+	reg [7:0] counter = 0;
+	reg       old_act;
 
 	old_act <= active;
 	overflow_pulse <= 0;
 
 	if(~old_act && active) begin
 		counter <= init;
-		sub_counter <= resolution;
+		sum <= 0;
 	end
 	else if(active) begin
-		sub_counter <= sub_counter - 1'd1;
-		if(!sub_counter) begin
-			sub_counter <= resolution;
-			counter     <= counter + 1'd1;
+		sum <= next;
+		if(next >= OPLCLK) begin
+			sum <= next - OPLCLK;
+			counter <= counter + 1'd1;
 			if(&counter) begin
 				overflow_pulse <= 1;
 				counter <= init;
