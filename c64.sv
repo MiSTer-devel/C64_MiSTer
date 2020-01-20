@@ -976,7 +976,7 @@ opl3 #(.OPLCLK(47291931)) opl_inst
 (
 	.clk(clk_sys),
 	.clk_opl(clk48),
-	.rst_n(reset_n),
+	.rst_n(reset_n & opl_en),
 
 	.addr(c64_addr[4]),
 	.dout(opl_dout),
@@ -1043,8 +1043,8 @@ reg [15:0] al,ar;
 always @(posedge clk_sys) begin
 	reg [16:0] alm,arm;
 
-	alm <= (opl_en ? {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} : {audio_l[17],audio_l[17:2]}) + {cass_snd, 10'd0};
-	arm <= (opl_en ? {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} : {audio_r[17],audio_r[17:2]}) + {cass_snd, 10'd0};
+	alm <= {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} + {cass_snd, 10'd0};
+	arm <= {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} + {cass_snd, 10'd0};
 	al <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
 	ar <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
 end

@@ -143,6 +143,10 @@ opl3seq opl3seq
 );
 
 wire [15:0] A,B;
+assign left = A;
+assign right = B;
+
+/*
 compressor compressor
 (
 	clk,
@@ -151,6 +155,8 @@ compressor compressor
 	A[15:4], B[15:4],
 	left,    right
 );
+*/
+
 
 wire [15:0] CPU_ADDR;
 wire  [7:0] CPU_DOUT;

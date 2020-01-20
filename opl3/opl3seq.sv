@@ -181,7 +181,13 @@ always @(posedge clk) begin
 	pan <= pan >> 1;
 	if(pan[0]) rAcc <= rAcc + {{3{ram_rdata[15]}}, ram_rdata};
 	
-	if(reset) STATE <= 0;
+	if(reset) begin
+		STATE <= 0;
+		pan <= 0;
+		rAcc <= 0;
+		A <= 0;
+		B <= 0;
+	end
 	else
 	case(STATE)
 		0: begin
