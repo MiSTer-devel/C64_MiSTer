@@ -170,6 +170,7 @@ architecture rtl of fpga64_sid_iec is
 	signal baLoc: std_logic;
 	signal irqLoc: std_logic;
 	signal nmiLoc: std_logic;
+	signal aec : std_logic;
 
 	signal enableCpu: std_logic;
 	signal enableVic : std_logic;
@@ -246,6 +247,7 @@ architecture rtl of fpga64_sid_iec is
 	signal cpuIO: unsigned(7 downto 0);
 
 	signal vicDi: unsigned(7 downto 0);
+	signal vicDiAec: unsigned(7 downto 0);
 	signal vicAddr: unsigned(15 downto 0);
 	signal vicData: unsigned(7 downto 0);
 	signal lastVicDi : unsigned(7 downto 0);
@@ -524,6 +526,8 @@ begin
 -- -----------------------------------------------------------------------
 -- VIC-II video interface chip
 -- -----------------------------------------------------------------------
+	vicDiAec <= x"FF" when aec = '0' else vicDi;
+
 	vic: entity work.video_vicii_656x
 		generic map (
 			registeredAddress => false,
@@ -553,11 +557,12 @@ begin
 
 			aRegisters => cpuAddr(5 downto 0),
 			diRegisters => cpuDo,
-			di => vicDi,
+			di => vicDiAec,
 			diColor => colorData,
 			do => vicData,
 
 			vicAddr => vicAddr(13 downto 0),
+			addrValid => aec,
 
 			hsync => vicHSync,
 			vsync => vicVSync,
