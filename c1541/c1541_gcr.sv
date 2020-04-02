@@ -89,6 +89,8 @@ always_comb begin
 	endcase
 end
 
+wire [7:0] bit_clk_div = (track < 18) ? 8'h67 : (track < 25) ? 8'h6F : (track < 31) ? 8'h77 : 8'h7F;
+
 reg bit_clk_en;
 always @(posedge clk32) begin
 	reg [7:0] bit_clk_cnt;
@@ -102,7 +104,7 @@ always @(posedge clk32) begin
 		bit_clk_en <= 0;
 	end else begin
 		bit_clk_en <= 0;
-		if (bit_clk_cnt == 111) begin
+		if (bit_clk_cnt == bit_clk_div) begin
 			bit_clk_en <= 1;
 			bit_clk_cnt = 0;
 		end else
