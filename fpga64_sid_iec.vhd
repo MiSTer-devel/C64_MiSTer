@@ -85,27 +85,14 @@ entity fpga64_sid_iec is
 		io_data     : in  unsigned(7 downto 0);
 
 		-- joystick interface
-		joyA        : in  unsigned(6 downto 0);
-		joyB        : in  unsigned(6 downto 0);
-		joyC        : in  unsigned(6 downto 0);
-		joyD        : in  unsigned(6 downto 0);
-		
-		paddle_12_en: in  std_logic;
-		paddle_34_en: in  std_logic;
-		paddle_1    : in  std_logic_vector(7 downto 0);
-		paddle_2    : in  std_logic_vector(7 downto 0);
-		paddle_3    : in  std_logic_vector(7 downto 0);
-		paddle_4    : in  std_logic_vector(7 downto 0);
-		paddle_1_btn: in  std_logic;
-		paddle_2_btn: in  std_logic;
-		paddle_3_btn: in  std_logic;
-		paddle_4_btn: in  std_logic;
-
-		-- mouse interface
-		mouse_en    : in  std_logic_vector(1 downto 0);
-		mouse_x     : in  std_logic_vector(7 downto 0);
-		mouse_y     : in  std_logic_vector(7 downto 0);
-		mouse_btn   : in  std_logic_vector(1 downto 0);
+		joyA        : in  std_logic_vector(6 downto 0);
+		joyB        : in  std_logic_vector(6 downto 0);
+		joyC        : in  std_logic_vector(6 downto 0);
+		joyD        : in  std_logic_vector(6 downto 0);
+		pot1        : in  std_logic_vector(7 downto 0);
+		pot2        : in  std_logic_vector(7 downto 0);
+		pot3        : in  std_logic_vector(7 downto 0);
+		pot4        : in  std_logic_vector(7 downto 0);
 
 		-- serial port, for connection to pheripherals
 		serioclk    : out std_logic;
@@ -622,10 +609,10 @@ begin
 	sid_we_ext  <= sid_we and (not sid_mode(1) or not sid_sel_int);
 	sid_do      <= std_logic_vector(io_data) when sid_sel_int = '0' else sid_do6581 when sid_ver='0' else sid_do8580;
 
-	pot_x1 <= (others => '1' ) when cia1_pao(6) = '0' else not paddle_1 when paddle_12_en = '1' else mouse_x when mouse_en(0) = '1' else (others => not joyA(5));
-	pot_y1 <= (others => '1' ) when cia1_pao(6) = '0' else not paddle_2 when paddle_12_en = '1' else mouse_y when mouse_en(0) = '1' else (others => not joyA(6));
-	pot_x2 <= (others => '1' ) when cia1_pao(7) = '0' else not paddle_3 when paddle_34_en = '1' else mouse_x when mouse_en(1) = '1' else (others => not joyB(5));
-	pot_y2 <= (others => '1' ) when cia1_pao(7) = '0' else not paddle_4 when paddle_34_en = '1' else mouse_y when mouse_en(1) = '1' else (others => not joyB(6));
+	pot_x1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot1;
+	pot_y1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot2;
+	pot_x2 <= (others => '1' ) when cia1_pao(7) = '0' else not pot3;
+	pot_y2 <= (others => '1' ) when cia1_pao(7) = '0' else not pot4;
 
 	sid_6581: entity work.sid_top
 	port map (
@@ -757,8 +744,8 @@ begin
 			clk => clk32,
 			ps2_key => ps2_key,
 
-			joyA => not joyA(4 downto 0) and not ('0'&(paddle_12_en and paddle_2_btn)&(paddle_12_en and paddle_1_btn)&"00") and not ((mouse_en(0) and mouse_btn(0))&"000"&(mouse_en(0) and mouse_btn(1))),
-			joyB => not joyB(4 downto 0) and not ('0'&(paddle_34_en and paddle_4_btn)&(paddle_34_en and paddle_3_btn)&"00") and not ((mouse_en(1) and mouse_btn(0))&"000"&(mouse_en(1) and mouse_btn(1))),
+			joyA => not unsigned(joyA(4 downto 0)),
+			joyB => not unsigned(joyB(4 downto 0)),
 			pai => cia1_pao,
 			pbi => cia1_pbo,
 			pao => cia1_pai,
@@ -874,9 +861,9 @@ begin
 			cia2_pbi(7) <= uart_dsr;
 		else
 			if cia2_pbo(7) = '1' then
-				cia2_pbi(3 downto 0) <= not joyC(3 downto 0);
+				cia2_pbi(3 downto 0) <= not unsigned(joyC(3 downto 0));
 			else
-				cia2_pbi(3 downto 0) <= not joyD(3 downto 0);
+				cia2_pbi(3 downto 0) <= not unsigned(joyD(3 downto 0));
 			end if;
 			if joyC(6 downto 4) /= "000" then
 				cia2_pbi(4) <= '0';

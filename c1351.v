@@ -34,8 +34,8 @@ module c1351
 reg [16:0] lfsr;
 always @(posedge clk_sys) lfsr <= {(lfsr[0] ^ lfsr[2] ^ !lfsr), lfsr[16:1]};
 
-assign potX = {1'b0, x, lfsr[0]};
-assign potY = {1'b0, y, lfsr[8]};
+assign potX = ~{1'b0, x, lfsr[0]};
+assign potY = ~{1'b0, y, lfsr[8]};
 assign button = ps2_mouse[1:0];
 
 reg [5:0] x;
