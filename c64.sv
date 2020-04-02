@@ -141,6 +141,12 @@ assign LED_POWER = 0;
 assign LED_USER = c1541_1_led | c1541_2_led | ioctl_download | tape_led;
 assign BUTTONS   = 0;
 
+// Status Bit Map:
+// 0         1         2         3
+// 01234567890123456789012345678901
+// 0123456789ABCDEFGHIJKLMNOPQRSTUV
+// XXXXXXXXXXXXXXXXXXXXXXXX XXXXX   
+
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;;",
@@ -169,16 +175,19 @@ localparam CONF_STR = {
 	"-;",
 	"O3,Swap joysticks,No,Yes;",
 	"O1,User port,Joysticks,UART;",
-	"OO,Mouse,Port 1,Port 2;",
+	"OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
+	"OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
 	"-;",
 	"OEF,Kernal,Loadable C64,Standard C64,C64GS;",
 	"-;",
 	"RH,Reset;",
 	"R0,Reset & Detach cartridge;",
-	"J,Button 1,Button 2,Button 3;",
+	"J,Fire 1,Fire 2,Fire 3,Paddle Btn;",
+	"jn,A,B,Y,X|P;",
+	"jp,A,B,Y,X|P;",
 	"V,v",`BUILD_DATE
 };
-   
+
 
 wire pll_locked;
 wire clk_sys;
@@ -309,6 +318,7 @@ wire [10:0] ps2_key;
 wire  [1:0] buttons;
 wire [21:0] gamma_bus;
 
+wire  [7:0] pd1,pd2,pd3,pd4;
 
 hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 (
@@ -319,6 +329,11 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.joystick_1(joyB),
 	.joystick_2(joyC),
 	.joystick_3(joyD),
+
+	.paddle_0(pd1),
+	.paddle_1(pd2),
+	.paddle_2(pd3),
+	.paddle_3(pd4),
 
 	.conf_str(CONF_STR),
 
@@ -417,6 +432,18 @@ wire [6:0] joyD_c64 = {joyD[6:4], joyD[0], joyD[1], joyD[2], joyD[3]};
 wire [6:0] joyA_c64 = status[3] ? joyB_int : joyA_int;
 wire [6:0] joyB_c64 = status[3] ? joyA_int : joyB_int;
 
+wire [7:0] paddle_1 = status[3] ? pd3 : pd1;
+wire [7:0] paddle_2 = status[3] ? pd4 : pd2;
+wire [7:0] paddle_3 = status[3] ? pd1 : pd3;
+wire [7:0] paddle_4 = status[3] ? pd2 : pd4;
+
+wire       paddle_1_btn = status[3] ? joyC[7] : joyA[7];
+wire       paddle_2_btn = status[3] ? joyD[7] : joyB[7];
+wire       paddle_3_btn = status[3] ? joyA[7] : joyC[7];
+wire       paddle_4_btn = status[3] ? joyB[7] : joyD[7];
+
+wire [1:0] pd12_mode = status[27:26];
+wire [1:0] pd34_mode = status[29:28];
 
 reg [24:0] ioctl_load_addr;
 reg        ioctl_req_wr;
@@ -718,7 +745,19 @@ fpga64_sid_iec fpga64
 	.joyb(joyB_c64),
 	.joyc(joyC_c64),
 	.joyd(joyD_c64),
-	.mouse_en({mouse_en & status[24], mouse_en & ~status[24]}),
+
+	.paddle_12_en(pd12_mode == 2),
+	.paddle_34_en(pd34_mode == 2),
+	.paddle_1(paddle_1),
+	.paddle_2(paddle_2),
+	.paddle_3(paddle_3),
+	.paddle_4(paddle_4),
+	.paddle_1_btn(paddle_1_btn),
+	.paddle_2_btn(paddle_2_btn),
+	.paddle_3_btn(paddle_3_btn),
+	.paddle_4_btn(paddle_4_btn),
+
+	.mouse_en({pd34_mode == 1, pd12_mode == 1}),
 	.mouse_x(mouse_x),
 	.mouse_y(mouse_y),
 	.mouse_btn(mouse_btn),
@@ -770,15 +809,6 @@ c1351 mouse
 	.potY(mouse_y),
 	.button(mouse_btn)
 );
-
-reg mouse_en;
-always @(posedge clk_sys) begin
-	reg old_stb;
-	
-	old_stb <= ps2_mouse[24];
-	if(old_stb ^ ps2_mouse[24]) mouse_en <= 1;
-	if(joyA_c64 | joyB_c64) mouse_en <= 0;
-end
 
 wire drive9 = status[25];
 
