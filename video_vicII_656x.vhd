@@ -86,12 +86,11 @@ architecture rtl of video_vicii_656x is
 	type MCntDef is array(0 to 7) of unsigned(5 downto 0);
 	type MPixelsDef is array(0 to 7) of unsigned(23 downto 0);
 	type MCurrentPixelDef is array(0 to 7) of unsigned(1 downto 0);
-	type MCurrentPixelsDef is array(0 to 7) of unsigned(7 downto 0);
 	type charStoreDef is array(38 downto 0) of unsigned(11 downto 0);
 	type spriteColorsDef is array(7 downto 0) of unsigned(3 downto 0);
 	type pixelColorStoreDef is array(7 downto 0) of unsigned(3 downto 0);
 
-	constant PIX_DELAY : integer := 2;
+	constant PIX_DELAY : integer := 3;
 
 -- State machine
 	signal lastLineFlag : boolean; -- True for on last line of the frame.
@@ -127,6 +126,8 @@ architecture rtl of video_vicii_656x is
 
 	-- !!! Krestage 3 hacks
 	signal MCDelay : unsigned(7 downto 0); -- sprite multi color
+	signal MCDelay2: unsigned(7 downto 0); -- sprite multi color
+	signal MCDelay3: unsigned(7 downto 0); -- sprite multi color
 
 	-- mode
 	signal BMM: std_logic; -- Bitmap mode
@@ -182,8 +183,10 @@ architecture rtl of video_vicii_656x is
 	signal IRQ: std_logic;
 
 -- Collision detection registers
+	signal collision : unsigned(7 downto 0);
 	signal M2M: unsigned(7 downto 0); -- Sprite to sprite collision
-	signal M2MDelay: unsigned(7 downto 0); -- Sprite to sprite collision
+	signal M2MDelay: unsigned(7 downto 0); -- Sprite to sprite collision delayed1
+	signal M2MDelay2: unsigned(7 downto 0); -- Sprite to sprite collision delayed2
 	signal M2D: unsigned(7 downto 0); -- Sprite to character collision
 	signal M2DDelay: unsigned(7 downto 0); -- Sprite to character collision
 	signal M2Mhit : std_logic;
@@ -194,6 +197,7 @@ architecture rtl of video_vicii_656x is
 	signal rasterY : unsigned(8 downto 0) := (others => '0');
 	signal rasterY_next : unsigned(8 downto 0);
 	signal cycleLast : boolean;
+	signal rasterXDelay : unsigned(9 downto 0);
 
 -- Light pen
 	signal lightPenHit: std_logic;
@@ -211,7 +215,9 @@ architecture rtl of video_vicii_656x is
 	signal nextChar : unsigned(11 downto 0);
 	-- Char/Pixels pair waiting to be shifted
 	signal waitingChar : unsigned(11 downto 0);
+	signal waitingChar_r : unsigned(11 downto 0);
 	signal waitingPixels : unsigned(7 downto 0);
+	signal waitingPixels_r : unsigned(7 downto 0);
 	-- Stores colorinfo and the Pixels that are currently in shift register
 	signal shiftingChar : unsigned(11 downto 0);
 	signal shiftingPixels : unsigned(7 downto 0);
@@ -220,6 +226,7 @@ architecture rtl of video_vicii_656x is
 -- Sprite work registers
 	signal MPtr : unsigned(7 downto 0); -- sprite base pointer
 	signal MPixels : MPixelsDef; -- Sprite 24 bit shift register
+	signal MPixelStore : unsigned(15 downto 0); -- Store fetched sprite bytes until ready to load into the shift register
 	signal MActive : MFlags; -- Sprite is active
 	signal MActive_next : MFlags; -- Sprite is active
 	signal MDMA : MFlags; -- Sprite DMA is enabled
@@ -234,13 +241,10 @@ architecture rtl of video_vicii_656x is
 	signal MC_ff : unsigned(7 downto 0); -- controls sprite shift-register in multicolor
 	signal MShift : MFlags; -- Sprite is shifting
 	signal MCurrentPixel : MCurrentPixelDef;
-	signal MCurrentPixelDelay: MCurrentPixelsDef;
 
 -- Current colors and pixels
 	signal pixelColor: ColorDef;
 	signal pixelBgFlag: std_logic; -- For collision detection
-	signal pixelDelay: pixelColorStoreDef;
-	signal pixelBgFlagDelay: std_logic_vector(7 downto 0);
 
 -- Read/Write lines
 	signal myWr : std_logic;
@@ -265,7 +269,7 @@ begin
 -- -----------------------------------------------------------------------
 -- debug signals
 -- -----------------------------------------------------------------------
-	debugX <= rasterX;
+	debugX <= rasterXDelay;
 	debugY <= rasterY;
 
 -- -----------------------------------------------------------------------
@@ -633,14 +637,12 @@ vicStateMachine: process(clk)
 -- -----------------------------------------------------------------------
 -- Address valid?
 -- -----------------------------------------------------------------------
-	process(clk)
+	process(phi, baCnt)
 	begin
-		if rising_edge(clk) then
-			addrValid <= '0';
-			if phi = '0'
-			or baCnt(2) = '1' then
-				addrValid <= '1';
-			end if;
+		addrValid <= '0';
+		if phi = '0'
+		or baCnt(2) = '1' then
+			addrValid <= '1';
 		end if;
 	end process;
 
@@ -722,11 +724,15 @@ vicStateMachine: process(clk)
 cycleLast <= (vicCycle = cycleSpriteB) and (sprite = 2);
 rasterY_next <= (others => '0') when lastLineFlag else RasterY + 1;
 
-rasterCounters: process(clk)
+rasterCounters: process(clk, rasterX, rasterXDelay)
 	begin
 		if rising_edge(clk) then
 			if enaPixel = '1' then
 				rasterX(2 downto 0) <= rasterX(2 downto 0) + 1;
+				rasterXDelay <= rasterXDelay + 1;
+				if rasterX = PIX_DELAY - 1 then
+					rasterXDelay <= (others => '0');
+				end if;
 			end if;
 			if phi = '0'
 			and enaData = '1'
@@ -864,7 +870,7 @@ calcBorders: process(clk)
 				newTBBorder := TBBorder;
 				-- 1. If the X coordinate reaches the right comparison value, the main border
 				--   flip flop is set (comparison values are from VIC II datasheet).
-				if (rasterX = 339-1 and CSEL = '0') or (rasterX = 348-1 and CSEL = '1')  then
+				if (rasterX = 339 and CSEL = '0') or (rasterX = 348 and CSEL = '1')  then
 					MainBorder <= '1';
 				end if;
 				-- 2. If the Y coordinate reaches the bottom comparison value in cycle 63, the
@@ -884,7 +890,7 @@ calcBorders: process(clk)
 						setTBBorder <= false;
 					end if;
 				end if;
-				if (rasterX = 35-1 and CSEL = '0') or (rasterX = 28-1 and CSEL = '1') then
+				if (rasterX = 35 and CSEL = '0') or (rasterX = 28 and CSEL = '1') then
 					-- 4. If the X coordinate reaches the left comparison value and the Y
 					-- coordinate reaches the bottom one, the vertical border flip flop is set.
 					-- FIX: act on the already triggered condition
@@ -914,8 +920,6 @@ calcBorders: process(clk)
 -- -----------------------------------------------------------------------
 calcBitmap: process(clk)
 		variable multiColor : std_logic;
-		variable pixelColor : ColorDef;
-		variable pixelBgFlag: std_logic;
 	begin
 		if rising_edge(clk) then
 			if enaPixel = '1' then
@@ -928,13 +932,20 @@ calcBitmap: process(clk)
 				-- mode it depends on bit3 of color ram too.
 				multiColor := MCM and (BMM or ECM or shiftingChar(11));
 
+				-- store the waiting values to be ready at the start of the delayed cell matrix,
+				-- otherwise they'll be overwritten too soon
+				if rasterXDelay(2 downto 0) = "111" then
+					waitingChar_r <= waitingChar;
+					waitingPixels_r <= waitingPixels;
+				end if;
+
 				--
 				-- Reload shift register when xscroll=rasterX
 				-- otherwise shift pixels
-				if xscroll = rasterX(2 downto 0) then
+				if xscroll = rasterXDelay(2 downto 0) then
 					shifting_ff <= '0';
-					shiftingChar <= waitingChar;
-					shiftingPixels <= waitingPixels;
+					shiftingChar <= waitingChar_r;
+					shiftingPixels <= waitingPixels_r;
 				elsif multiColor = '0' then
 					shiftingPixels <= shiftingPixels(6 downto 0) & '0';
 				elsif shifting_ff = '1' then
@@ -943,23 +954,23 @@ calcBitmap: process(clk)
 
 				--
 				-- Calculate if pixel is in foreground or background
-				pixelBgFlag := shiftingPixels(7);
+				pixelBgFlag <= shiftingPixels(7);
 
 				--
 				-- Calculate color of next pixel				
-				pixelColor := B0C;
+				pixelColor <= B0C;
 				if (BMM = '0') and (ECM='0') then
 					if (multiColor = '0') then
 						-- normal character mode
 						if shiftingPixels(7) = '1' then
-							pixelColor := shiftingChar(11 downto 8);
+							pixelColor <= shiftingChar(11 downto 8);
 						end if;
 					else
 						-- multi-color character mode
 						case shiftingPixels(7 downto 6) is
-						when "01" => pixelColor := B1C;
-						when "10" => pixelColor := B2C;
-						when "11" => pixelColor := '0' & shiftingChar(10 downto 8);
+						when "01" => pixelColor <= B1C;
+						when "10" => pixelColor <= B2C;
+						when "11" => pixelColor <= '0' & shiftingChar(10 downto 8);
 						when others => null;
 						end case;
 					end if;
@@ -967,37 +978,35 @@ calcBitmap: process(clk)
 					-- extended-color character mode
 					-- multiple background colors but only 64 characters
 					if shiftingPixels(7) = '1' then
-						pixelColor := shiftingChar(11 downto 8);
+						pixelColor <= shiftingChar(11 downto 8);
 					else
 						case shiftingChar(7 downto 6) is
-						when "01" => pixelColor := B1C;
-						when "10" => pixelColor := B2C;
-						when "11" => pixelColor := B3C;
+						when "01" => pixelColor <= B1C;
+						when "10" => pixelColor <= B2C;
+						when "11" => pixelColor <= B3C;
 						when others	=> null;
 						end case;
 					end if;
 				elsif emulateGraphics and (MCM = '0') and (BMM = '1') and (ECM='0') then
 					-- highres bitmap mode
 					if shiftingPixels(7) = '1' then
-						pixelColor := shiftingChar(7 downto 4);
+						pixelColor <= shiftingChar(7 downto 4);
 					else
-						pixelColor := shiftingChar(3 downto 0);
+						pixelColor <= shiftingChar(3 downto 0);
 					end if;
 				elsif emulateGraphics and (MCM = '1') and (BMM = '1') and (ECM='0') then
 					-- Multi-color bitmap mode
 					case shiftingPixels(7 downto 6) is
-					when "01" => pixelColor := shiftingChar(7 downto 4);
-					when "10" => pixelColor := shiftingChar(3 downto 0);
-					when "11" => pixelColor := shiftingChar(11 downto 8);
+					when "01" => pixelColor <= shiftingChar(7 downto 4);
+					when "10" => pixelColor <= shiftingChar(3 downto 0);
+					when "11" => pixelColor <= shiftingChar(11 downto 8);
 					when others => null;
 					end case;
 				else
 					-- illegal display mode, the output is black
-					pixelColor := "0000";
+					pixelColor <= "0000";
 				end if;
 
-				pixelDelay <= pixelDelay(6 downto 0) & pixelColor;
-				pixelBgFlagDelay <= pixelBgFlagDelay(6 downto 0) & pixelBgFlag;
 			end if;
 
 			--
@@ -1155,61 +1164,60 @@ calcBitmap: process(clk)
 -- Sprite pixel Shift register
 -- -----------------------------------------------------------------------
 	process(clk)
-	variable MCurrentPixel: unsigned(1 downto 0);
 	begin
+
 		if rising_edge(clk) then
 			if enaPixel = '1' then
-				-- Enable sprites on the correct X position
 				for i in 0 to 7 loop
-					if rasterX = MX(i) then
+					-- Stop shifting in the s cycles
+					if (sprite = i and ((vicCycle = cycleSpriteA and phi = '1') or vicCycle = cycleSpriteB)) then
+						MShift(i) <= false;
+					end if;
+					--if MPixels(i) = 0 then
+						--MShift(i) <= false;
+					--end if;
+					-- Enable sprites on the correct X position
+					if MActive_next(i) and rasterXDelay = MX(i) then
 						MShift(i) <= true;
 					end if;
 				end loop;
 
 				-- Shift one pixel of the sprite from the shift register.
 				for i in 0 to 7 loop
-					MCurrentPixel := MCurrentPixelDelay(i)(1 downto 0);
 					if MShift(i) then
 						MXE_ff(i) <= (not MXE_ff(i)) and MXE(i);
 						if MXE_ff(i) = '0' then
 							MC_ff(i) <= (not MC_ff(i)) and MC(i);
 							if MC_ff(i) = '0' then
-								MCurrentPixel := MPixels(i)(23 downto 22);
+								MCurrentPixel(i) <= MPixels(i)(23 downto 22);
 							end if;
 							MPixels(i) <= MPixels(i)(22 downto 0) & '0';
 						end if;
 					else
 						MXE_ff(i) <= '0';
 						MC_ff(i) <= '0';
-						MCurrentPixel := "00";
+						MCurrentPixel(i) <= "00";
 					end if;
-
-					MCurrentPixelDelay(i) <= MCurrentPixelDelay(i)(5 downto 0) & MCurrentPixel;
 				end loop;
 			end if;
 
 			--
 			-- Fill Sprite shift-register with new data.
 			if enaData = '1' then
-				if phi = '0'
-				and vicCycle = cycleSpriteA then
-					MShift(to_integer(sprite)) <= false;
-				end if;
-
 				if Mactive_Next(to_integer(sprite)) then
-					if phi = '0' then
-						case vicCycle is
-						when cycleSpriteB =>
-							MPixels(to_integer(sprite)) <= MPixels(to_integer(sprite))(15 downto 0) & di;
+					case vicCycle is
+					when cycleSpriteA =>
+						if phi = '1' then
+							MPixelStore(15 downto 8) <= di;
+						end if;
+					when cycleSpriteB =>
+						if phi = '0' then
+							MPixelStore(7 downto 0) <= di;
+						else
+							MPixels(to_integer(sprite)) <= MPixelStore & di;
+						end if;
 						when others => null;
-						end case;
-					else
-						case vicCycle is
-						when cycleSpriteA | cycleSpriteB =>
-							MPixels(to_integer(sprite)) <= MPixels(to_integer(sprite))(15 downto 0) & di;
-						when others => null;
-						end case;
-					end if;
+					end case;
 				end if;
 			end if;
 		end if;
@@ -1218,15 +1226,6 @@ calcBitmap: process(clk)
 -- -----------------------------------------------------------------------
 -- Video output
 -- -----------------------------------------------------------------------
-	pixelBgFlag <= pixelBgFlagDelay(PIX_DELAY);
-	pixelColor <= pixelDelay(PIX_DELAY);
-
-	process(MCurrentPixelDelay)
-	begin
-		for i in 7 downto 0 loop
-			MCurrentPixel(i) <= MCurrentPixelDelay(i)(PIX_DELAY * 2 + 1 downto PIX_DELAY * 2);
-		end loop;
-	end process;
 
 	process(clk)
 		variable myColor: unsigned(3 downto 0);
@@ -1307,44 +1306,44 @@ calcBitmap: process(clk)
 -- Sprite to sprite collision
 -- -----------------------------------------------------------------------
 spriteSpriteCollision: process(clk)
-		variable collision : unsigned(7 downto 0);
 	begin
 		if rising_edge(clk) then			
 			if resetIMMC = '1' then
 				IMMC <= '0';
 			end if;
 
-			if (myRd = '1')
-			and	(aRegisters = "011110") then
-				M2M <= (others => '0');
-				M2MDelay <= (others => '0');
-				M2Mhit <= '0';
-			end if;
+			if enaPixel = '1' then
+				for i in 0 to 7 loop
+					collision(i) <= MCurrentPixel(i)(1);
+				end loop;
+				if  (collision /= "00000000")
+				and (collision /= "00000001")
+				and (collision /= "00000010")
+				and (collision /= "00000100")
+				and (collision /= "00001000")
+				and (collision /= "00010000")
+				and (collision /= "00100000")
+				and (collision /= "01000000")
+				and (collision /= "10000000") then
+					M2MDelay <= M2MDelay or collision;
 
-			for i in 0 to 7 loop
-				collision(i) := MCurrentPixel(i)(1);
-			end loop;
-			if  (collision /= "00000000")
-			and (collision /= "00000001")
-			and (collision /= "00000010")
-			and (collision /= "00000100")
-			and (collision /= "00001000")
-			and (collision /= "00010000")
-			and (collision /= "00100000")
-			and (collision /= "01000000")
-			and (collision /= "10000000") then
-				M2MDelay <= M2MDelay or collision;
+				end if;
 
-			end if;
-
-			if phi = '1'
-			and enaData = '1' then
-				M2M <= M2MDelay;
+				M2MDelay2 <= M2MDelay;
+				M2M <= M2MDelay2;
 				-- Give collision interrupt but only once until clear of register
 				if M2MDelay /= 0 and M2Mhit = '0' then
 					IMMC <= '1';
 					M2Mhit <= '1';
 				end if;
+			end if;
+
+			if (myRd = '1')
+			and	(aRegisters = "011110") then
+				M2M <= (others => '0');
+				M2MDelay <= (others => '0');
+				M2MDelay2 <= (others => '0');
+				M2Mhit <= '0';
 			end if;
 
 		end if;
@@ -1360,29 +1359,28 @@ spriteBackgroundCollision: process(clk)
 				IMBC <= '0';
 			end if;
 
-			if (myRd = '1')
-			and	(aRegisters = "011111") then
-				M2D <= (others => '0');
-				M2DDelay <= (others => '0');
-				M2Dhit <= '0';
-			end if;
+			if enaPixel = '1' then
+				for i in 0 to 7 loop
+					if  MCurrentPixel(i)(1) = '1'
+					and pixelBgFlag = '1'
+					and (TBBorder = '0') then
+						M2DDelay(i) <= '1';
+					end if;
+				end loop;
 
-			for i in 0 to 7 loop
-				if  MCurrentPixel(i)(1) = '1'
-				and pixelBgFlag = '1'
-				and (TBBorder = '0') then
-					M2DDelay(i) <= '1';
-				end if;
-			end loop;
-
-			if phi = '1'
-			and enaData = '1' then
 				M2D <= M2DDelay;
 				-- Give collision interrupt but only once until clear of register
 				if M2DDelay /= 0 and M2Dhit = '0' then
 					IMBC <= '1';
 					M2Dhit <= '1';
 				end if;
+			end if;
+
+			if (myRd = '1')
+			and	(aRegisters = "011111") then
+				M2D <= (others => '0');
+				M2DDelay <= (others => '0');
+				M2Dhit <= '0';
 			end if;
 		end if;
 	end process;
@@ -1398,9 +1396,11 @@ spriteBackgroundCollision: process(clk)
 	process(clk)
 	begin
 		if rising_edge(clk) then
-			if phi = '1'
-			and enaData = '1' then
-				MC <= MCDelay;
+			if enaPixel = '1' then
+				-- test with ss-hires-mc.prg
+				MCDelay2 <= MCDelay;
+				MCDelay3 <= MCDelay2;
+				MC <= MCDelay3;
 			end if;
 		end if;
 	end process;
@@ -1558,58 +1558,60 @@ writeRegisters: process(clk)
 readRegisters: process(clk)
 	begin
 		if rising_edge(clk) then
-			case aRegisters is
-			when "000000" => do <= MX(0)(7 downto 0);
-			when "000001" => do <= MY(0);
-			when "000010" => do <= MX(1)(7 downto 0);
-			when "000011" => do <= MY(1);
-			when "000100" => do <= MX(2)(7 downto 0);
-			when "000101" => do <= MY(2);
-			when "000110" => do <= MX(3)(7 downto 0);
-			when "000111" => do <= MY(3);
-			when "001000" => do <= MX(4)(7 downto 0);
-			when "001001" => do <= MY(4);
-			when "001010" => do <= MX(5)(7 downto 0);
-			when "001011" => do <= MY(5);
-			when "001100" => do <= MX(6)(7 downto 0);
-			when "001101" => do <= MY(6);
-			when "001110" => do <= MX(7)(7 downto 0);
-			when "001111" => do <= MY(7);
-			when "010000" =>
-				do <= MX(7)(8) & MX(6)(8) & MX(5)(8) & MX(4)(8)
-				& MX(3)(8) & MX(2)(8) & MX(1)(8) & MX(0)(8);
-			when "010001" => do <= rasterY(8) & ECM & BMM & DEN & RSEL & yscroll;
-			when "010010" => do <= rasterY(7 downto 0);
-			when "010011" => do <= lpX;
-			when "010100" => do <= lpY;
-			when "010101" => do <= ME;
-			when "010110" => do <= "11" & RES & MCM & CSEL & xscroll;
-			when "010111" => do <= MYE;
-			when "011000" => do <= VM & CB & '1';
-			when "011001" => do <= IRQ & "111" & ILP & IMMC & IMBC & IRST;
-			when "011010" => do <= "1111" & ELP & EMMC & EMBC & ERST;
-			when "011011" => do <= MPRIO;
-			when "011100" => do <= MC;
-			when "011101" => do <= MXE;
-			when "011110" => do <= M2M;
-			when "011111" => do <= M2D;
-			when "100000" => do <= "1111" & EC;
-			when "100001" => do <= "1111" & B0C;
-			when "100010" => do <= "1111" & B1C;
-			when "100011" => do <= "1111" & B2C;
-			when "100100" => do <= "1111" & B3C;
-			when "100101" => do <= "1111" & MM0;
-			when "100110" => do <= "1111" & MM1;
-			when "100111" => do <= "1111" & spriteColors(0);
-			when "101000" => do <= "1111" & spriteColors(1);
-			when "101001" => do <= "1111" & spriteColors(2);
-			when "101010" => do <= "1111" & spriteColors(3);
-			when "101011" => do <= "1111" & spriteColors(4);
-			when "101100" => do <= "1111" & spriteColors(5);
-			when "101101" => do <= "1111" & spriteColors(6);
-			when "101110" => do <= "1111" & spriteColors(7);
-			when others => do <= (others => '1');
-			end case;
+			if myRd = '1' then
+				case aRegisters is
+				when "000000" => do <= MX(0)(7 downto 0);
+				when "000001" => do <= MY(0);
+				when "000010" => do <= MX(1)(7 downto 0);
+				when "000011" => do <= MY(1);
+				when "000100" => do <= MX(2)(7 downto 0);
+				when "000101" => do <= MY(2);
+				when "000110" => do <= MX(3)(7 downto 0);
+				when "000111" => do <= MY(3);
+				when "001000" => do <= MX(4)(7 downto 0);
+				when "001001" => do <= MY(4);
+				when "001010" => do <= MX(5)(7 downto 0);
+				when "001011" => do <= MY(5);
+				when "001100" => do <= MX(6)(7 downto 0);
+				when "001101" => do <= MY(6);
+				when "001110" => do <= MX(7)(7 downto 0);
+				when "001111" => do <= MY(7);
+				when "010000" =>
+					do <= MX(7)(8) & MX(6)(8) & MX(5)(8) & MX(4)(8)
+					& MX(3)(8) & MX(2)(8) & MX(1)(8) & MX(0)(8);
+				when "010001" => do <= rasterY(8) & ECM & BMM & DEN & RSEL & yscroll;
+				when "010010" => do <= rasterY(7 downto 0);
+				when "010011" => do <= lpX;
+				when "010100" => do <= lpY;
+				when "010101" => do <= ME;
+				when "010110" => do <= "11" & RES & MCM & CSEL & xscroll;
+				when "010111" => do <= MYE;
+				when "011000" => do <= VM & CB & '1';
+				when "011001" => do <= IRQ & "111" & ILP & IMMC & IMBC & IRST;
+				when "011010" => do <= "1111" & ELP & EMMC & EMBC & ERST;
+				when "011011" => do <= MPRIO;
+				when "011100" => do <= MC;
+				when "011101" => do <= MXE;
+				when "011110" => do <= M2M;
+				when "011111" => do <= M2D;
+				when "100000" => do <= "1111" & EC;
+				when "100001" => do <= "1111" & B0C;
+				when "100010" => do <= "1111" & B1C;
+				when "100011" => do <= "1111" & B2C;
+				when "100100" => do <= "1111" & B3C;
+				when "100101" => do <= "1111" & MM0;
+				when "100110" => do <= "1111" & MM1;
+				when "100111" => do <= "1111" & spriteColors(0);
+				when "101000" => do <= "1111" & spriteColors(1);
+				when "101001" => do <= "1111" & spriteColors(2);
+				when "101010" => do <= "1111" & spriteColors(3);
+				when "101011" => do <= "1111" & spriteColors(4);
+				when "101100" => do <= "1111" & spriteColors(5);
+				when "101101" => do <= "1111" & spriteColors(6);
+				when "101110" => do <= "1111" & spriteColors(7);
+				when others => do <= (others => '1');
+				end case;
+			end if;
 		end if;
 	end process;
 end architecture;

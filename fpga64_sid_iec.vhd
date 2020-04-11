@@ -252,6 +252,7 @@ architecture rtl of fpga64_sid_iec is
 
 	signal colorQ : unsigned(3 downto 0);
 	signal colorData : unsigned(3 downto 0);
+	signal colorDataAec : unsigned(3 downto 0);
 
 	-- video
 	signal vicColorIndex : unsigned(3 downto 0);
@@ -452,6 +453,7 @@ begin
 		bios => bios,
 
 		cpuHasBus => cpuHasBus,
+		aec => aec,
 
 		bankSwitch => cpuIO(2 downto 0),
 
@@ -514,7 +516,8 @@ begin
 					pulseWrIo <= '1';
 				end if;
 			else
-				if sysCycle = CYCLE_CPUE then
+				if sysCycle = CYCLE_CPU0 then
+					-- timing is important for the collision register reads
 					pulseRd <= '1';
 				end if;
 			end if;
@@ -524,7 +527,11 @@ begin
 -- -----------------------------------------------------------------------
 -- VIC-II video interface chip
 -- -----------------------------------------------------------------------
+	-- In the first three cycles after BA went low, the VIC reads
+	-- $ff as character pointers and
+	-- as color information the lower 4 bits of the opcode after the access to $d011.
 	vicDiAec <= x"FF" when aec = '0' else vicDi;
+	colorDataAec <= cpuDi(3 downto 0) when aec = '0' else colorData;
 
 	vic: entity work.video_vicii_656x
 		generic map (
@@ -556,7 +563,7 @@ begin
 			aRegisters => cpuAddr(5 downto 0),
 			diRegisters => cpuDo,
 			di => vicDiAec,
-			diColor => colorData,
+			diColor => colorDataAec,
 			do => vicData,
 
 			vicAddr => vicAddr(13 downto 0),
