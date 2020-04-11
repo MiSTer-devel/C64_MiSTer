@@ -309,6 +309,7 @@ reg        lowlat = 0;
 reg        cfg_dis = 0;
 
 reg        vs_wait = 0;
+reg [11:0] vs_line = 0;
 
 always@(posedge clk_sys) begin
 	reg  [7:0] cmd;
@@ -388,9 +389,10 @@ always@(posedge clk_sys) begin
 			if(cmd == 'h2A) {coef_wr,coef_addr,coef_data} <= {1'b1,io_din};
 			if(cmd == 'h2B) scaler_flt <= io_din[2:0];
 			if(cmd == 'h37) HSET    <= io_din[11:0];
+			if(cmd == 'h38) vs_line <= io_din[11:0];
 		end
 	end
-	
+
 	vs_d0 <= HDMI_TX_VS;
 	if(vs_d0 == HDMI_TX_VS) vs_d1 <= vs_d0;
 
@@ -435,7 +437,7 @@ cyclonev_hps_interface_peripheral_spi_master spi
 	.ss_in_n(1)
 );
 
-wire [63:0] f2h_irq = {HDMI_TX_VS};
+wire [63:0] f2h_irq = {video_sync,HDMI_TX_VS};
 cyclonev_hps_interface_interrupts interrupts
 (
 	.irq(f2h_irq)
@@ -1047,6 +1049,31 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 	assign VGA_G  = (VGA_EN | SW[3]) ? 6'bZZZZZZ : vga_o[15:10];
 	assign VGA_B  = (VGA_EN | SW[3]) ? 6'bZZZZZZ : vga_o[7:2];
 `endif
+
+reg video_sync = 0;
+always @(posedge clk_vid) begin
+	reg [11:0] line_cnt  = 0;
+	reg [11:0] sync_line = 0;
+	reg  [1:0] hs_cnt = 0;
+	reg        old_hs;
+
+	old_hs <= hs_fix;
+	if(~old_hs & hs_fix) begin
+
+		video_sync <= (sync_line == line_cnt);
+
+		line_cnt <= line_cnt + 1'd1;
+		if(~hs_cnt[1]) begin	
+			hs_cnt <= hs_cnt + 1'd1;
+			if(hs_cnt[0]) begin
+				sync_line <= (line_cnt - vs_line);
+				line_cnt <= 0;
+			end
+		end
+	end
+
+	if(de_emu) hs_cnt <= 0;
+end
 
 /////////////////////////  Audio output  ////////////////////////////////
 
