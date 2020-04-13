@@ -88,6 +88,7 @@ wire       mode; // read/write
 wire [1:0] stp;
 wire       mtr;
 wire       act;
+wire [1:0] freq;
 
 c1541_logic c1541_logic
 (
@@ -115,7 +116,7 @@ c1541_logic c1541_logic
 	.mode(mode),
 	.stp(stp),
 	.mtr(mtr),
-	.freq(),
+	.freq(freq),
 	.sync_n(sync_n),
 	.byte_n(byte_n),
 	.wps_n(~readonly ^ ch_state),
@@ -141,6 +142,7 @@ c1541_gcr c1541_gcr
 	.din(gcr_di),
 	.mode(mode),
 	.mtr(mtr),
+	.freq(freq),
 	.sync_n(sync_n),
 	.byte_n(byte_n),
 

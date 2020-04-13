@@ -35,11 +35,11 @@ port (
 
     -- pio --
     port_a_o    : out std_logic_vector(7 downto 0);
-    port_a_t_l  : out std_logic_vector(7 downto 0);
+    port_a_t    : out std_logic_vector(7 downto 0);
     port_a_i    : in  std_logic_vector(7 downto 0);
     
     port_b_o    : out std_logic_vector(7 downto 0);
-    port_b_t_l  : out std_logic_vector(7 downto 0);
+    port_b_t    : out std_logic_vector(7 downto 0);
     port_b_i    : in  std_logic_vector(7 downto 0);
 
     -- handshake pins
@@ -47,19 +47,19 @@ port (
 
     ca2_o       : out std_logic;
     ca2_i       : in  std_logic;
-    ca2_t_l     : out std_logic;
+    ca2_t       : out std_logic;
     
     cb1_o       : out std_logic;
     cb1_i       : in  std_logic;
-    cb1_t_l     : out std_logic;
+    cb1_t       : out std_logic;
     
     cb2_o       : out std_logic;
     cb2_i       : in  std_logic;
-    cb2_t_l     : out std_logic;
+    cb2_t       : out std_logic;
 
-    irq_l       : out std_logic );
+    irq         : out std_logic );
     
-end c1541_via6522;
+end entity;
 
 architecture Gideon of c1541_via6522 is
 
@@ -135,7 +135,8 @@ architecture Gideon of c1541_via6522 is
     alias ca1_edge_select   : std_logic is pcr(0);
     
     signal ira, irb         : std_logic_vector(7 downto 0) := (others => '0');
-    
+
+    signal write_t1c_l      : std_logic;
     signal write_t1c_h      : std_logic;
     signal write_t2c_h      : std_logic;
 
@@ -150,8 +151,9 @@ architecture Gideon of c1541_via6522 is
     signal cb2_pulse_o      : std_logic;
     signal shift_active     : std_logic;
 begin
-    irq_l <= not irq_out;
+    irq <= irq_out;
     
+    write_t1c_l <= '1' when (addr = X"4" or addr = x"6") and wen='1' and falling = '1' else '0';
     write_t1c_h <= '1' when addr = X"5" and wen='1' and falling = '1' else '0';
     write_t2c_h <= '1' when addr = X"9" and wen='1' and falling = '1' else '0';
 
@@ -160,8 +162,8 @@ begin
     cb1_event <= (cb1_c xor cb1_d) and (cb1_d xor cb1_edge_select);
     cb2_event <= (cb2_c xor cb2_d) and (cb2_d xor cb2_edge_select);
 
-    ca2_t_l <= not ca2_is_output;
-    cb2_t_l <= not cb2_is_output when serport_en='0' else shift_dir;
+    ca2_t <= ca2_is_output;
+    cb2_t <= cb2_is_output when serport_en='0' else shift_dir;
     cb2_o <= hs_cb2_o      when serport_en='0' else ser_cb2_o;
 
     with ca2_out_mode select ca2_o <= 
@@ -340,6 +342,9 @@ begin
             when X"0" => -- ORB
                 --Port B reads its own output register for pins set to output.
                 data_out <= (pio_i.prb and pio_i.ddrb) or (irb and not pio_i.ddrb);
+                if tmr_a_output_en='1' then
+                    data_out(7) <= timer_a_out;
+                end if;
             when X"1" => -- ORA
                 data_out <= ira;
             when X"2" => -- DDRB
@@ -426,16 +431,16 @@ begin
     port_b_o(6 downto 0) <= pio_i.prb(6 downto 0);    
     port_b_o(7) <= pio_i.prb(7) when tmr_a_output_en='0' else timer_a_out;
     
-    port_a_t_l             <= not pio_i.ddra;
-    port_b_t_l(6 downto 0) <= not pio_i.ddrb(6 downto 0);
-    port_b_t_l(7)          <= not (pio_i.ddrb(7) or tmr_a_output_en);
+    port_a_t             <= pio_i.ddra;
+    port_b_t(6 downto 0) <= pio_i.ddrb(6 downto 0);
+    port_b_t(7)          <= pio_i.ddrb(7) or tmr_a_output_en;
     
 
     -- Timer A
     tmr_a: block
         signal timer_a_reload        : std_logic;
-        signal timer_a_oneshot_trig  : std_logic;
         signal timer_a_toggle        : std_logic;
+        signal timer_a_may_interrupt : std_logic;
     begin
         process(clock)
         begin
@@ -445,8 +450,11 @@ begin
                         
                     if timer_a_reload = '1' then
                         timer_a_count  <= timer_a_latch;
+                        if write_t1c_l = '1' then
+                            timer_a_count(7 downto 0) <= data_in;
+                        end if;
                         timer_a_reload <= '0';
-                        timer_a_oneshot_trig <= '0';
+                        timer_a_may_interrupt <= timer_a_may_interrupt and tmr_a_freerun;
                     else
                         if timer_a_count = X"0000" then
                             -- generate an event if we were triggered
@@ -458,29 +466,29 @@ begin
                 end if;
                 
                 if rising = '1' then
-                    if timer_a_event = '1' then
+                    if timer_a_event = '1' and tmr_a_output_en = '1' then
                         timer_a_toggle <= not timer_a_toggle;
                     end if;
                 end if;
 
                 if write_t1c_h = '1' then
-                    timer_a_toggle <= '0';
+                    timer_a_may_interrupt <= '1';
+                    timer_a_toggle <= not tmr_a_output_en;
                     timer_a_count  <= data_in & timer_a_latch(7 downto 0);
                     timer_a_reload <= '0';
-                    timer_a_oneshot_trig <= '1';
                 end if;
 
                 if reset='1' then
+                    timer_a_may_interrupt <= '0';
                     timer_a_toggle <= '1';
                     timer_a_count  <= latch_reset_pattern;
                     timer_a_reload <= '0';
-                    timer_a_oneshot_trig <= '0';
                 end if;
             end if;
         end process;
 
         timer_a_out   <= timer_a_toggle;
-        timer_a_event <= rising and timer_a_reload and (tmr_a_freerun or timer_a_oneshot_trig);
+        timer_a_event <= rising and timer_a_reload and timer_a_may_interrupt;
          
     end block tmr_a;
     
@@ -611,7 +619,7 @@ begin
             end if;
         end process;
 
-        cb1_t_l <= '1' when shift_clk_sel="11" else not serport_en;
+        cb1_t <= '0' when shift_clk_sel="11" else serport_en;
         cb1_o <= shift_clock_d;
         
         serport_en <= shift_dir or shift_clk_sel(1) or shift_clk_sel(0);

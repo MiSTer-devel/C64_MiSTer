@@ -9,49 +9,49 @@
 //
 module c1541_logic
 (
-   input        clk32,
-   input        reset,
+	input        clk32,
+	input        reset,
 
-   // serial bus
-   input        sb_clk_in,
-   input        sb_data_in,
-   input        sb_atn_in,
-   output       sb_clk_out,
-   output       sb_data_out,
+	// serial bus
+	input        sb_clk_in,
+	input        sb_data_in,
+	input        sb_atn_in,
+	output       sb_clk_out,
+	output       sb_data_out,
 
-   input        c1541rom_clk,
-   input [13:0] c1541rom_addr,
-   input [7:0]  c1541rom_data,
-   input        c1541rom_wr,
-   input        c1541stdrom_wr,
-   input        c1541std,
+	input        c1541rom_clk,
+	input [13:0] c1541rom_addr,
+	input  [7:0] c1541rom_data,
+	input        c1541rom_wr,
+	input        c1541stdrom_wr,
+	input        c1541std,
 
-   // drive-side interface
-   input [1:0]  ds,			// device select
-   input [7:0]  din,			// disk read data
-   output [7:0] dout,		// disk write data
-   output       mode,		// read/write
-   output [1:0] stp,			// stepper motor control
-   output       mtr,			// stepper motor on/off
-   output [1:0] freq,		// motor frequency
-   input        sync_n,		// reading SYNC bytes
-   input        byte_n,		// byte ready
-   input        wps_n,		// write-protect sense
-   input        tr00_sense_n,	// track 0 sense (unused?)
-   output       act			// activity LED
+	// drive-side interface
+	input  [1:0] ds,			// device select
+	input  [7:0] din,			// disk read data
+	output [7:0] dout,		// disk write data
+	output       mode,		// read/write
+	output [1:0] stp,			// stepper motor control
+	output       mtr,			// stepper motor on/off
+	output [1:0] freq,		// motor frequency
+	input        sync_n,		// reading SYNC bytes
+	input        byte_n,		// byte ready
+	input        wps_n,		// write-protect sense
+	input        tr00_sense_n,	// track 0 sense (unused?)
+	output       act			// activity LED
 );
 
-assign sb_data_out = ~(uc1_pb_o[1] | uc1_pb_oe_n[1]) & ~((uc1_pb_o[4] | uc1_pb_oe_n[4]) ^ ~sb_atn_in);
-assign sb_clk_out  = ~(uc1_pb_o[3] | uc1_pb_oe_n[3]);
+assign sb_data_out = ~(uc1_pb_o[1] | ~uc1_pb_oe[1]) & ~((uc1_pb_o[4] | ~uc1_pb_oe[4]) ^ ~sb_atn_in);
+assign sb_clk_out  = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
 
-assign dout = uc3_pa_o | uc3_pa_oe_n;
-assign mode = uc3_cb2_o | uc3_cb2_oe_n;
+assign dout = uc3_pa_o  | ~uc3_pa_oe;
+assign mode = uc3_cb2_o | ~uc3_cb2_oe;
 
-assign stp[1] = uc3_pb_o[0] | uc3_pb_oe_n[0];
-assign stp[0] = uc3_pb_o[1] | uc3_pb_oe_n[1];
-assign mtr    = uc3_pb_o[2] | uc3_pb_oe_n[2];
-assign act    = uc3_pb_o[3] | uc3_pb_oe_n[3];
-assign freq   = uc3_pb_o[6:5] | uc3_pb_oe_n[6:5];
+assign stp[1] = uc3_pb_o[0]   | ~uc3_pb_oe[0];
+assign stp[0] = uc3_pb_o[1]   | ~uc3_pb_oe[1];
+assign mtr    = uc3_pb_o[2]   | ~uc3_pb_oe[2];
+assign act    = uc3_pb_o[3]   | ~uc3_pb_oe[3];
+assign freq   = uc3_pb_o[6:5] | ~uc3_pb_oe[6:5];
 
 
 reg iec_atn;
@@ -102,10 +102,10 @@ wire  [7:0] cpu_di = (
 	(c1541std ? romstd_do : rom_do)
 );
 
-wire [15:0] cpu_a;
+wire [23:0] cpu_a;
 wire  [7:0] cpu_do;
 wire        cpu_rw;
-wire        cpu_irq_n = uc1_irq_n & uc3_irq_n;
+wire        cpu_irq_n = ~(uc1_irq | uc3_irq);
 wire        cpu_so_n = byte_n | ~soe;
 
 T65 cpu
@@ -120,7 +120,7 @@ T65 cpu
 	.nmi_n(1'b1),
 	.so_n(cpu_so_n),
 	.r_w_n(cpu_rw),
-	.a({8'h00,cpu_a}),
+	.a(cpu_a),
 	.di(cpu_di),
 	.do(cpu_do)
 );
@@ -144,90 +144,86 @@ always @(posedge clk32) ram_do <= ram[cpu_a[10:0]];
 
 // UC1 (VIA6522) signals
 wire [7:0] uc1_do;
-wire       uc1_irq_n;
+wire       uc1_irq;
 wire [7:0] uc1_pb_o;
-wire [7:0] uc1_pb_oe_n;
+wire [7:0] uc1_pb_oe;
 
 c1541_via6522 uc1
 (
+	.clock(clk32),
+	.rising(p2_h_r),
+	.falling(p2_h_f),
+	.reset(reset),
+
 	.addr(cpu_a[3:0]),
+	.wen(~cpu_rw & uc1_cs),
+	.ren(cpu_rw & uc1_cs),
 	.data_in(cpu_do),
 	.data_out(uc1_do),
 
-	.ren(cpu_rw & uc1_cs),
-	.wen(~cpu_rw & uc1_cs),
+	.port_a_i({7'h7f,tr00_sense_n}),
 
-	.irq_l(uc1_irq_n),
-
-	// port a
-	.ca1_i(~iec_atn),
-	.ca2_i(1'b0),
-
-	.port_a_i({7'd0,tr00_sense_n}),
-
-	// port b
-	.cb1_i(1'b0),
-	.cb2_i(1'b0),
-
-	.port_b_i({~iec_atn, ds, 2'b00, ~(iec_clk & sb_clk_out), 1'b0, ~(iec_data & sb_data_out)}),
 	.port_b_o(uc1_pb_o),
-	.port_b_t_l(uc1_pb_oe_n),
+	.port_b_t(uc1_pb_oe),
+	.port_b_i({~iec_atn, ds, 2'b11, ~(iec_clk & sb_clk_out), 1'b1, ~(iec_data & sb_data_out)}),
 
-	.reset(reset),
-	.clock(clk32),
-	.rising(p2_h_r),
-	.falling(p2_h_f)
+	.ca1_i(~iec_atn),
+	.ca2_i(1'b1),
+
+	.cb1_i(1'b1),
+	.cb2_i(1'b1),
+
+	.irq(uc1_irq)
 );
 
 
 // UC3 (VIA6522) signals
 wire [7:0] uc3_do;
-wire       uc3_irq_n;
+wire       uc3_irq;
 wire       uc3_ca2_o;
-wire       uc3_ca2_oe_n;
+wire       uc3_ca2_oe;
 wire [7:0] uc3_pa_o;
 wire       uc3_cb2_o;
-wire       uc3_cb2_oe_n;
-wire [7:0] uc3_pa_oe_n;
+wire       uc3_cb2_oe;
+wire [7:0] uc3_pa_oe;
 wire [7:0] uc3_pb_o;
-wire [7:0] uc3_pb_oe_n;
-wire       soe = uc3_ca2_o | uc3_ca2_oe_n;
+wire [7:0] uc3_pb_oe;
+wire       soe = uc3_ca2_o | ~uc3_ca2_oe;
 
 c1541_via6522 uc3
 (
+	.clock(clk32),
+	.rising(p2_h_r),
+	.falling(p2_h_f),
+	.reset(reset),
+
 	.addr(cpu_a[3:0]),
+	.wen(~cpu_rw & uc3_cs),
+	.ren(cpu_rw & uc3_cs),
 	.data_in(cpu_do),
 	.data_out(uc3_do),
 
-	.ren(cpu_rw & uc3_cs),
-	.wen(~cpu_rw & uc3_cs),
-
-	.irq_l(uc3_irq_n),
-
-	// port a
-	.ca1_i(cpu_so_n),
-	.ca2_i(1'b0),
-	.ca2_o(uc3_ca2_o),
-	.ca2_t_l(uc3_ca2_oe_n),
-
-	.port_a_i(din),
 	.port_a_o(uc3_pa_o),
-	.port_a_t_l(uc3_pa_oe_n),
+	.port_a_t(uc3_pa_oe),
+	.port_a_i(din),
 
-	// port b
-	.cb1_i(1'b0),
-	.cb2_i(1'b0),
-	.cb2_o(uc3_cb2_o),
-	.cb2_t_l(uc3_cb2_oe_n),
-
-	.port_b_i({sync_n, 2'b11, wps_n, 4'b1111}),
 	.port_b_o(uc3_pb_o),
-	.port_b_t_l(uc3_pb_oe_n),
+	.port_b_t(uc3_pb_oe),
+	.port_b_i({sync_n, 2'b11, wps_n, 4'b1111}),
 
-	.reset(reset),
-	.clock(clk32),
-	.rising(p2_h_r),
-	.falling(p2_h_f)
+	.ca1_i(cpu_so_n),
+
+	.ca2_o(uc3_ca2_o),
+	.ca2_i(1'b1),
+	.ca2_t(uc3_ca2_oe),
+
+	.cb1_i(1'b1),
+
+	.cb2_o(uc3_cb2_o),
+	.cb2_i(1'b1),
+	.cb2_t(uc3_cb2_oe),
+
+	.irq(uc3_irq)
 );
 
 endmodule
