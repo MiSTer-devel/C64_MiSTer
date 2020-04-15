@@ -27,7 +27,7 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 * F11 - restore key. Also special key in AR/FC carts.
 * Alt - C= key.
 
-![keyboard-mapping](https://www.c64-wiki.de/images/thumb/c/c8/vice-keys-pos.gif/800px-vice-keys-pos.gif)
+![keyboard-mapping](https://github.com/mister-devel/C64_MiSTer/blob/master/keymap.gif)
 
 ### Loadable ROM
 Alternative ROM can be placed in C64 folder with the name boot.rom.
