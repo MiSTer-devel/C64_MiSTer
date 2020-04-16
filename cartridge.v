@@ -45,7 +45,16 @@ module cartridge
 
 	input         freeze_key,
 	output reg    nmi,
-	input         nmi_ack
+	input         nmi_ack,
+
+	output        sd_rd,
+	output        sd_wr,
+	input         sd_ack,
+	input   [8:0] sd_buff_addr,
+	input   [7:0] sd_buff_dout,
+	output  [7:0] sd_buff_din,
+	input         sd_buff_wr,
+	output        sd_busy
 );
 
 reg [24:0] addr_out;
@@ -109,6 +118,10 @@ wire freeze_req = (~old_freeze & freeze_key);
 
 reg  old_nmiack = 0;
 wire freeze_ack = (nmi & ~old_nmiack & nmi_ack);
+
+reg eeprom_dout = 0;
+reg eeprom_clk = 0;
+reg eeprom_din = 0;
 
 // 0018 - EXROM line status
 // 0019 - GAME line status
@@ -542,6 +555,26 @@ always @(posedge clk32) begin
 					end
 				end
 			end
+		// GMOD2
+		// 512k flash in 8k banks and 2k serial eeprom
+		// controlled by $DE00
+		// re-writing flash is not supported in this implementation
+		60: begin
+                exrom_overide <= 0;
+				game_overide  <= 0;
+                if (ioe_wr) begin
+                    // eeprom chip select & not flash write enable 
+                    if (c64_data_out[6] & ~c64_data_out[7]) begin 
+                        {eeprom_clk, eeprom_din} <= c64_data_out[5:4];
+                    end else begin
+                        bank_lo <= c64_data_out[5:0];
+                        bank_hi <= c64_data_out[5:0];
+                    end
+                end
+                if (ioe_rd) begin
+                    IOE_bank <= {eeprom_dout, 7'b0};
+                end
+            end
 	endcase
 end
 
