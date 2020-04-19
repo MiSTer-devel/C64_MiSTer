@@ -235,7 +235,6 @@ wire        io_clk = gp_outr[17];
 wire        io_ss0 = gp_outr[18];
 wire        io_ss1 = gp_outr[19];
 wire        io_ss2 = gp_outr[20];
-//wire        io_sdd    = gp_outr[21]; // used only in ST core
 
 wire io_osd_hdmi = io_ss1 & ~io_ss0;
 wire io_fpga     = ~io_ss1 & io_ss0;
@@ -304,6 +303,7 @@ reg        coef_wr = 0;
 
 wire [7:0] ARX, ARY;
 reg [11:0] VSET = 0, HSET = 0;
+reg        FREESCALE = 0;
 reg  [2:0] scaler_flt;
 reg        lowlat = 0;
 reg        cfg_dis = 0;
@@ -311,6 +311,7 @@ reg        cfg_dis = 0;
 reg        vs_wait = 0;
 reg [11:0] vs_line = 0;
 
+reg        scaler_out = 0;
 always@(posedge clk_sys) begin
 	reg  [7:0] cmd;
 	reg        has_cmd;
@@ -337,6 +338,7 @@ always@(posedge clk_sys) begin
 			if(cmd == 1) begin
 				cfg <= io_din;
 				cfg_set <= 1;
+				scaler_out <= 1;
 			end
 			if(cmd == 'h20) begin
 				cfg_set <= 0;
@@ -385,10 +387,10 @@ always@(posedge clk_sys) begin
 			end
 			if(cmd == 'h25) {led_overtake, led_state} <= io_din;
 			if(cmd == 'h26) vol_att <= io_din[4:0];
-			if(cmd == 'h27) VSET    <= io_din[11:0];
+			if(cmd == 'h27) VSET <= io_din[11:0];
 			if(cmd == 'h2A) {coef_wr,coef_addr,coef_data} <= {1'b1,io_din};
 			if(cmd == 'h2B) scaler_flt <= io_din[2:0];
-			if(cmd == 'h37) HSET    <= io_din[11:0];
+			if(cmd == 'h37) {FREESCALE,HSET} <= {io_din[15],io_din[11:0]};
 			if(cmd == 'h38) vs_line <= io_din[11:0];
 		end
 	end
@@ -602,7 +604,7 @@ ascal
 	.vimax    (0),
 
 	.o_clk    (clk_hdmi),
-	.o_ce     (1),
+	.o_ce     (scaler_out),
 	.o_r      (hdmi_data[23:16]),
 	.o_g      (hdmi_data[15:8]),
 	.o_b      (hdmi_data[7:0]),
@@ -689,7 +691,7 @@ always @(posedge clk_vid) begin
 				vmax <= FB_VMAX;
 				state<= 0;
 			end
-			else if(ARX && ARY) begin
+			else if(ARX && ARY && !FREESCALE) begin
 				wcalc <= (height*ARX)/ARY;
 				hcalc <= (width*ARY)/ARX;
 			end
