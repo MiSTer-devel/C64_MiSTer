@@ -45,7 +45,6 @@ entity video_vicii_656x is
 		reset : in std_logic;
 		cs : in std_logic;
 		we : in std_logic;
-		rd : in std_logic;
 		lp_n : in std_logic;
 
 		aRegisters: in unsigned(5 downto 0);
@@ -90,13 +89,14 @@ architecture rtl of video_vicii_656x is
 	type spriteColorsDef is array(7 downto 0) of unsigned(3 downto 0);
 	type pixelColorStoreDef is array(7 downto 0) of unsigned(3 downto 0);
 
-	constant PIX_DELAY : integer := 3;
+	constant PIX_DELAY : integer := 5;
 
 -- State machine
 	signal lastLineFlag : boolean; -- True for on last line of the frame.
 	signal vicCycle : vicCycles := cycleRefresh1;
 	signal sprite : unsigned(2 downto 0) := "000";
 	signal shiftChars : boolean;
+	signal shiftLoadEna : boolean;
 	signal idle: std_logic := '1';
 	signal rasterIrqDone : std_logic; -- Only one interrupt each rasterLine
 	signal rasterEnable: std_logic;
@@ -122,12 +122,11 @@ architecture rtl of video_vicii_656x is
 	signal MXE : unsigned(7 downto 0); -- Sprite X expansion
 	signal MYE : unsigned(7 downto 0); -- Sprite Y expansion
 	signal MPRIO : unsigned(7 downto 0); -- Sprite priority
-	signal MC : unsigned(7 downto 0); -- sprite multi color
 
-	-- !!! Krestage 3 hacks
+	signal MC : unsigned(7 downto 0); -- sprite multi color
 	signal MCDelay : unsigned(7 downto 0); -- sprite multi color
-	signal MCDelay2: unsigned(7 downto 0); -- sprite multi color
-	signal MCDelay3: unsigned(7 downto 0); -- sprite multi color
+	signal MCColorDelay : unsigned(7 downto 0);
+	signal MCColor : unsigned(7 downto 0); -- sprite multi color switch for color decoding
 
 	-- mode
 	signal BMM: std_logic; -- Bitmap mode
@@ -185,12 +184,11 @@ architecture rtl of video_vicii_656x is
 -- Collision detection registers
 	signal collision : unsigned(7 downto 0);
 	signal M2M: unsigned(7 downto 0); -- Sprite to sprite collision
-	signal M2MDelay: unsigned(7 downto 0); -- Sprite to sprite collision delayed1
-	signal M2MDelay2: unsigned(7 downto 0); -- Sprite to sprite collision delayed2
 	signal M2D: unsigned(7 downto 0); -- Sprite to character collision
 	signal M2DDelay: unsigned(7 downto 0); -- Sprite to character collision
 	signal M2Mhit : std_logic;
 	signal M2Dhit : std_logic;
+	signal M2MClr : std_logic; -- collision register clear flag
 
 -- Raster counters
 	signal rasterX : unsigned(9 downto 0) := (others => '0');
@@ -221,6 +219,7 @@ architecture rtl of video_vicii_656x is
 	-- Stores colorinfo and the Pixels that are currently in shift register
 	signal shiftingChar : unsigned(11 downto 0);
 	signal shiftingPixels : unsigned(7 downto 0);
+	signal currentPixels : unsigned(1 downto 0);
 	signal shifting_ff : std_logic; -- Multicolor shift-regiter status bit.
 
 -- Sprite work registers
@@ -228,16 +227,16 @@ architecture rtl of video_vicii_656x is
 	signal MPixels : MPixelsDef; -- Sprite 24 bit shift register
 	signal MPixelStore : unsigned(15 downto 0); -- Store fetched sprite bytes until ready to load into the shift register
 	signal MActive : MFlags; -- Sprite is active
-	signal MActive_next : MFlags; -- Sprite is active
+	signal MActive_next : MFlags; -- Sprite is active combinatorial
 	signal MDMA : MFlags; -- Sprite DMA is enabled
-	signal MDMA_next : MFlags; -- Sprite DMA is enabled
+	signal MDMA_next : MFlags; -- Sprite DMA is enabled combinatorial
 	signal MCnt : MCntDef;
 	signal MCnt_next : MCntDef;
 	signal MCBase : MCntDef;
 	signal MCBase_next : MCntDef;
 	signal MXE_ff : unsigned(7 downto 0); -- Sprite X expansion flipflop
 	signal MYE_ff : unsigned(7 downto 0); -- Sprite Y expansion flipflop
-	signal MYE_ff_next : unsigned(7 downto 0); -- Sprite Y expansion flipflop
+	signal MYE_ff_next : unsigned(7 downto 0); -- Sprite Y expansion flipflop combinatorial
 	signal MC_ff : unsigned(7 downto 0); -- controls sprite shift-register in multicolor
 	signal MShift : MFlags; -- Sprite is shifting
 	signal MCurrentPixel : MCurrentPixelDef;
@@ -247,7 +246,14 @@ architecture rtl of video_vicii_656x is
 	signal pixelBgFlag: std_logic; -- For collision detection
 
 -- Read/Write lines
-	signal myWr : std_logic;
+	signal we_r : std_logic;
+	signal rd_r : std_logic;
+	signal addr_r: unsigned(5 downto 0);
+	signal di_r: unsigned(7 downto 0);
+
+	signal myWr_a : std_logic;
+	signal myWr_b : std_logic;
+	signal myWr_c : std_logic;
 	signal myRd : std_logic;
 
 begin
@@ -261,10 +267,25 @@ begin
 	irq_n <= not IRQ;
 
 -- -----------------------------------------------------------------------
--- chip-select signals
+-- chip-select signals and data/address bus latch
 -- -----------------------------------------------------------------------
-	myWr <= cs and we;
-	myRd <= cs and rd;
+	process(clk)
+	begin
+		if rising_edge(clk) then
+			if phi = '1' then
+				we_r <= cs and we;
+				rd_r <= cs and not we;
+				addr_r <= aRegisters;
+				di_r <= diRegisters;
+			end if;
+		end if;
+	end process;
+
+	myWr_a <= cs and phi and we;
+	myWr_b <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "011" else '0';
+	myWr_c <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "100" else '0';
+	-- timing of the read is only important for the collision register reads
+	myRd   <= '1' when cs = '1' and phi = '1' and we = '0' and enaPixel = '1' and rasterX(1 downto 0) = "00" else '0';
 
 -- -----------------------------------------------------------------------
 -- debug signals
@@ -395,7 +416,8 @@ vicStateMachine: process(clk)
 -- Address generator
 -- -----------------------------------------------------------------------
 	process(phi, vicCycle, sprite, shiftChars, idle,
-			VM, CB, ECM, BMM, nextChar, colCounter, rowCounter, MPtr, MCnt)
+			VM, CB, ECM, BMM, nextChar, colCounter, rowCounter, MPtr, MCnt,
+			MDMA_next, refreshCounter)
 	begin
 		--
 		-- Default case ($3FFF fetches)
@@ -408,9 +430,6 @@ vicStateMachine: process(clk)
 				vicAddrLoc <= CB & nextChar(7 downto 0) & rowCounter;
 			end if;
 		end if;
-		if ECM = '1' then
-			vicAddrLoc(10 downto 9) <= "00";
-		end if;
 
 		case vicCycle is
 		when cycleRefresh1 | cycleRefresh2 | cycleRefresh3 | cycleRefresh4 | cycleRefresh5 =>
@@ -422,19 +441,27 @@ vicStateMachine: process(clk)
 		when cycleSpriteBa1 | cycleSpriteBa2 | cycleSpriteBa3 =>
 			vicAddrLoc <= (others => '1');
 		when cycleSpriteA =>
-			vicAddrLoc <= VM & "1111111" & sprite;
 			if phi = '1' then
-				vicAddrLoc <= MPtr & MCnt(to_integer(sprite));
+				if MDMA_Next(to_integer(sprite)) then
+					vicAddrLoc <= MPtr & MCnt(to_integer(sprite));
+				end if;
+			else
+				vicAddrLoc <= VM & "1111111" & sprite;
 			end if;
 		when cycleSpriteB =>
-			vicAddrLoc <= MPtr & MCnt(to_integer(sprite));
+			if MDMA_Next(to_integer(sprite)) then
+				vicAddrLoc <= MPtr & MCnt(to_integer(sprite));
+			end if;
 		when others =>
+			if ECM = '1' then
+				vicAddrLoc(10 downto 9) <= "00";
+			end if;
 			if phi = '1' then
 				vicAddrLoc <= VM & colCounter;
 			end if;
 		end case;
 	end process;
-	
+
 	-- Registered address
 	process(clk)
 	begin
@@ -647,15 +674,21 @@ vicStateMachine: process(clk)
 	end process;
 
 -- -----------------------------------------------------------------------
--- Generate ShiftChars flag
+-- Generate ShiftChars and ShiftLoadEna flags
 -- -----------------------------------------------------------------------
-	process(rasterX)
+	process(rasterX, rasterXDelay)
 	begin
 		shiftChars <= false;
 		if rasterX(9 downto 3) > "0000001"
 		and rasterX(9 downto 3) <= "0101001" then
 			shiftChars <= true;
 		end if;
+		shiftLoadEna <= false;
+		if rasterXDelay(9 downto 3) > "0000001"
+		and rasterXDelay(9 downto 3) <= "0101010" then
+			shiftLoadEna <= true;
+		end if;
+
 	end process;
 
 -- -----------------------------------------------------------------------
@@ -870,7 +903,7 @@ calcBorders: process(clk)
 				newTBBorder := TBBorder;
 				-- 1. If the X coordinate reaches the right comparison value, the main border
 				--   flip flop is set (comparison values are from VIC II datasheet).
-				if (rasterX = 339 and CSEL = '0') or (rasterX = 348 and CSEL = '1')  then
+				if (rasterX = 339 + 2 and CSEL = '0') or (rasterX = 348 + 2 and CSEL = '1')  then
 					MainBorder <= '1';
 				end if;
 				-- 2. If the Y coordinate reaches the bottom comparison value in cycle 63, the
@@ -890,7 +923,7 @@ calcBorders: process(clk)
 						setTBBorder <= false;
 					end if;
 				end if;
-				if (rasterX = 35 and CSEL = '0') or (rasterX = 28 and CSEL = '1') then
+				if (rasterX = 35 + 2 and CSEL = '0') or (rasterX = 28 + 2 and CSEL = '1') then
 					-- 4. If the X coordinate reaches the left comparison value and the Y
 					-- coordinate reaches the bottom one, the vertical border flip flop is set.
 					-- FIX: act on the already triggered condition
@@ -926,7 +959,7 @@ calcBitmap: process(clk)
 				--
 				-- Toggle flipflop for multicolor 2-bits shift.
 				shifting_ff <= not shifting_ff;
-				
+
 				--
 				-- Multicolor mode is active with MCM, but for character
 				-- mode it depends on bit3 of color ram too.
@@ -942,19 +975,22 @@ calcBitmap: process(clk)
 				--
 				-- Reload shift register when xscroll=rasterX
 				-- otherwise shift pixels
-				if xscroll = rasterXDelay(2 downto 0) then
+				if shiftLoadEna and xscroll = rasterXDelay(2 downto 0) then
 					shifting_ff <= '0';
 					shiftingChar <= waitingChar_r;
 					shiftingPixels <= waitingPixels_r;
+					currentPixels <= waitingPixels_r(7 downto 6);
 				elsif multiColor = '0' then
 					shiftingPixels <= shiftingPixels(6 downto 0) & '0';
+					currentPixels <= shiftingPixels(6 downto 5);
 				elsif shifting_ff = '1' then
 					shiftingPixels <= shiftingPixels(5 downto 0) & "00";
+					currentPixels <= shiftingPixels(5 downto 4);
 				end if;
 
 				--
 				-- Calculate if pixel is in foreground or background
-				pixelBgFlag <= shiftingPixels(7);
+				pixelBgFlag <= currentPixels(1);
 
 				--
 				-- Calculate color of next pixel				
@@ -962,12 +998,12 @@ calcBitmap: process(clk)
 				if (BMM = '0') and (ECM='0') then
 					if (multiColor = '0') then
 						-- normal character mode
-						if shiftingPixels(7) = '1' then
+						if currentPixels(1) = '1' then
 							pixelColor <= shiftingChar(11 downto 8);
 						end if;
 					else
 						-- multi-color character mode
-						case shiftingPixels(7 downto 6) is
+						case currentPixels is
 						when "01" => pixelColor <= B1C;
 						when "10" => pixelColor <= B2C;
 						when "11" => pixelColor <= '0' & shiftingChar(10 downto 8);
@@ -977,7 +1013,7 @@ calcBitmap: process(clk)
 				elsif (MCM = '0') and (BMM = '0') and (ECM='1') then
 					-- extended-color character mode
 					-- multiple background colors but only 64 characters
-					if shiftingPixels(7) = '1' then
+					if currentPixels(1) = '1' then
 						pixelColor <= shiftingChar(11 downto 8);
 					else
 						case shiftingChar(7 downto 6) is
@@ -989,14 +1025,14 @@ calcBitmap: process(clk)
 					end if;
 				elsif emulateGraphics and (MCM = '0') and (BMM = '1') and (ECM='0') then
 					-- highres bitmap mode
-					if shiftingPixels(7) = '1' then
+					if currentPixels(1) = '1' then
 						pixelColor <= shiftingChar(7 downto 4);
 					else
 						pixelColor <= shiftingChar(3 downto 0);
 					end if;
 				elsif emulateGraphics and (MCM = '1') and (BMM = '1') and (ECM='0') then
 					-- Multi-color bitmap mode
-					case shiftingPixels(7 downto 6) is
+					case currentPixels is
 					when "01" => pixelColor <= shiftingChar(7 downto 4);
 					when "10" => pixelColor <= shiftingChar(3 downto 0);
 					when "11" => pixelColor <= shiftingChar(11 downto 8);
@@ -1169,16 +1205,16 @@ calcBitmap: process(clk)
 		if rising_edge(clk) then
 			if enaPixel = '1' then
 				for i in 0 to 7 loop
-					-- Stop shifting in the s cycles
-					if (sprite = i and ((vicCycle = cycleSpriteA and phi = '1') or vicCycle = cycleSpriteB)) then
-						MShift(i) <= false;
-					end if;
 					--if MPixels(i) = 0 then
 						--MShift(i) <= false;
 					--end if;
 					-- Enable sprites on the correct X position
 					if MActive_next(i) and rasterXDelay = MX(i) then
 						MShift(i) <= true;
+					end if;
+					-- Stop shifting in the s cycles
+					if (sprite = i and ((vicCycle = cycleSpriteA and phi = '1') or vicCycle = cycleSpriteB)) then
+						MShift(i) <= false;
 					end if;
 				end loop;
 
@@ -1197,6 +1233,18 @@ calcBitmap: process(clk)
 						MXE_ff(i) <= '0';
 						MC_ff(i) <= '0';
 						MCurrentPixel(i) <= "00";
+					end if;
+				end loop;
+
+				-- Changing the MC register directly affects the MC flip-flop
+				-- Also looks like the value used for color decoding is delayed to
+				-- what's used for the shift register (ss-hires-mc.prg)
+				for i in 0 to 7 loop
+					MC(i) <= MCDelay(i);
+					MCColorDelay(i) <= MC(i);
+					MCColor(i) <= MCColorDelay(i);
+					if MCDelay(i) /= MC(i) then
+						MC_ff(i) <= MCDelay(i);
 					end if;
 				end loop;
 			end if;
@@ -1240,7 +1288,7 @@ calcBitmap: process(clk)
 			muxColor := "00";
 			muxSprite := (others => '-');
 			for i in 7 downto 0 loop
-				if MC(i) = '1' then
+				if MCColor(i) = '1' then
 					if MCurrentPixel(i) /= "00" then
 						if (MPRIO(i) = '0') or (pixelBgFlag = '0') then
 							muxColor := MCurrentPixel(i);
@@ -1303,18 +1351,38 @@ calcBitmap: process(clk)
 	end process;
 
 -- -----------------------------------------------------------------------
+-- Collision register clear flag
+-- -----------------------------------------------------------------------
+collisionClearFlag: process(clk)
+	begin
+		if rising_edge(clk) then
+			-- spritevssprite.prg
+			if phi = '1' and cs = '1' and we = '0' and aRegisters = "011110" then
+				M2MClr <= '1';
+			end if;
+			if phi = '0' and not (addr_r = "011110" and rd_r = '1') then
+				M2MClr <= '0';
+			end if;
+		end if;
+	end process;
+
+-- -----------------------------------------------------------------------
 -- Sprite to sprite collision
 -- -----------------------------------------------------------------------
 spriteSpriteCollision: process(clk)
 	begin
-		if rising_edge(clk) then			
+		if rising_edge(clk) then
 			if resetIMMC = '1' then
 				IMMC <= '0';
 			end if;
 
 			if enaPixel = '1' then
 				for i in 0 to 7 loop
-					collision(i) <= MCurrentPixel(i)(1);
+					if MC(i) = '0' then
+						collision(i) <= MCurrentPixel(i)(1);
+					else
+						collision(i) <= MCurrentPixel(i)(1) or MCurrentPixel(i)(0);
+					end if;
 				end loop;
 				if  (collision /= "00000000")
 				and (collision /= "00000001")
@@ -1325,27 +1393,21 @@ spriteSpriteCollision: process(clk)
 				and (collision /= "00100000")
 				and (collision /= "01000000")
 				and (collision /= "10000000") then
-					M2MDelay <= M2MDelay or collision;
+					M2M <= M2M or collision;
 
 				end if;
 
-				M2MDelay2 <= M2MDelay;
-				M2M <= M2MDelay2;
 				-- Give collision interrupt but only once until clear of register
-				if M2MDelay /= 0 and M2Mhit = '0' then
+				if M2M /= 0 and M2Mhit = '0' then
 					IMMC <= '1';
 					M2Mhit <= '1';
 				end if;
-			end if;
 
-			if (myRd = '1')
-			and	(aRegisters = "011110") then
-				M2M <= (others => '0');
-				M2MDelay <= (others => '0');
-				M2MDelay2 <= (others => '0');
-				M2Mhit <= '0';
+				if M2MClr = '1' then
+					M2M <= (others => '0');
+					M2Mhit <= '0';
+				end if;
 			end if;
-
 		end if;
 	end process;
 
@@ -1361,7 +1423,8 @@ spriteBackgroundCollision: process(clk)
 
 			if enaPixel = '1' then
 				for i in 0 to 7 loop
-					if  MCurrentPixel(i)(1) = '1'
+					if ((MC(i) = '0' and MCurrentPixel(i)(1) = '1') or
+					    (MC(i) = '1' and MCurrentPixel(i) /= "00"))
 					and pixelBgFlag = '1'
 					and (TBBorder = '0') then
 						M2DDelay(i) <= '1';
@@ -1389,21 +1452,6 @@ spriteBackgroundCollision: process(clk)
 -- Generate IRQ signal
 -- -----------------------------------------------------------------------
 	IRQ <= (ILP and ELP) or (IMMC and EMMC) or (IMBC and EMBC) or (IRST and ERST);
-
--- -----------------------------------------------------------------------
--- Krestage 3 hack
--- -----------------------------------------------------------------------
-	process(clk)
-	begin
-		if rising_edge(clk) then
-			if enaPixel = '1' then
-				-- test with ss-hires-mc.prg
-				MCDelay2 <= MCDelay;
-				MCDelay3 <= MCDelay2;
-				MC <= MCDelay3;
-			end if;
-		end if;
-	end process;
 
 -- -----------------------------------------------------------------------
 -- Write registers
@@ -1467,87 +1515,99 @@ writeRegisters: process(clk)
 				spriteColors(5) <= (others => '0');
 				spriteColors(6) <= (others => '0');
 				spriteColors(7) <= (others => '0');
-				
-			elsif (myWr = '1') then
-				case aRegisters is
-				when "000000" => MX(0)(7 downto 0) <= diRegisters;
-				when "000001" => MY(0) <= diRegisters;
-				when "000010" => MX(1)(7 downto 0) <= diRegisters;
-				when "000011" => MY(1) <= diRegisters;
-				when "000100" => MX(2)(7 downto 0) <= diRegisters;
-				when "000101" => MY(2) <= diRegisters;
-				when "000110" => MX(3)(7 downto 0) <= diRegisters;
-				when "000111" => MY(3) <= diRegisters;
-				when "001000" => MX(4)(7 downto 0) <= diRegisters;
-				when "001001" => MY(4) <= diRegisters;
-				when "001010" => MX(5)(7 downto 0) <= diRegisters;
-				when "001011" => MY(5) <= diRegisters;
-				when "001100" => MX(6)(7 downto 0) <= diRegisters;
-				when "001101" => MY(6) <= diRegisters;
-				when "001110" => MX(7)(7 downto 0) <= diRegisters;
-				when "001111" => MY(7) <= diRegisters;
-				when "010000" =>
-					MX(0)(8) <= diRegisters(0);
-					MX(1)(8) <= diRegisters(1);
-					MX(2)(8) <= diRegisters(2);
-					MX(3)(8) <= diRegisters(3);
-					MX(4)(8) <= diRegisters(4);
-					MX(5)(8) <= diRegisters(5);
-					MX(6)(8) <= diRegisters(6);
-					MX(7)(8) <= diRegisters(7);
-				when "010001" =>
-					rasterCmp(8) <= diRegisters(7);
-					ECM <= diRegisters(6);
-					BMM <= diRegisters(5);
-					DEN <= diRegisters(4);
-					RSEL <= diRegisters(3);
-					yscroll <= diRegisters(2 downto 0);
-				when "010010" =>
-					rasterCmp(7 downto 0) <= diRegisters;
-				when "010101" =>
-					ME <= diRegisters;
-				when "010110" =>
-					RES <= diRegisters(5);
-					MCM <= diRegisters(4);
-					CSEL <= diRegisters(3);
-					xscroll <= diRegisters(2 downto 0);
+			else
 
-				when "010111" => MYE <= diRegisters;
-				when "011000" =>
-					VM <= diRegisters(7 downto 4);
-					CB <= diRegisters(3 downto 1);
-				when "011001" =>
-					resetLightPenIrq <= diRegisters(3);
-					resetIMMC <= diRegisters(2);
-					resetIMBC <= diRegisters(1);
-					resetRasterIrq <= diRegisters(0);
-				when "011010" =>
-					ELP <= diRegisters(3);
-					EMMC <= diRegisters(2);
-					EMBC <= diRegisters(1);
-					ERST <= diRegisters(0);
-				when "011011" => MPRIO <= diRegisters;
-				when "011100" =>
-					-- MC <= diRegisters;
-					MCDelay <= diRegisters; -- !!! Krestage 3 hack
-				when "011101" => MXE <= diRegisters;
-				when "100000" => EC <= diRegisters(3 downto 0);
-				when "100001" => B0C <= diRegisters(3 downto 0);
-				when "100010" => B1C <= diRegisters(3 downto 0);
-				when "100011" => B2C <= diRegisters(3 downto 0);
-				when "100100" => B3C <= diRegisters(3 downto 0);
-				when "100101" => MM0 <= diRegisters(3 downto 0);
-				when "100110" => MM1 <= diRegisters(3 downto 0);
-				when "100111" => spriteColors(0) <= diRegisters(3 downto 0);
-				when "101000" => spriteColors(1) <= diRegisters(3 downto 0);
-				when "101001" => spriteColors(2) <= diRegisters(3 downto 0);
-				when "101010" => spriteColors(3) <= diRegisters(3 downto 0);
-				when "101011" => spriteColors(4) <= diRegisters(3 downto 0);
-				when "101100" => spriteColors(5) <= diRegisters(3 downto 0);
-				when "101101" => spriteColors(6) <= diRegisters(3 downto 0);
-				when "101110" => spriteColors(7) <= diRegisters(3 downto 0);
-				when others => null;
-				end case;
+				if (myWr_a = '1') then
+					-- assumption: color registers are latched during the whole PHI high cycle
+					case aRegisters is
+					when "100000" => EC <= diRegisters(3 downto 0);
+					when "100001" => B0C <= diRegisters(3 downto 0);
+					when "100010" => B1C <= diRegisters(3 downto 0);
+					when "100011" => B2C <= diRegisters(3 downto 0);
+					when "100100" => B3C <= diRegisters(3 downto 0);
+					when "100101" => MM0 <= diRegisters(3 downto 0);
+					when "100110" => MM1 <= diRegisters(3 downto 0);
+					when "100111" => spriteColors(0) <= diRegisters(3 downto 0);
+					when "101000" => spriteColors(1) <= diRegisters(3 downto 0);
+					when "101001" => spriteColors(2) <= diRegisters(3 downto 0);
+					when "101010" => spriteColors(3) <= diRegisters(3 downto 0);
+					when "101011" => spriteColors(4) <= diRegisters(3 downto 0);
+					when "101100" => spriteColors(5) <= diRegisters(3 downto 0);
+					when "101101" => spriteColors(6) <= diRegisters(3 downto 0);
+					when "101110" => spriteColors(7) <= diRegisters(3 downto 0);
+					when others => null;
+					end case;
+				end if;
+
+				if (myWr_b = '1') then
+					case addr_r is
+					when "010001" =>
+						rasterCmp(8) <= di_r(7);
+						ECM <= di_r(6);
+						BMM <= di_r(5);
+						DEN <= di_r(4);
+						RSEL <= di_r(3);
+						yscroll <= di_r(2 downto 0);
+					when "010010" =>
+						rasterCmp(7 downto 0) <= di_r;
+					when "010101" =>
+						ME <= di_r;
+					when "010110" =>
+						RES <= di_r(5);
+						MCM <= di_r(4);
+						CSEL <= di_r(3);
+						xscroll <= di_r(2 downto 0);
+					when "010111" => MYE <= di_r;
+					when "011000" =>
+						VM <= di_r(7 downto 4);
+						CB <= di_r(3 downto 1);
+					when "011001" =>
+						resetLightPenIrq <= di_r(3);
+						resetIMMC <= di_r(2);
+						resetIMBC <= di_r(1);
+						resetRasterIrq <= di_r(0);
+					when "011010" =>
+						ELP <= di_r(3);
+						EMMC <= di_r(2);
+						EMBC <= di_r(1);
+						ERST <= di_r(0);
+					when "011011" => MPRIO <= di_r;
+					when "011100" =>
+						-- MC <= di_r;
+						MCDelay <= di_r; -- !!! Krestage 3 hack
+					when "011101" => MXE <= di_r;
+					when others => null;
+					end case;
+				elsif (myWr_c = '1') then
+					case addr_r is
+					when "000000" => MX(0)(7 downto 0) <= di_r;
+					when "000001" => MY(0) <= di_r;
+					when "000010" => MX(1)(7 downto 0) <= di_r;
+					when "000011" => MY(1) <= di_r;
+					when "000100" => MX(2)(7 downto 0) <= di_r;
+					when "000101" => MY(2) <= di_r;
+					when "000110" => MX(3)(7 downto 0) <= di_r;
+					when "000111" => MY(3) <= di_r;
+					when "001000" => MX(4)(7 downto 0) <= di_r;
+					when "001001" => MY(4) <= di_r;
+					when "001010" => MX(5)(7 downto 0) <= di_r;
+					when "001011" => MY(5) <= di_r;
+					when "001100" => MX(6)(7 downto 0) <= di_r;
+					when "001101" => MY(6) <= di_r;
+					when "001110" => MX(7)(7 downto 0) <= di_r;
+					when "001111" => MY(7) <= di_r;
+					when "010000" =>
+						MX(0)(8) <= di_r(0);
+						MX(1)(8) <= di_r(1);
+						MX(2)(8) <= di_r(2);
+						MX(3)(8) <= di_r(3);
+						MX(4)(8) <= di_r(4);
+						MX(5)(8) <= di_r(5);
+						MX(6)(8) <= di_r(6);
+						MX(7)(8) <= di_r(7);
+					when others => null;
+					end case;
+				end if;
 			end if;
 		end if;
 	end process;
@@ -1559,58 +1619,58 @@ readRegisters: process(clk)
 	begin
 		if rising_edge(clk) then
 			if myRd = '1' then
-				case aRegisters is
-				when "000000" => do <= MX(0)(7 downto 0);
-				when "000001" => do <= MY(0);
-				when "000010" => do <= MX(1)(7 downto 0);
-				when "000011" => do <= MY(1);
-				when "000100" => do <= MX(2)(7 downto 0);
-				when "000101" => do <= MY(2);
-				when "000110" => do <= MX(3)(7 downto 0);
-				when "000111" => do <= MY(3);
-				when "001000" => do <= MX(4)(7 downto 0);
-				when "001001" => do <= MY(4);
-				when "001010" => do <= MX(5)(7 downto 0);
-				when "001011" => do <= MY(5);
-				when "001100" => do <= MX(6)(7 downto 0);
-				when "001101" => do <= MY(6);
-				when "001110" => do <= MX(7)(7 downto 0);
-				when "001111" => do <= MY(7);
-				when "010000" =>
-					do <= MX(7)(8) & MX(6)(8) & MX(5)(8) & MX(4)(8)
-					& MX(3)(8) & MX(2)(8) & MX(1)(8) & MX(0)(8);
-				when "010001" => do <= rasterY(8) & ECM & BMM & DEN & RSEL & yscroll;
-				when "010010" => do <= rasterY(7 downto 0);
-				when "010011" => do <= lpX;
-				when "010100" => do <= lpY;
-				when "010101" => do <= ME;
-				when "010110" => do <= "11" & RES & MCM & CSEL & xscroll;
-				when "010111" => do <= MYE;
-				when "011000" => do <= VM & CB & '1';
-				when "011001" => do <= IRQ & "111" & ILP & IMMC & IMBC & IRST;
-				when "011010" => do <= "1111" & ELP & EMMC & EMBC & ERST;
-				when "011011" => do <= MPRIO;
-				when "011100" => do <= MC;
-				when "011101" => do <= MXE;
-				when "011110" => do <= M2M;
-				when "011111" => do <= M2D;
-				when "100000" => do <= "1111" & EC;
-				when "100001" => do <= "1111" & B0C;
-				when "100010" => do <= "1111" & B1C;
-				when "100011" => do <= "1111" & B2C;
-				when "100100" => do <= "1111" & B3C;
-				when "100101" => do <= "1111" & MM0;
-				when "100110" => do <= "1111" & MM1;
-				when "100111" => do <= "1111" & spriteColors(0);
-				when "101000" => do <= "1111" & spriteColors(1);
-				when "101001" => do <= "1111" & spriteColors(2);
-				when "101010" => do <= "1111" & spriteColors(3);
-				when "101011" => do <= "1111" & spriteColors(4);
-				when "101100" => do <= "1111" & spriteColors(5);
-				when "101101" => do <= "1111" & spriteColors(6);
-				when "101110" => do <= "1111" & spriteColors(7);
-				when others => do <= (others => '1');
-				end case;
+			case aRegisters is
+			when "000000" => do <= MX(0)(7 downto 0);
+			when "000001" => do <= MY(0);
+			when "000010" => do <= MX(1)(7 downto 0);
+			when "000011" => do <= MY(1);
+			when "000100" => do <= MX(2)(7 downto 0);
+			when "000101" => do <= MY(2);
+			when "000110" => do <= MX(3)(7 downto 0);
+			when "000111" => do <= MY(3);
+			when "001000" => do <= MX(4)(7 downto 0);
+			when "001001" => do <= MY(4);
+			when "001010" => do <= MX(5)(7 downto 0);
+			when "001011" => do <= MY(5);
+			when "001100" => do <= MX(6)(7 downto 0);
+			when "001101" => do <= MY(6);
+			when "001110" => do <= MX(7)(7 downto 0);
+			when "001111" => do <= MY(7);
+			when "010000" =>
+				do <= MX(7)(8) & MX(6)(8) & MX(5)(8) & MX(4)(8)
+				& MX(3)(8) & MX(2)(8) & MX(1)(8) & MX(0)(8);
+			when "010001" => do <= rasterY(8) & ECM & BMM & DEN & RSEL & yscroll;
+			when "010010" => do <= rasterY(7 downto 0);
+			when "010011" => do <= lpX;
+			when "010100" => do <= lpY;
+			when "010101" => do <= ME;
+			when "010110" => do <= "11" & RES & MCM & CSEL & xscroll;
+			when "010111" => do <= MYE;
+			when "011000" => do <= VM & CB & '1';
+			when "011001" => do <= IRQ & "111" & ILP & IMMC & IMBC & IRST;
+			when "011010" => do <= "1111" & ELP & EMMC & EMBC & ERST;
+			when "011011" => do <= MPRIO;
+			when "011100" => do <= MC;
+			when "011101" => do <= MXE;
+			when "011110" => do <= M2M;
+			when "011111" => do <= M2D;
+			when "100000" => do <= "1111" & EC;
+			when "100001" => do <= "1111" & B0C;
+			when "100010" => do <= "1111" & B1C;
+			when "100011" => do <= "1111" & B2C;
+			when "100100" => do <= "1111" & B3C;
+			when "100101" => do <= "1111" & MM0;
+			when "100110" => do <= "1111" & MM1;
+			when "100111" => do <= "1111" & spriteColors(0);
+			when "101000" => do <= "1111" & spriteColors(1);
+			when "101001" => do <= "1111" & spriteColors(2);
+			when "101010" => do <= "1111" & spriteColors(3);
+			when "101011" => do <= "1111" & spriteColors(4);
+			when "101100" => do <= "1111" & spriteColors(5);
+			when "101101" => do <= "1111" & spriteColors(6);
+			when "101110" => do <= "1111" & spriteColors(7);
+			when others => do <= (others => '1');
+			end case;
 			end if;
 		end if;
 	end process;
