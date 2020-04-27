@@ -447,7 +447,6 @@ wire [1:0] pd34_mode = status[29:28];
 
 reg [24:0] ioctl_load_addr;
 reg        ioctl_req_wr;
-reg        ioctl_iec_cycle_used;
 
 reg [15:0] cart_id;
 reg [15:0] cart_bank_laddr;
@@ -472,11 +471,11 @@ wire       load_prg = (ioctl_index[7:6] == 0) && load_inj;
 reg        inj_meminit = 0;
 reg  [7:0] inj_meminit_data;
 
-wire       iec_cycle = (ces == 4'b1011);
-reg        iec_cycle_ce;
-reg        iec_cycle_we;
-reg [24:0] iec_cycle_addr;
-reg  [7:0] iec_cycle_data;
+wire       io_cycle;
+reg        io_cycle_ce;
+reg        io_cycle_we;
+reg [24:0] io_cycle_addr;
+reg  [7:0] io_cycle_data;
 
 localparam TAP_ADDR = 25'h200000;
 
@@ -484,31 +483,31 @@ always @(posedge clk_sys) begin
 	reg [4:0] erase_to;
 	reg old_download;
 	reg erase_cram;
-	reg iec_cycleD;
+	reg io_cycleD;
 	reg old_st0 = 0;
 	reg old_meminit;
 
 	old_download <= ioctl_download;
-	iec_cycleD <= iec_cycle;
+	io_cycleD <= io_cycle;
 	cart_hdr_wr <= 0;
 	old_meminit <= inj_meminit;
 	
-	if (~iec_cycle & iec_cycleD) begin
-		iec_cycle_ce <= 1;
-		iec_cycle_we <= 0;
-		iec_cycle_addr <= tap_play_addr + TAP_ADDR;
+	if (~io_cycle & io_cycleD) begin
+		io_cycle_ce <= 1;
+		io_cycle_we <= 0;
+		io_cycle_addr <= tap_play_addr + TAP_ADDR;
 		if (ioctl_req_wr) begin
 			ioctl_req_wr <= 0;
-			iec_cycle_we <= 1;
-			iec_cycle_addr <= ioctl_load_addr;
+			io_cycle_we <= 1;
+			io_cycle_addr <= ioctl_load_addr;
 			ioctl_load_addr <= ioctl_load_addr + 1'b1;
-			if (erasing) iec_cycle_data <= {8{ioctl_load_addr[6]}};
-			else if (inj_meminit) iec_cycle_data <= inj_meminit_data;
-			else iec_cycle_data <= ioctl_data;
+			if (erasing) io_cycle_data <= {8{ioctl_load_addr[6]}};
+			else if (inj_meminit) io_cycle_data <= inj_meminit_data;
+			else io_cycle_data <= ioctl_data;
 		end
 	end
 
-	if (iec_cycle & iec_cycleD) {iec_cycle_ce, iec_cycle_we} <= 0;
+	if (io_cycle & io_cycleD) {io_cycle_ce, io_cycle_we} <= 0;
 
 	if (ioctl_wr) begin
 		if (load_inj) begin
@@ -677,17 +676,16 @@ sdram sdram
 	.clk(clk64),
 	.init(~pll_locked),
 	.refresh(idle),
-	.addr( iec_cycle ? iec_cycle_addr : cart_addr    ),
-	.ce  ( iec_cycle ? iec_cycle_ce   : mem_ce       ),
-	.we  ( iec_cycle ? iec_cycle_we   : ~ram_we      ),
-	.din ( iec_cycle ? iec_cycle_data : c64_data_out ),
+	.addr( io_cycle ? io_cycle_addr : cart_addr    ),
+	.ce  ( io_cycle ? io_cycle_ce   : mem_ce       ),
+	.we  ( io_cycle ? io_cycle_we   : ~ram_we      ),
+	.din ( io_cycle ? io_cycle_data : c64_data_out ),
 	.dout( sdram_data )
 );
 
 wire  [7:0] c64_data_out;
 wire [15:0] c64_addr;
 wire        idle;
-wire  [3:0] ces;
 wire        ram_ce;
 wire        ram_we;
 wire        nmi_ack;
@@ -752,7 +750,7 @@ fpga64_sid_iec fpga64
 	.pot3(pd34_mode[1] ? paddle_3 : pd34_mode[0] ? mouse_x : {8{joyB_c64[5]}}),
 	.pot4(pd34_mode[1] ? paddle_4 : pd34_mode[0] ? mouse_y : {8{joyB_c64[6]}}),
 
-	.ces(ces),
+	.io_cycle(io_cycle),
 	.idle(idle),
 	.sid_we_ext(sid_we),
 	.sid_mode({status[22:21]==1,status[20]}),
@@ -1091,12 +1089,12 @@ wire       load_tap = (ioctl_index == 6);
 wire       tape_download = ioctl_download & load_tap;
 
 always @(posedge clk_sys) begin
-	reg iec_cycleD, tap_finishD;
+	reg io_cycleD, tap_finishD;
 	reg read_cyc;
 	reg tap_play_btnD;
 
 	tap_play_btnD <= tap_play_btn;
-	iec_cycleD <= iec_cycle;
+	io_cycleD <= io_cycle;
 	tap_finishD <= tap_finish;
 	tap_wrreq <= 0;
 
@@ -1111,8 +1109,8 @@ always @(posedge clk_sys) begin
 		if (~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
 		if (~tap_finishD & tap_finish) tap_play <= 0;
 
-		if (~iec_cycle & iec_cycleD & ~tap_wrfull & tap_loaded) read_cyc <= 1;
-		if (iec_cycle & iec_cycleD & read_cyc) begin
+		if (~io_cycle & io_cycleD & ~tap_wrfull & tap_loaded) read_cyc <= 1;
+		if (io_cycle & io_cycleD & read_cyc) begin
 			tap_play_addr <= tap_play_addr + 1'd1;
 			read_cyc <= 0;
 			tap_wrreq <= 1;
