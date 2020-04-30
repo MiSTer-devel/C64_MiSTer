@@ -1,6 +1,0 @@
-set_global_assignment -name VHDL_FILE c1541/c1541_via6522.vhd
-set_global_assignment -name SYSTEMVERILOG_FILE c1541/c1541_gcr.sv
-set_global_assignment -name SYSTEMVERILOG_FILE c1541/c1541_track.sv
-set_global_assignment -name VERILOG_FILE c1541/c1541_logic.v
-set_global_assignment -name VERILOG_FILE c1541/c1541_sd.v
-set_global_assignment -name VHDL_FILE c1541/c1541.vhd

@@ -129,7 +129,7 @@ architecture rtl of fpga64_buslogic is
 	
 begin
 	chargen: entity work.dprom
-	generic map ("roms/chargen.mif", 12)
+	generic map ("rtl/roms/chargen.mif", 12)
 	port map
 	(
 		wrclock => clk,
@@ -140,7 +140,7 @@ begin
 	);
 
 	kernel_c64gs: entity work.dprom
-	generic map ("roms/std_C64GS.mif", 14)
+	generic map ("rtl/roms/std_C64GS.mif", 14)
 	port map
 	(
 		wrclock => clk,
@@ -151,7 +151,7 @@ begin
 	);
 
 	kernel_c64: entity work.dprom
-	generic map ("roms/std_C64.mif", 14)
+	generic map ("rtl/roms/std_C64.mif", 14)
 	port map
 	(
 		wrclock => clk,
@@ -166,7 +166,7 @@ begin
 	);
 
 	kernel_c64std: entity work.dprom
-	generic map ("roms/std_C64.mif", 14)
+	generic map ("rtl/roms/std_C64.mif", 14)
 	port map
 	(
 		wrclock => clk,

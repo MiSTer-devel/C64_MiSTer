@@ -1,5 +1,0 @@
-set_global_assignment -name VERILOG_FILE sid8580/sid8580.v
-set_global_assignment -name VERILOG_FILE sid8580/sid_voice.v
-set_global_assignment -name VERILOG_FILE sid8580/sid_tables.v
-set_global_assignment -name VERILOG_FILE sid8580/sid_filters.v
-set_global_assignment -name VERILOG_FILE sid8580/sid_envelope.v

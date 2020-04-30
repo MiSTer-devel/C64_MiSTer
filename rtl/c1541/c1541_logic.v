@@ -126,12 +126,12 @@ T65 cpu
 );
 
 reg [7:0] rom_do;
-(* ram_init_file = "c1541/c1541_rom.mif" *) reg [7:0] rom[16384];
+(* ram_init_file = "rtl/c1541/c1541_rom.mif" *) reg [7:0] rom[16384];
 always @(posedge c1541rom_clk) if (c1541rom_wr) rom[c1541rom_addr] <= c1541rom_data;
 always @(posedge clk32) rom_do <= rom[cpu_a[13:0]];
 
 reg [7:0] romstd_do;
-(* ram_init_file = "c1541/c1541_rom.mif" *) reg [7:0] romstd[16384];
+(* ram_init_file = "rtl/c1541/c1541_rom.mif" *) reg [7:0] romstd[16384];
 always @(posedge c1541rom_clk) if (c1541stdrom_wr) romstd[c1541rom_addr] <= c1541rom_data;
 always @(posedge clk32) romstd_do <= romstd[cpu_a[13:0]];
 

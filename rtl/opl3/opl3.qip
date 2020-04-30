@@ -1,0 +1,7 @@
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) opl3.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) opl3fm.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) opl3seq.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) compressor.sv ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) NextZ80Reg.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) NextZ80CPU.v ]
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) NextZ80ALU.v ]
