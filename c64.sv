@@ -512,8 +512,10 @@ always @(posedge clk_sys) begin
 	if (ioctl_wr) begin
 		if (load_inj) begin
 			if (load_prg) begin
-				// PRG
+				// PRG header
+				// Load address low-byte
 				if      (ioctl_addr == 0) begin ioctl_load_addr[7:0]  <= ioctl_data; inj_start[7:0]  <= ioctl_data; inj_end[7:0]  <= ioctl_data; end
+				// Load address high-byte
 				else if (ioctl_addr == 1) begin ioctl_load_addr[15:8] <= ioctl_data; inj_start[15:8] <= ioctl_data; inj_end[15:8] <= ioctl_data; end
 				else begin ioctl_req_wr <= 1; inj_end <= inj_end + 1'b1; end
 			end
@@ -586,17 +588,31 @@ always @(posedge clk_sys) begin
 				inj_meminit <= 0;
 			end
 			else begin
-			   // TXT (2B-2C), SAVE_START (AC-AD)
-				if      (ioctl_load_addr == 'h2B || ioctl_load_addr == 'hAC) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_start[7:0];  end
-				else if (ioctl_load_addr == 'h2C || ioctl_load_addr == 'hAD) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_start[15:8]; end
-				// VAR (2D-2E), ARY (2F-30)
-				else if (ioctl_load_addr == 'h2D || ioctl_load_addr == 'h2F) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[7:0];    end
-				else if (ioctl_load_addr == 'h2E || ioctl_load_addr == 'h30) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[15:8];   end
-				// STR (31-32), LOAD_END (AE-AF)
-				else if (ioctl_load_addr == 'h31 || ioctl_load_addr == 'hAE) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[7:0];    end
-				else if (ioctl_load_addr == 'h32 || ioctl_load_addr == 'hAF) begin ioctl_req_wr <= 1; inj_meminit_data <= inj_end[15:8];   end
-				// advance the address
-				else ioctl_load_addr <= ioctl_load_addr + 1'b1;
+				ioctl_req_wr <= 1;
+				
+				// Initialize BASIC pointers to simulate the BASIC LOAD command
+				case(ioctl_load_addr)
+					// TXT (2B-2C)
+					// Set these two bytes to $01, $08 just as they would be on reset (the BASIC LOAD command does not alter these)
+					'h2B: inj_meminit_data <= 'h01;
+					'h2C: inj_meminit_data <= 'h08;
+
+					// SAVE_START (AC-AD)
+					// Set these two bytes to zero just as they would be on reset (the BASIC LOAD command does not alter these)
+					'hAC, 'hAD: inj_meminit_data <= 'h00;
+					
+					// VAR (2D-2E), ARY (2F-30), STR (31-32), LOAD_END (AE-AF)
+					// Set these just as they would be with the BASIC LOAD command (essentially they are all set to the load end address)
+					'h2D, 'h2F, 'h31, 'hAE: inj_meminit_data <= inj_end[7:0];
+					'h2E, 'h30, 'h32, 'hAF: inj_meminit_data <= inj_end[15:8];
+					
+					default: begin
+						ioctl_req_wr <= 0;
+						
+						// advance the address
+						ioctl_load_addr <= ioctl_load_addr + 1'b1;
+					end
+				endcase
 			end
 		end
 	end
