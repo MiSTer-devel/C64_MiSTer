@@ -43,8 +43,8 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output  [7:0] VIDEO_ARX,
-	output  [7:0] VIDEO_ARY,
+	output [11:0] VIDEO_ARX,
+	output [11:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -54,6 +54,7 @@ module emu
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
+	output        VGA_SCALER, // Force VGA scaler
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -141,12 +142,13 @@ assign LED_DISK = 0;
 assign LED_POWER = 0;
 assign LED_USER = c1541_1_led | c1541_2_led | ioctl_download | tape_led;
 assign BUTTONS   = 0;
+assign VGA_SCALER = 0;
 
 // Status Bit Map:
 // 0         1         2         3
 // 01234567890123456789012345678901
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXX XXXXX   
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX   
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -163,26 +165,27 @@ localparam CONF_STR = {
 	"RN,Tape Unload;",
 	"OB,Tape Sound,Off,On;",
 	"-;",
-	"O2,Video standard,PAL,NTSC;",
-	"O45,Aspect ratio,Original,Wide,Zoom;",
+	"O2,Video Standard,PAL,NTSC;",
+	"OO,Video Format,Original,Wide;",
+	"O45,Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
 	"-;",
-	"OD,SID left,6581,8580;",
-	"OG,SID right,6581,8580;",
-	"OKM,SID right addr,Same,DE00,D420,D500,DF00;",
-	"O6,Audio filter,On,Off;",
-	"OC,Sound expander,No,OPL2;",
-	"OIJ,Stereo mix,none,25%,50%,100%;",
+	"OD,SID Left,6581,8580;",
+	"OG,SID Right,6581,8580;",
+	"OKM,SID Right addr,Same,DE00,D420,D500,DF00;",
+	"O6,Audio Filter,On,Off;",
+	"OC,Sound Expander,No,OPL2;",
+	"OIJ,Stereo Mix,None,25%,50%,100%;",
 	"-;",
-	"O3,Swap joysticks,No,Yes;",
-	"O1,User port,Joysticks,UART;",
+	"O3,Swap Joysticks,No,Yes;",
+	"O1,User Port,Joysticks,UART;",
 	"OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
 	"OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
 	"-;",
 	"OEF,Kernal,Loadable C64,Standard C64,C64GS;",
 	"-;",
 	"RH,Reset;",
-	"R0,Reset & Detach cartridge;",
+	"R0,Reset & Detach Cartridge;",
 	"J,Fire 1,Fire 2,Fire 3,Paddle Btn;",
 	"jn,A,B,Y,X|P;",
 	"jp,A,B,Y,X|P;",
@@ -941,7 +944,7 @@ video_sync sync
 	.hsync(hsync),
 	.vsync(vsync),
 	.ntsc(ntsc),
-	.wide(status[5]),
+	.wide(status[24]),
 	.hsync_out(hsync_out),
 	.vsync_out(vsync_out),
 	.hblank(hblank),
@@ -971,10 +974,12 @@ end
 wire scandoubler = status[10:8] || forced_scandoubler;
 
 assign CLK_VIDEO = clk64;
-assign VIDEO_ARX = status[5:4] ? 8'd16 : 8'd4;
-assign VIDEO_ARY = status[5:4] ? 8'd9  : 8'd3;
+assign VIDEO_ARX = (!ar) ? (status[24] ? 8'd16 : 8'd4) : (ar - 1'd1);
+assign VIDEO_ARY = (!ar) ? (status[24] ? 8'd9  : 8'd3) : 12'd0;
 assign VGA_SL    = (status[10:8] > 2) ? status[9:8] - 2'd2 : 2'd0;
 assign VGA_F1    = 0;
+
+wire [1:0] ar = status[5:4];
 
 video_mixer #(.GAMMA(1)) video_mixer
 (
@@ -1075,18 +1080,18 @@ sid8580 sid_8580
 
 wire [17:0] audio_r = status[16] ? audio8580_r : audio6581_r;
 
-reg [15:0] al,ar;
+reg [15:0] alo,aro;
 always @(posedge clk_sys) begin
 	reg [16:0] alm,arm;
 
 	alm <= {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} + {cass_snd, 10'd0};
 	arm <= {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} + {cass_snd, 10'd0};
-	al <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
-	ar <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
+	alo <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
+	aro <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
 end
 
-assign AUDIO_L = al;
-assign AUDIO_R = ar;
+assign AUDIO_L = alo;
+assign AUDIO_R = aro;
 assign AUDIO_S = 1;
 assign AUDIO_MIX = status[19:18];
 
