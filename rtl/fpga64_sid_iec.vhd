@@ -80,6 +80,7 @@ port(
 	IOF			: out std_logic;	-- cart signals LCA
 	CPU_hasbus  : out std_logic;	-- CPU has the bus STROBE
 	freeze_key  : out std_logic;
+	mod_key     : out std_logic;
 
 	ioF_ext     : in  std_logic;
 	ioE_ext     : in  std_logic;
@@ -732,6 +733,7 @@ port map (
 	pbo => cia1_pbi,
 
 	restore_key => freeze_key,
+	mod_key => mod_key,
 	backwardsReadingEnabled => '1'
 );
 

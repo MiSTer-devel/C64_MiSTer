@@ -47,6 +47,7 @@ entity fpga64_keyboard is
 		pbo: out unsigned(7 downto 0);
 		
 		restore_key : out std_logic;
+		mod_key     : out std_logic;
 		
 		-- Config
 		-- backwardsReadingEnabled = 1 allows reversal of PIA registers to still work.
@@ -138,6 +139,9 @@ architecture rtl of fpga64_keyboard is
 	signal key_Q: std_logic := '0';
 	signal key_runstop: std_logic := '0';
 
+	signal mod_key1: std_logic := '0';
+	signal mod_key2: std_logic := '0';
+
 	-- for joystick emulation on PS2
 	signal old_state : std_logic;
 
@@ -146,6 +150,8 @@ begin
 	pressed <= ps2_key(9);
 	--extended<= ps2_key(8);
 
+	mod_key <= mod_key1 or mod_key2;
+	
 	matrix: process(clk)
 	begin
 		if rising_edge(clk) then
@@ -328,12 +334,14 @@ begin
 				when X"1C" => key_A <= pressed; 
 				when X"1D" => key_W <= pressed; 
 				when X"1E" => key_2 <= pressed; 
+				when X"1F" => mod_key1 <= pressed; 
 				when X"21" => key_C <= pressed; 
 				when X"22" => key_X <= pressed; 
 				when X"23" => key_D <= pressed; 
 				when X"24" => key_E <= pressed; 
 				when X"25" => key_4 <= pressed; 
 				when X"26" => key_3 <= pressed; 
+				when X"27" => mod_key2 <= pressed; 
 				when X"29" => key_space <= pressed; 
 				when X"2A" => key_V <= pressed; 
 				when X"2B" => key_F <= pressed; 

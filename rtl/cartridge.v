@@ -44,6 +44,7 @@ module cartridge
 	output reg    max_ram,              // Enable whole C64 RAM in Ultimax mode
 
 	input         freeze_key,
+	input         mod_key,
 	output reg    nmi,
 	input         nmi_ack
 );
@@ -109,6 +110,7 @@ wire freeze_req = (~old_freeze & freeze_key);
 
 reg  old_nmiack = 0;
 wire freeze_ack = (nmi & ~old_nmiack & nmi_ack);
+wire freeze_crt = freeze_ack & ~mod_key;
 
 // 0018 - EXROM line status
 // 0019 - GAME line status
@@ -124,7 +126,7 @@ always @(posedge clk32) begin
 	if (!cart_attached) allow_freeze <= 1;  // Otherwise it defaults to 0 and freeze/restore does not work after dettaching a freezer (just once).
 	
 	old_freeze <= freeze_key;
-	if(freeze_req & allow_freeze) nmi <= 1;
+	if(freeze_req & (allow_freeze | mod_key)) nmi <= 1;
 
 	old_nmiack <= nmi_ack;
 	if(freeze_ack) nmi <= 0;
@@ -164,7 +166,7 @@ always @(posedge clk32) begin
 		// controlled by DE00
 		1:	begin
 				if(nmi) allow_freeze <= 0;
-				if(!init_n || freeze_ack) begin
+				if(!init_n || freeze_crt) begin
 					cart_disable  <= 0;
 					exrom_overide <= 1;
 					game_overide  <= 0;
@@ -238,7 +240,7 @@ always @(posedge clk32) begin
 						cart_disable <= c64_data_out[7];
 					end
 				end
-				if(freeze_ack) begin
+				if(freeze_crt) begin
 					cart_disable <= 0;
 					game_overide <= 0;
 					allow_freeze <= 0;
@@ -346,7 +348,7 @@ always @(posedge clk32) begin
 					IOF_ena <= 1;
 				end
 
-				if(freeze_ack) begin
+				if(freeze_crt) begin
 					game_overide <= 0;
 					allow_freeze <= 0;
 				end
@@ -406,7 +408,7 @@ always @(posedge clk32) begin
 
 		// Super Snapshot v5 -(64k rom 8*8k banks/4*16k banks, 32k ram 4*8k banks)
 		20: begin
-				if(!init_n || freeze_ack) begin
+				if(!init_n || freeze_crt) begin
 					init_n  <= 1;
 					romL_we <= 1;
 					bank_lo <= 0;

@@ -157,8 +157,8 @@ localparam CONF_STR = {
 	"D0S1,D64T64,Mount Drive #9;",
 	"OP,Enable Drive #9,No,Yes;",
 	"-;",
-	"F,PRG,Load File;",
-	"F,CRT,Load Cartridge;",
+	"F4,PRG,Load File;",
+	"F5,CRT,Load Cartridge;",
 	"-;",
 	"F,TAP,Tape Load;",
 	"R7,Tape Play/Pause;",
@@ -422,6 +422,7 @@ cartridge cartridge
 	.IOF_ena(IOF_rom),
 	.max_ram(max_ram),
 	.freeze_key(freeze_key),
+	.mod_key(mod_key),
 	.nmi(nmi),
 	.nmi_ack(nmi_ack)
 );
@@ -710,6 +711,7 @@ wire        ram_ce;
 wire        ram_we;
 wire        nmi_ack;
 wire        freeze_key;
+wire        mod_key;
 
 wire        IOE;
 wire        IOF;
@@ -751,6 +753,7 @@ fpga64_sid_iec fpga64
 	.nmi_n(~nmi),
 	.nmi_ack(nmi_ack),
 	.freeze_key(freeze_key),
+	.mod_key(mod_key),
 	.dma_n(1'b1),
 	.roml(romL),
 	.romh(romH),
