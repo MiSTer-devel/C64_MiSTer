@@ -152,7 +152,7 @@ assign VGA_SCALER = 0;
 
 `include "build_id.v"
 localparam CONF_STR = {
-	"C64;;",
+	"C64;UART2400;",
 	"S0,D64T64,Mount Drive #8;",
 	"D0S1,D64T64,Mount Drive #9;",
 	"OP,Enable Drive #9,No,Yes;",
@@ -367,8 +367,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_data),
-	.ioctl_wait(ioctl_req_wr),
-	.uart_mode(16'b000_11111_000_11111)
+	.ioctl_wait(ioctl_req_wr)
 );
 
 wire game;
