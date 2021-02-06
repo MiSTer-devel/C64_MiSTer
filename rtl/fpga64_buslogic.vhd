@@ -101,10 +101,14 @@ architecture rtl of fpga64_buslogic is
 	end component;
 
 	signal charData: std_logic_vector(7 downto 0);
+	signal charData_std: std_logic_vector(7 downto 0);
+	signal charData_jap: std_logic_vector(7 downto 0);
+	signal charData_std_ena : std_logic := '0';
 	signal romData: std_logic_vector(7 downto 0);
 	signal romData_c64: std_logic_vector(7 downto 0);
 	signal romData_c64std: std_logic_vector(7 downto 0);
 	signal romData_c64gs: std_logic_vector(7 downto 0);
+	signal romData_c64jap: std_logic_vector(7 downto 0);
 	signal c64gs_ena : std_logic := '0';
 	signal c64std_ena : std_logic := '0';
 
@@ -136,7 +140,18 @@ begin
 		rdclock => clk,
 
 		rdaddress => std_logic_vector(currentAddr(11 downto 0)),
-		q => charData
+		q => charData_std
+	);
+
+	chargen_j: entity work.dprom
+	generic map ("rtl/roms/chargenj.mif", 12)
+	port map
+	(
+		wrclock => clk,
+		rdclock => clk,
+
+		rdaddress => std_logic_vector(currentAddr(11 downto 0)),
+		q => charData_jap
 	);
 
 	kernel_c64gs: entity work.dprom
@@ -176,13 +191,37 @@ begin
 		q => romData_c64std
 	);
 
-	romData <= romData_c64gs when c64gs_ena = '1' else romData_c64std when c64std_ena = '1' else romData_c64;
+	kernel_c64jap: entity work.dprom
+	generic map ("rtl/roms/jap_C64.mif", 14)
+	port map
+	(
+		wrclock => clk,
+		rdclock => clk,
+
+		rdaddress => std_logic_vector(cpuAddr(14) & cpuAddr(12 downto 0)),
+		q => romData_c64jap
+	);
+
+	romData <= romData_c64gs when c64gs_ena = '1' and c64std_ena = '0' else
+						romData_c64std when c64gs_ena = '0' and c64std_ena = '1' else
+						romData_c64jap when c64gs_ena = '1' and c64std_ena = '1' else
+						romData_c64;
 	process(clk)
 	begin
 		if rising_edge(clk) then
 			if reset = '1' then 
 				c64gs_ena <= bios(1);
 				c64std_ena <= bios(0);
+			end if;
+		end if;
+	end process;
+
+	charData <= charData_std when charData_std_ena = '1' else charData_jap;
+	process(clk)
+	begin
+		if rising_edge(clk) then
+			if reset = '1' then
+				charData_std_ena <= not (c64gs_ena and c64std_ena);
 			end if;
 		end if;
 	end process;
