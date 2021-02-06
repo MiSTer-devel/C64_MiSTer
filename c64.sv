@@ -182,7 +182,7 @@ localparam CONF_STR = {
 	"OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
 	"OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
 	"-;",
-	"OEF,Kernal,Loadable C64,Standard C64,C64GS;",
+	"OEF,Kernal,Loadable C64,Standard C64,C64GS,Japanese;",
 	"-;",
 	"RH,Reset;",
 	"R0,Reset & Detach Cartridge;",
