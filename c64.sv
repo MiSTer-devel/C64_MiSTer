@@ -43,8 +43,9 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output [11:0] VIDEO_ARX,
-	output [11:0] VIDEO_ARY,
+	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
+	output [12:0] VIDEO_ARX,
+	output [12:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -192,10 +193,11 @@ assign BUTTONS   = 0;
 assign VGA_SCALER = 0;
 
 // Status Bit Map:
-// 0         1         2         3
-// 01234567890123456789012345678901
-// 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX   
+//              Upper                          Lower
+// 0         1         2         3          4         5         6
+// 01234567890123456789012345678901 23456789012345678901234567890123
+// 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -213,9 +215,11 @@ localparam CONF_STR = {
 	"OB,Tape Sound,Off,On;",
 	"-;",
 	"O2,Video Standard,PAL,NTSC;",
-	"d1OO,Vertical Crop,No,Yes;",
 	"O45,Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
+	"-;",
+	"d1OO,Vertical Crop,No,Yes;",
+	"OUV,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"-;",
 	"OD,SID Left,6581,8580;",
 	"OG,SID Right,6581,8580;",
@@ -344,7 +348,7 @@ end
 
 wire [15:0] joyA,joyB,joyC,joyD;
 
-wire [31:0] status;
+wire [63:0] status;
 wire        forced_scandoubler;
 
 wire        ioctl_wr;
@@ -1031,7 +1035,7 @@ reg wide;
 always @(posedge CLK_VIDEO) begin
 	vcrop <= 0;
 	wide <= 0;
-	if(HDMI_WIDTH >= (HDMI_HEIGHT + HDMI_HEIGHT[11:1])) begin
+	if(HDMI_WIDTH >= (HDMI_HEIGHT + HDMI_HEIGHT[11:1]) && !scandoubler) begin
 		if(HDMI_HEIGHT == 480)  vcrop <= 240;
 		if(HDMI_HEIGHT == 600)  begin vcrop <= 200; wide <= vcrop_en; end
 		if(HDMI_HEIGHT == 720)  vcrop <= 240;
@@ -1045,37 +1049,35 @@ end
 wire [1:0] ar = status[5:4];
 wire vcrop_en = status[24];
 wire vga_de;
-video_crop video_crop
+video_freak video_freak
 (
 	.*,
 	.VGA_DE_IN(vga_de),
 	.ARX((!ar) ? (wide ? 12'd340 : 12'd400) : (ar - 1'd1)),
 	.ARY((!ar) ? 12'd300 : 12'd0),
 	.CROP_SIZE(vcrop_en ? vcrop : 10'd0),
-	.CROP_OFF(0)
+	.CROP_OFF(0),
+	.SCALE(status[31:30])
 );
 
 video_mixer #(.GAMMA(1)) video_mixer
 (
-	.clk_vid(CLK_VIDEO),
-	.ce_pix(ce_pix),
-	.ce_pix_out(CE_PIXEL),
+	.CLK_VIDEO(CLK_VIDEO),
 
-	.scanlines(0),
 	.hq2x(~status[10] & (status[9] ^ status[8])),
 	.scandoubler(scandoubler),
 	.gamma_bus(gamma_bus),
 
+	.ce_pix(ce_pix),
 	.R(r),
 	.G(g),
 	.B(b),
-	.mono(0),
-
 	.HSync(hsync_out),
 	.VSync(vsync_out),
 	.HBlank(hblank),
 	.VBlank(vblank),
 
+	.CE_PIXEL(CE_PIXEL),
 	.VGA_R(VGA_R),
 	.VGA_G(VGA_G),
 	.VGA_B(VGA_B),
