@@ -197,7 +197,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -218,7 +218,8 @@ localparam CONF_STR = {
 	"O45,Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
 	"-;",
-	"d1OO,Vertical Crop,No,Yes;",
+	"H2d1o0,Vertical Crop,No,Yes;",
+	"h2d1o01,Vertical Crop,No,270,216;",
 	"OUV,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"-;",
 	"OD,SID Left,6581,8580;",
@@ -393,7 +394,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.conf_str(CONF_STR),
 
 	.status(status),
-	.status_menumask({|vcrop,~status[25]}),
+	.status_menumask({en1080p, |vcrop,~status[25]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -1041,13 +1042,17 @@ always @(posedge CLK_VIDEO) begin
 		if(HDMI_HEIGHT == 720)  vcrop <= 240;
 		if(HDMI_HEIGHT == 768)  vcrop <= 256; // NTSC mode has 250 visible lines only!
 		if(HDMI_HEIGHT == 800)  begin vcrop <= 200; wide <= vcrop_en; end
-		if(HDMI_HEIGHT == 1080) vcrop <= ntsc ? 10'd216 : 10'd270;
+		if(HDMI_HEIGHT == 1080) vcrop <= (ntsc | status[33]) ? 10'd216 : 10'd270;
 		if(HDMI_HEIGHT == 1200) vcrop <= 240;
 	end
 end
 
+reg en1080p;
+always @(posedge CLK_VIDEO) en1080p <= (HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080);
+
+
 wire [1:0] ar = status[5:4];
-wire vcrop_en = status[24];
+wire vcrop_en = en1080p ? |status[33:32] : status[32];
 wire vga_de;
 video_freak video_freak
 (
