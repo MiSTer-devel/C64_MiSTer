@@ -72,17 +72,17 @@ begin
             
             when 1 =>
                 if filter_hp='1' then
-                    mix_i <= sum_limit(mix_i, high_pass); 
+                    mix_i <= sub_limit(mix_i, high_pass);
                 end if;
                 
             when 2 =>
                 if filter_bp='1' then
-                    mix_i <= sum_limit(mix_i, band_pass); 
+                    mix_i <= sub_limit(mix_i, band_pass);
                 end if;
 
             when 3 =>
                 if filter_lp='1' then
-                    mix_i <= sum_limit(mix_i, low_pass); 
+                    mix_i <= sub_limit(mix_i, low_pass);
                 end if;
                 vol_s <= '0' & signed(c_volume_lut(to_integer(volume)));
 
