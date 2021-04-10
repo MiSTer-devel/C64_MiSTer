@@ -585,9 +585,6 @@ port map (
 	potx => pot_x1 and pot_x2,
 	poty => pot_y1 and pot_y2,
 
-	comb_wave_l => '0',
-	comb_wave_r => '0',
-
 	extfilter_en => extfilter_en,
 
 	start_iter => clk_1MHz(31),

@@ -27,10 +27,6 @@ port (
     potx          : in  std_logic_vector(7 downto 0);
     poty          : in  std_logic_vector(7 downto 0);
 
----
-    comb_wave_l   : in  std_logic;
-    comb_wave_r   : in  std_logic;
----
     voice_osc     : in  unsigned(3 downto 0);
     voice_wave    : in  unsigned(3 downto 0);
     voice_adsr    : in  unsigned(3 downto 0);
@@ -42,7 +38,6 @@ port (
     sync          : out std_logic;
     
     -- Wave map parameters
-    comb_mode     : out std_logic;
     ring_mod      : out std_logic;
     wave_sel      : out std_logic_vector(3 downto 0);
     sq_width      : out unsigned(11 downto 0);
@@ -240,7 +235,6 @@ begin
     ring_mod    <= control(to_integer(voice_wave))(2);
     wave_sel    <= control(to_integer(voice_wave))(7 downto 4);
     sq_width    <= unsigned(phase_hi(to_integer(voice_wave))) & unsigned(phase_lo(to_integer(voice_wave)));
-    comb_mode   <= (voice_wave(3) and comb_wave_r) or (not voice_wave(3) and comb_wave_l);
     
     -- ADSR parameters
     gate        <= control(to_integer(voice_adsr))(0);

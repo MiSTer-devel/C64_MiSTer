@@ -32,9 +32,6 @@ port (
     potx          : in  std_logic_vector(7 downto 0) := (others => '0');
     poty          : in  std_logic_vector(7 downto 0) := (others => '0');
 
-    comb_wave_l   : in  std_logic := '0';
-    comb_wave_r   : in  std_logic := '0';
-
     start_iter    : in  std_logic;
     sample_left   : out signed(17 downto 0);
     sample_right  : out signed(17 downto 0);
@@ -61,7 +58,6 @@ architecture structural of sid_top is
 
     -- Wave map parameters
     signal msb_other   : std_logic;
-    signal comb_mode   : std_logic;
     signal ring_mod    : std_logic;
     signal wave_sel    : std_logic_vector(3 downto 0);
     signal sq_width    : unsigned(11 downto 0);
@@ -137,9 +133,6 @@ begin
 		potx        => potx,
 		poty        => poty,
 
-		comb_wave_l => comb_wave_l,
-		comb_wave_r => comb_wave_r,
-
 		voice_osc   => voice_osc,
 		voice_wave  => voice_wave,
 		voice_adsr  => voice_wave,
@@ -151,7 +144,6 @@ begin
 		sync        => sync,
 
 		-- Wave map parameters
-		comb_mode   => comb_mode,
 		ring_mod    => ring_mod,
 		wave_sel    => wave_sel,
 		sq_width    => sq_width,
@@ -249,7 +241,6 @@ begin
         
 		voice_i   => voice_wave,
 		enable_i  => enable_wave,
-		comb_mode => comb_mode,
 		wave_sel  => wave_sel,
 		ring_mod  => ring_mod,
 		sq_width  => sq_width,
