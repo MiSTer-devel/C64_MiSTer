@@ -102,6 +102,11 @@ port(
 	sid_ver     : in  std_logic;
 	sid_we_ext  : out std_logic;
 	sid_mode    : in  std_logic_vector(1 downto 0);
+	sid_cfg     : in  std_logic_vector(2 downto 0);
+	sid_ld_clk  : in  std_logic;
+	sid_ld_addr : in  std_logic_vector(11 downto 0);
+	sid_ld_data : in  std_logic_vector(15 downto 0);
+	sid_ld_wr   : in  std_logic;
 
 	-- IEC
 	iec_data_o	: out std_logic;
@@ -586,10 +591,16 @@ port map (
 	poty => pot_y1 and pot_y2,
 
 	extfilter_en => extfilter_en,
+	cfg => sid_cfg,
 
 	start_iter => clk_1MHz(31),
 	sample_left => audio_6581,
-	sample_right => open
+	sample_right => open,
+
+	ld_clk  => sid_ld_clk,
+	ld_addr => sid_ld_addr,
+	ld_data => sid_ld_data,
+	ld_wr   => sid_ld_wr
 );
 
 sid_8580 : sid8580

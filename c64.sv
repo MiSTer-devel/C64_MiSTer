@@ -196,7 +196,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XX
+// XXXXXX XXXXXXXXXXXXXXXXX XXXXXXX XXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -215,19 +215,20 @@ localparam CONF_STR = {
 	"-;",
 
 	"P1,Audio & Video;", 
-	"P1-;",
 	"P1O2,Video Standard,PAL,NTSC;",
 	"P1O45,Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
-	"P1-;",
 	"H2d1P1o0,Vertical Crop,No,Yes;",
 	"h2d1P1o01,Vertical Crop,No,270,216;",
 	"P1OUV,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"P1-;",
-	"P1OD,SID Left,6581,8580;",
-	"P1OG,SID Right,6581,8580;",
-	"P1OKM,SID Right addr,Same,DE00,D420,D500,DF00;",
-	"P1O6,Audio Filter,On,Off;",
+	"P1OD,Left SID,6581,8580;",
+	"D4P1o24,Left Filter,Default,8580 Low,8580 High,6581 v1,6581 v2,Custom 1,Custom 2,Custom 3;",
+	"P1OG,Right SID,6581,8580;",
+	"D5P1o57,Right Filter,Default,8580 Low,8580 High,6581 v1,6581 v2,Custom 1,Custom 2,Custom 3;",
+	"P1OKM,Right SID Port,Same,DE00,D420,D500,DF00;",
+	"P1FC7,FLT,Load Custom Filters;",
+	"P1-;",
 	"P1OC,Sound Expander,No,OPL2;",
 	"P1OIJ,Stereo Mix,None,25%,50%,100%;",
 
@@ -402,7 +403,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.conf_str(CONF_STR),
 
 	.status(status),
-	.status_menumask({tap_loaded, en1080p, |vcrop, ~status[25]}),
+	.status_menumask({status[16],status[13],tap_loaded, en1080p, |vcrop, ~status[25]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -836,8 +837,14 @@ fpga64_sid_iec fpga64
 	.idle(idle),
 	.sid_we_ext(sid_we),
 	.sid_mode({status[22:21]==1,status[20]}),
+	.sid_cfg(status[36:34]),
+	.sid_ld_clk(clk_sys),
+	.sid_ld_addr(sid_ld_addr),
+	.sid_ld_data(sid_ld_data),
+	.sid_ld_wr(sid_ld_wr),
+	
 	.audio_data(audio_l),
-	.extfilter_en(~status[6]),
+	.extfilter_en(1),
 	.sid_ver(status[13]),
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
@@ -1146,9 +1153,32 @@ sid_top sid_6581
 	.wdata(c64_data_out),
 	.rdata(data_6581),
 
-	.extfilter_en(~status[6]),
-	.sample_left(audio6581_r)
+	.extfilter_en(1),
+	.cfg(status[39:37]),
+	.sample_left(audio6581_r),
+
+	.ld_clk(clk_sys),
+	.ld_addr(sid_ld_addr),
+	.ld_data(sid_ld_data),
+	.ld_wr(sid_ld_wr)
 );
+
+reg [11:0] sid_ld_addr = 0;
+reg [15:0] sid_ld_data = 0;
+reg        sid_ld_wr   = 0;
+always @(posedge clk_sys) begin
+	sid_ld_wr <= 0;
+	if(ioctl_wr && ioctl_index == 7 && ioctl_addr < 6144) begin
+		if(ioctl_addr[0]) begin
+			sid_ld_data[15:8] <= ioctl_data;
+			sid_ld_addr <= ioctl_addr[12:1];
+			sid_ld_wr <= 1;
+		end
+		else begin
+			sid_ld_data[7:0] <= ioctl_data;
+		end
+	end
+end
 
 wire [17:0] audio8580_r;
 wire  [7:0] data_8580;
@@ -1163,7 +1193,7 @@ sid8580 sid_8580
 	.data_in(c64_data_out),
 	.data_out(data_8580),
 
-	.extfilter_en(~status[6]),
+	.extfilter_en(1),
 	.audio_data(audio8580_r)
 );	
 

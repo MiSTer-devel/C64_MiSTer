@@ -18,7 +18,6 @@ library work;
 
 entity sid_top is
 generic (
-    g_filter_div  : natural := 667; -- for 48KHz output on 32MHz clock.
     g_num_voices  : natural := 3 );
 port (
     clock         : in  std_logic;
@@ -31,12 +30,19 @@ port (
 
     potx          : in  std_logic_vector(7 downto 0) := (others => '0');
     poty          : in  std_logic_vector(7 downto 0) := (others => '0');
+	 
+	 cfg           : in  std_logic_vector(2 downto 0);
 
     start_iter    : in  std_logic;
     sample_left   : out signed(17 downto 0);
     sample_right  : out signed(17 downto 0);
 	 
-	 extfilter_en  : in  std_logic
+	 extfilter_en  : in  std_logic;
+
+	 ld_clk        : in  std_logic;
+	 ld_addr       : in  std_logic_vector(11 downto 0);
+	 ld_data       : in  std_logic_vector(15 downto 0);
+	 ld_wr         : in  std_logic
 );
 end sid_top;
 
@@ -301,15 +307,12 @@ begin
 	);
 
 	i_filt_left: entity work.sid_filter
-	generic map
-	(
-		g_divider   => g_filter_div
-	)
 	port map
 	(
 		clock       => clock,
 		reset       => reset,
 		enable      => extfilter_en,
+		cfg         => unsigned(cfg),
 
 		filt_co     => filter_co_l,
 		filt_res    => filter_res_l,
@@ -322,10 +325,15 @@ begin
 		low_pass    => low_pass_L,
 
 		error_out   => open,
-		valid_out   => valid_filt
+		valid_out   => valid_filt,
+
+		ld_clk      => ld_clk,
+		ld_addr     => ld_addr,
+		ld_data     => ld_data,
+		ld_wr       => ld_wr
 	);
 
-	mix: entity work.sid_mixer
+	mix_left: entity work.sid_mixer
 	port map
 	(
 		clock       => clock,
@@ -349,15 +357,12 @@ begin
 	);
 
 	i_filt_right: entity work.sid_filter
-	generic map
-	(
-		g_divider   => g_filter_div
-	)
 	port map
 	(
 		clock       => clock,
 		reset       => reset,
 		enable      => extfilter_en,
+		cfg         => unsigned(cfg),
 
 		filt_co     => filter_co_r,
 		filt_res    => filter_res_r,
@@ -370,7 +375,12 @@ begin
 		low_pass    => low_pass_R,
 
 		error_out   => open,
-		valid_out   => open
+		valid_out   => open,
+
+		ld_clk      => ld_clk,
+		ld_addr     => ld_addr,
+		ld_data     => ld_data,
+		ld_wr       => ld_wr
 	);
 
 	mix_right: entity work.sid_mixer
