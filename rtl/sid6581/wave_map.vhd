@@ -17,35 +17,32 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 entity wave_map is
-generic (
-    g_num_voices  : integer := 8;  -- 8 or 16, clock should then be 8 or 16 MHz, too!
-    g_sample_bits : integer := 8 );
-port (
-    clock    : in  std_logic;
-    reset    : in  std_logic;
-    
-    osc_val  : in  unsigned(23 downto 0);
-    carry_20 : in  std_logic;
+port
+(
+	clock    : in  std_logic;
+	reset    : in  std_logic;
 
-    msb_other: in  std_logic := '0';
-    ring_mod : in  std_logic := '0';
-    test     : in  std_logic := '0';
-       
-    voice_i  : in  unsigned(3 downto 0);
-    enable_i : in  std_logic;
-    wave_sel : in  std_logic_vector(3 downto 0);
-    sq_width : in  unsigned(11 downto 0);
+	osc_val  : in  unsigned(23 downto 0);
+	carry_20 : in  std_logic;
 
-    voice_o  : out unsigned(3 downto 0);
-    enable_o : out std_logic;
-    wave_out : out unsigned(g_sample_bits-1 downto 0) );
+	msb_other: in  std_logic := '0';
+	ring_mod : in  std_logic := '0';
+	test     : in  std_logic := '0';
 
+	voice_i  : in  unsigned(1 downto 0);
+	enable_i : in  std_logic;
+	wave_sel : in  std_logic_vector(3 downto 0);
+	sq_width : in  unsigned(11 downto 0);
+
+	voice_o  : out unsigned(1 downto 0);
+	enable_o : out std_logic;
+	wave_out : out unsigned(11 downto 0)
+);
 end wave_map;
-
 
 architecture Gideon of wave_map is
 	type noise_array_t is array (natural range <>) of unsigned(22 downto 0);
-	signal noise_reg : noise_array_t(0 to g_num_voices-1) := (others => (others => '1'));
+	signal noise_reg : noise_array_t(0 to 2) := (others => (others => '1'));
 
 	signal triangle : unsigned(11 downto 0);
 	signal sawtooth : unsigned(11 downto 0);
@@ -80,7 +77,11 @@ begin
 			noise_reg(to_integer(voice_i)) <= noise;
 		end if;
 
-		wave_out <= wave(11 downto 12-g_sample_bits);
+		if reset='1' then
+			noise_reg <= (others => (others => '1'));
+		end if;
+
+		wave_out <= wave;
 		voice_o  <= voice_i;
 		enable_o <= enable_i;
   end if;

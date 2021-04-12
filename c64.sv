@@ -1155,7 +1155,7 @@ sid_top sid_6581
 
 	.extfilter_en(1),
 	.cfg(status[39:37]),
-	.sample_left(audio6581_r),
+	.sample(audio6581_r),
 
 	.ld_clk(clk_sys),
 	.ld_addr(sid_ld_addr),

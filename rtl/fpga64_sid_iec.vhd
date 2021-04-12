@@ -582,7 +582,7 @@ port map (
 	clock => clk32,
 	reset => reset,
 
-	addr => "000" & cpuAddr(4 downto 0),
+	addr => cpuAddr(4 downto 0),
 	wren => sid_we and sid_sel_int,
 	wdata => std_logic_vector(cpuDo),
 	rdata => sid_do6581,
@@ -594,8 +594,7 @@ port map (
 	cfg => sid_cfg,
 
 	start_iter => clk_1MHz(31),
-	sample_left => audio_6581,
-	sample_right => open,
+	sample => audio_6581,
 
 	ld_clk  => sid_ld_clk,
 	ld_addr => sid_ld_addr,

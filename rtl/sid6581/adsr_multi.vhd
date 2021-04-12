@@ -17,26 +17,25 @@ use ieee.numeric_std.all;
 -- LUT: 195, FF:68
 
 entity adsr_multi is
-generic (
-    g_num_voices : integer := 8 );
-port (
-    clock    : in  std_logic;
-    reset    : in  std_logic;
+port
+(
+	clock    : in  std_logic;
+	reset    : in  std_logic;
 
-    voice_i  : in  unsigned(3 downto 0);
-    enable_i : in  std_logic;
-    voice_o  : out unsigned(3 downto 0);
-    enable_o : out std_logic;
-        
-    gate     : in  std_logic;
-    attack   : in  std_logic_vector(3 downto 0);
-    decay    : in  std_logic_vector(3 downto 0);
-    sustain  : in  std_logic_vector(3 downto 0);
-    release  : in  std_logic_vector(3 downto 0);
-    
-    env_state: out std_logic_vector(1 downto 0); -- for testing only
-    env_out  : out unsigned(7 downto 0) );
-    
+	voice_i  : in  unsigned(1 downto 0);
+	enable_i : in  std_logic;
+	voice_o  : out unsigned(1 downto 0);
+	enable_o : out std_logic;
+
+	gate     : in  std_logic;
+	attack   : in  std_logic_vector(3 downto 0);
+	decay    : in  std_logic_vector(3 downto 0);
+	sustain  : in  std_logic_vector(3 downto 0);
+	release  : in  std_logic_vector(3 downto 0);
+
+	env_state: out std_logic_vector(1 downto 0); -- for testing only
+	env_out  : out unsigned(7 downto 0)
+);
 end adsr_multi;
 
 -- 158	1   62 .. FF
@@ -47,7 +46,6 @@ end adsr_multi;
 -- 7	30  00 .. 06
 
 architecture gideon of adsr_multi is
-
     type presc_array_t is array(natural range <>) of unsigned(15 downto 0);
     constant prescalers : presc_array_t(0 to 15) := (
         X"0008", X"001F", X"003E", X"005E",
@@ -64,7 +62,7 @@ architecture gideon of adsr_multi is
     constant st_decay   : unsigned(1 downto 0) := "11";
     
     type state_array_t is array(natural range <>) of unsigned(29 downto 0);
-    signal state_array : state_array_t(0 to g_num_voices-1) := (others => (others => '0'));
+    signal state_array : state_array_t(0 to 2) := (others => (others => '0'));
 begin
     env_out   <= enveloppe;
     env_state <= std_logic_vector(state);
@@ -112,10 +110,10 @@ begin
         variable do_count_5   : std_logic;
     begin
         if rising_edge(clock) then
-            cur_state := state_array(0)(1 downto 0);
-            cur_env   := state_array(0)(9 downto 2);
-            cur_pre15 := state_array(0)(24 downto 10);
-            cur_pre5  := state_array(0)(29 downto 25);
+            cur_state := state_array(to_integer(voice_i))(1 downto 0);
+            cur_env   := state_array(to_integer(voice_i))(9 downto 2);
+            cur_pre15 := state_array(to_integer(voice_i))(24 downto 10);
+            cur_pre5  := state_array(to_integer(voice_i))(29 downto 25);
 
             voice_o  <= voice_i;
             enable_o <= enable_i;
@@ -203,16 +201,16 @@ begin
             end case;
 
             if enable_i='1' then
-                state_array(0 to g_num_voices-2) <= state_array(1 to g_num_voices-1);
-                state_array(g_num_voices-1) <= next_pre5 & next_pre15 & next_env & next_state;
+                state_array(to_integer(voice_i)) <= next_pre5 & next_pre15 & next_env & next_state;
                 enveloppe <= next_env;
                 state <= next_state;
             end if;
 
             if reset='1' then
-                state     <= "00";
-                enveloppe <= (others => '0');
-                enable_o  <= '0';
+					 state_array <= (others => (others => '0'));
+                state       <= "00";
+                enveloppe   <= (others => '0');
+                enable_o    <= '0';
             end if;
         end if;
     end process;

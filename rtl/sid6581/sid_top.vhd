@@ -17,13 +17,11 @@ use ieee.numeric_std.all;
 library work;
 
 entity sid_top is
-generic (
-    g_num_voices  : natural := 3 );
 port (
     clock         : in  std_logic;
     reset         : in  std_logic;
                   
-    addr          : in  unsigned(7 downto 0);
+    addr          : in  unsigned(4 downto 0);
     wren          : in  std_logic;
     wdata         : in  std_logic_vector(7 downto 0);
     rdata         : out std_logic_vector(7 downto 0);
@@ -34,8 +32,7 @@ port (
 	 cfg           : in  std_logic_vector(2 downto 0);
 
     start_iter    : in  std_logic;
-    sample_left   : out signed(17 downto 0);
-    sample_right  : out signed(17 downto 0);
+    sample        : out signed(17 downto 0);
 	 
 	 extfilter_en  : in  std_logic;
 
@@ -50,9 +47,9 @@ end sid_top;
 architecture structural of sid_top is
 
     -- Voice index in pipe
-    signal voice_osc   : unsigned(3 downto 0);
-    signal voice_wave  : unsigned(3 downto 0);
-    signal voice_mul   : unsigned(3 downto 0);
+    signal voice_osc   : unsigned(1 downto 0);
+    signal voice_wave  : unsigned(1 downto 0);
+    signal voice_mul   : unsigned(1 downto 0);
     signal enable_osc  : std_logic;
     signal enable_wave : std_logic;
     signal enable_mul  : std_logic;
@@ -79,21 +76,13 @@ architecture structural of sid_top is
     signal filter_en   : std_logic;
 
     -- globals
-    signal volume_l      : unsigned(3 downto 0);
-    signal filter_co_l   : unsigned(10 downto 0);
-    signal filter_res_l  : unsigned(3 downto 0);
-    signal filter_hp_l   : std_logic;    
-    signal filter_bp_l   : std_logic;
-    signal filter_lp_l   : std_logic;
-    signal voice3_off_l  : std_logic;
-
-    signal volume_r      : unsigned(3 downto 0);
-    signal filter_co_r   : unsigned(10 downto 0);
-    signal filter_res_r  : unsigned(3 downto 0);
-    signal filter_hp_r   : std_logic;    
-    signal filter_bp_r   : std_logic;
-    signal filter_lp_r   : std_logic;
-    signal voice3_off_r  : std_logic;
+    signal volume      : unsigned(3 downto 0);
+    signal filter_co   : unsigned(10 downto 0);
+    signal filter_res  : unsigned(3 downto 0);
+    signal filter_hp   : std_logic;    
+    signal filter_bp   : std_logic;
+    signal filter_lp   : std_logic;
+    signal voice3_off  : std_logic;
 
     -- readback
     signal osc3        : std_logic_vector(7 downto 0);
@@ -110,19 +99,12 @@ architecture structural of sid_top is
     signal valid_filt  : std_logic;
     signal valid_mix   : std_logic;
 
-    signal filter_out_l: signed(17 downto 0) := (others => '0');
-    signal direct_out_l: signed(17 downto 0) := (others => '0');
-    signal high_pass_l : signed(17 downto 0) := (others => '0');
-    signal band_pass_l : signed(17 downto 0) := (others => '0');
-    signal low_pass_l  : signed(17 downto 0) := (others => '0');
-    signal mixed_out_l : signed(17 downto 0) := (others => '0');
-
-    signal filter_out_r: signed(17 downto 0) := (others => '0');
-    signal direct_out_r: signed(17 downto 0) := (others => '0');
-    signal high_pass_r : signed(17 downto 0) := (others => '0');
-    signal band_pass_r : signed(17 downto 0) := (others => '0');
-    signal low_pass_r  : signed(17 downto 0) := (others => '0');
-    signal mixed_out_r : signed(17 downto 0) := (others => '0');
+    signal filter_out  : signed(17 downto 0) := (others => '0');
+    signal direct_out  : signed(17 downto 0) := (others => '0');
+    signal high_pass   : signed(17 downto 0) := (others => '0');
+    signal band_pass   : signed(17 downto 0) := (others => '0');
+    signal low_pass    : signed(17 downto 0) := (others => '0');
+    signal mixed_out   : signed(17 downto 0) := (others => '0');
 begin
  
 	i_regs: entity work.sid_regs
@@ -165,23 +147,14 @@ begin
 		filter_en   => filter_en,
 
 		-- globals
-		volume_l    => volume_l,
-		filter_co_l => filter_co_l,
-		filter_res_l=> filter_res_l,
-		filter_ex_l => open,
-		filter_hp_l => filter_hp_l,    
-		filter_bp_l => filter_bp_l,
-		filter_lp_l => filter_lp_l,
-		voice3_off_l=> voice3_off_l,
-
-		volume_r    => volume_r,
-		filter_co_r => filter_co_r,
-		filter_res_r=> filter_res_r,
-		filter_ex_r => open,
-		filter_hp_r => filter_hp_r,    
-		filter_bp_r => filter_bp_r,
-		filter_lp_r => filter_lp_r,
-		voice3_off_r=> voice3_off_r,
+		volume      => volume,
+		filter_co   => filter_co,
+		filter_res  => filter_res,
+		filter_ex   => open,
+		filter_hp   => filter_hp,    
+		filter_bp   => filter_bp,
+		filter_lp   => filter_lp,
+		voice3_off  => voice3_off,
 
 		-- readback
 		osc3        => osc3,
@@ -189,10 +162,6 @@ begin
 	);
 
 	i_ctrl: entity work.sid_ctrl
-	generic map
-	(
-		g_num_voices  => g_num_voices
-	)
 	port map
 	(
 		clock       => clock,
@@ -202,26 +171,21 @@ begin
 		enable_osc  => enable_osc
 	);
     
-    
 	osc: entity work.oscillator
-	generic map
-	(
-		g_num_voices
-	)
 	port map
 	(
-		clock    => clock,
-		reset    => reset,
+		clock     => clock,
+		reset     => reset,
 
-		voice_i  => voice_osc,
-		voice_o  => voice_wave,
+		voice_i   => voice_osc,
+		voice_o   => voice_wave,
 
-		enable_i => enable_osc,
-		enable_o => enable_wave,
+		enable_i  => enable_osc,
+		enable_o  => enable_wave,
 
-		freq     => freq,
-		test     => test,
-		sync     => sync,
+		freq      => freq,
+		test      => test,
+		sync      => sync,
 
 		osc_val   => osc_val,
 		test_o    => test_wave,
@@ -230,11 +194,6 @@ begin
 	);
     
 	wmap: entity work.wave_map
-	generic map
-	(
-		g_num_voices  => g_num_voices,
-		g_sample_bits => 12
-	)
 	port map
 	(
 		clock     => clock,
@@ -257,56 +216,46 @@ begin
 	);
 
 	adsr: entity work.adsr_multi
-	generic map
-	(
-		g_num_voices => g_num_voices
-	)
 	port map
 	(
-		clock    => clock,
-		reset    => reset,
-    
-		voice_i  => voice_wave,
-		enable_i => enable_wave,
-		voice_o  => open,
-		enable_o => open,
+		clock     => clock,
+		reset     => reset,
 
-		gate     => gate,
-		attack   => attack,
-		decay    => decay,
-		sustain  => sustain,
-		release  => release,
+		voice_i   => voice_wave,
+		enable_i  => enable_wave,
 
-		env_state=> open, -- for testing only
-		env_out  => enveloppe
+		gate      => gate,
+		attack    => attack,
+		decay     => decay,
+		sustain   => sustain,
+		release   => release,
+
+		env_out   => enveloppe
 	);
 
-	sum: entity work.mult_acc(signed_wave)
+	sum: entity work.mult_acc
 	port map
 	(
-		clock       => clock,
-		reset       => reset,
+		clock      => clock,
+		reset      => reset,
 
-		voice_i     => voice_mul,
-		enable_i    => enable_mul,
-		voice3_off_l=> voice3_off_l,
-		voice3_off_r=> voice3_off_r,
+		voice_i    => voice_mul,
+		enable_i   => enable_mul,
+		voice3_off => voice3_off,
 
-		enveloppe   => enveloppe,
-		waveform    => waveform,
-		filter_en   => filter_en,
+		enveloppe  => enveloppe,
+		waveform   => waveform,
+		filter_en  => filter_en,
 
-		osc3        => osc3,
-		env3        => env3,
+		osc3       => osc3,
+		env3       => env3,
 
-		valid_out    => valid_sum,
-		filter_out_L => filter_out_L,
-		filter_out_R => filter_out_R,
-		direct_out_L => direct_out_L,
-		direct_out_R => direct_out_R
+		valid_out  => valid_sum,
+		filter_out => filter_out,
+		direct_out => direct_out
 	);
 
-	i_filt_left: entity work.sid_filter
+	i_filt: entity work.sid_filter
 	port map
 	(
 		clock       => clock,
@@ -314,17 +263,16 @@ begin
 		enable      => extfilter_en,
 		cfg         => unsigned(cfg),
 
-		filt_co     => filter_co_l,
-		filt_res    => filter_res_l,
+		filt_co     => filter_co,
+		filt_res    => filter_res,
 
 		valid_in    => valid_sum,
 
-		input       => filter_out_L,
-		high_pass   => high_pass_L,
-		band_pass   => band_pass_L,
-		low_pass    => low_pass_L,
+		input       => filter_out,
+		high_pass   => high_pass,
+		band_pass   => band_pass,
+		low_pass    => low_pass,
 
-		error_out   => open,
 		valid_out   => valid_filt,
 
 		ld_clk      => ld_clk,
@@ -333,7 +281,7 @@ begin
 		ld_wr       => ld_wr
 	);
 
-	mix_left: entity work.sid_mixer
+	mix: entity work.sid_mixer
 	port map
 	(
 		clock       => clock,
@@ -341,72 +289,18 @@ begin
 
 		valid_in    => valid_filt,
 
-		direct_out  => direct_out_L,
-		high_pass   => high_pass_L,
-		band_pass   => band_pass_L,
-		low_pass    => low_pass_L,
+		direct_out  => direct_out,
+		high_pass   => high_pass,
+		band_pass   => band_pass,
+		low_pass    => low_pass,
 
-		filter_hp   => filter_hp_l,
-		filter_bp   => filter_bp_l,
-		filter_lp   => filter_lp_l,
+		filter_hp   => filter_hp,
+		filter_bp   => filter_bp,
+		filter_lp   => filter_lp,
 
-		volume      => volume_l,
+		volume      => volume,
 
-		mixed_out   => mixed_out_L,
-		valid_out   => open
+		mixed_out   => sample
 	);
-
-	i_filt_right: entity work.sid_filter
-	port map
-	(
-		clock       => clock,
-		reset       => reset,
-		enable      => extfilter_en,
-		cfg         => unsigned(cfg),
-
-		filt_co     => filter_co_r,
-		filt_res    => filter_res_r,
-
-		valid_in    => valid_sum,
-
-		input       => filter_out_R,
-		high_pass   => high_pass_R,
-		band_pass   => band_pass_R,
-		low_pass    => low_pass_R,
-
-		error_out   => open,
-		valid_out   => open,
-
-		ld_clk      => ld_clk,
-		ld_addr     => ld_addr,
-		ld_data     => ld_data,
-		ld_wr       => ld_wr
-	);
-
-	mix_right: entity work.sid_mixer
-	port map
-	(
-		clock       => clock,
-		reset       => reset,
-
-		valid_in    => valid_filt,
-
-		direct_out  => direct_out_R,
-		high_pass   => high_pass_R,
-		band_pass   => band_pass_R,
-		low_pass    => low_pass_R,
-
-		filter_hp   => filter_hp_r,
-		filter_bp   => filter_bp_r,
-		filter_lp   => filter_lp_r,
-
-		volume      => volume_r,
-
-		mixed_out   => mixed_out_R,
-		valid_out   => open
-	);
-
-	sample_left  <= mixed_out_L;
-	sample_right <= mixed_out_R;
 
 end structural;
