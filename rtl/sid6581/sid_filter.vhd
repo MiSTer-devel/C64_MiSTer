@@ -591,7 +591,8 @@ architecture dsvf of sid_filter is
     signal lp_reg       : signed(21 downto 0);
     signal temp_reg     : signed(21 downto 0);
     signal error        : std_logic := '0';
-    signal program_cnt  : integer range 0 to 1023;
+    signal program_cnt  : integer range 0 to 15;
+    signal scale_cnt    : integer range 0 to 23;
 
     signal instruction  : std_logic_vector(7 downto 0);
 
@@ -697,9 +698,14 @@ begin
                 lp_reg <= (others => '0');            
                 bp_reg <= (others => '0');            
                 program_cnt <= 0;
-            elsif (cfg = "000" and program_cnt = 666) or (cfg /= "000" and program_cnt >= 10) then
+            elsif program_cnt >= 10 then
                 if valid_in = '1' then
-                    program_cnt <= 0;
+						  if cfg /= "000" or scale_cnt = 20 then 
+							   scale_cnt <= 0;
+                        program_cnt <= 0;
+						  else
+								scale_cnt <= scale_cnt + 1;
+						  end if;
                 end if;
             else
                 program_cnt <= program_cnt + 1;
