@@ -215,7 +215,7 @@ begin
 		wave_out  => waveform
 	);
 
-	adsr: entity work.adsr_multi
+	adsr: entity work.adsr_multi(sorg)
 	port map
 	(
 		clock     => clock,

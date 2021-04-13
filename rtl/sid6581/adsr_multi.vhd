@@ -33,17 +33,16 @@ port
 	sustain  : in  std_logic_vector(3 downto 0);
 	release  : in  std_logic_vector(3 downto 0);
 
-	env_state: out std_logic_vector(1 downto 0); -- for testing only
 	env_out  : out unsigned(7 downto 0)
 );
 end adsr_multi;
 
--- 158	1   62 .. FF
--- 45	2   35 .. 61
--- 26	4   1C .. 34
--- 13	8   0D .. 1B
--- 6	16  07 .. 0C
--- 7	30  00 .. 06
+-- 158 1   62 .. FF
+-- 45  2   35 .. 61
+-- 26  4   1C .. 34
+-- 13  8   0D .. 1B
+-- 6   16  07 .. 0C
+-- 7   30  00 .. 06
 
 architecture gideon of adsr_multi is
     type presc_array_t is array(natural range <>) of unsigned(15 downto 0);
@@ -65,7 +64,6 @@ architecture gideon of adsr_multi is
     signal state_array : state_array_t(0 to 2) := (others => (others => '0'));
 begin
     env_out   <= enveloppe;
-    env_state <= std_logic_vector(state);
 
     -- FF-5E 01
     -- 5D-37 02
@@ -215,3 +213,115 @@ begin
         end if;
     end process;
 end gideon;
+
+--
+-- Another hopefully better implementation of Envelope (Alexey Melnikov)
+--
+architecture sorg of adsr_multi is
+	constant ST_RELEASE : unsigned(1 downto 0) := "00";
+	constant ST_ATTACK  : unsigned(1 downto 0) := "01";
+	constant ST_DEC_SUS : unsigned(1 downto 0) := "11";
+
+	type state_array_t is array(natural range <>) of unsigned(31 downto 0);
+	signal state_array : state_array_t(0 to 2) := (others => (others => '0'));
+
+	type presc_array_t is array(natural range <>) of unsigned(15 downto 0);
+	constant adsrtable : presc_array_t(0 to 15) := (
+		X"0008", X"001F", X"003E", X"005E",
+		X"0094", X"00DB", X"010A", X"0138", 
+		X"0187", X"03D0", X"07A1", X"0C35", 
+		X"0F42", X"2DC7", X"4C4B", X"7A12" );
+begin
+
+	process (clock)
+		variable pre15_max  : unsigned(14 downto 0);
+		variable cur_pre15  : unsigned(14 downto 0);
+		variable pre5_max   : unsigned(4 downto 0);
+		variable cur_pre5   : unsigned(4 downto 0);
+		variable gate_old   : std_logic;
+		variable state      : unsigned(1 downto 0);
+		variable count      : std_logic;
+		variable env        : unsigned(7 downto 0);
+	begin
+		if rising_edge(clock) then
+			state     := state_array(to_integer(voice_i))( 1 downto  0);
+			env       := state_array(to_integer(voice_i))( 9 downto  2);
+			cur_pre15 := state_array(to_integer(voice_i))(24 downto 10);
+			cur_pre5  := state_array(to_integer(voice_i))(29 downto 25);
+			gate_old  := state_array(to_integer(voice_i))(30);
+			count     := state_array(to_integer(voice_i))(31);
+
+			   if env > 93 then pre5_max := "00000";
+			elsif env > 54 then pre5_max := "00001";
+			elsif env > 26 then pre5_max := "00011";
+			elsif env > 14 then pre5_max := "00111";
+			elsif env > 6  then pre5_max := "01111";
+			elsif env > 0  then pre5_max := "11101";
+			else                pre5_max := "00000";
+			end if;
+
+			   if state = ST_ATTACK  then pre15_max := adsrtable(to_integer(unsigned(attack))) (14 downto 0);
+			elsif state = ST_DEC_SUS then pre15_max := adsrtable(to_integer(unsigned(decay)))  (14 downto 0);
+			else                          pre15_max := adsrtable(to_integer(unsigned(release)))(14 downto 0);
+			end if;
+			
+			if cur_pre15 = pre15_max then
+				cur_pre15 := (others => '0');
+				
+				if state = ST_ATTACK or cur_pre5 = pre5_max then
+					cur_pre5 := (others => '0');
+					
+					case state is
+						when ST_ATTACK =>
+							if env = x"FE" then
+								state := ST_DEC_SUS;
+							end if;
+							env := env + 1;
+
+						when ST_DEC_SUS =>
+							if env /= unsigned(sustain & sustain) and count = '1' then
+								env := env - 1;
+							end if;
+
+						when ST_RELEASE =>
+							if count = '1' then
+								env := env - 1;
+							end if;
+						
+						when others => null;
+					end case;
+
+					if state /= ST_ATTACK and env = 0 then
+						count := '0';
+					end if;
+				else
+					cur_pre5 := cur_pre5 + 1;
+				end if;
+			else
+				cur_pre15 := cur_pre15 + 1;
+			end if;
+			
+			if gate_old = '0' and gate = '1' then
+				state := ST_ATTACK;
+				count := '1';
+			end if;
+			if gate_old = '1' and gate = '0' then
+				state := ST_RELEASE;
+			end if;
+
+			if enable_i='1' then
+				 state_array(to_integer(voice_i)) <= count & gate & cur_pre5 & cur_pre15 & env & state;
+				 env_out <= env;
+			end if;
+
+			voice_o  <= voice_i;
+			enable_o <= enable_i;
+
+			if reset='1' then
+				 state_array <= (others => (others => '0'));
+				 env_out     <= (others => '0');
+				 enable_o    <= '0';
+			end if;
+		end if;
+	end process;
+end architecture;
