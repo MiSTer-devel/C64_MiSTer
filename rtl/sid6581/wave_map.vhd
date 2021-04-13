@@ -49,7 +49,7 @@ architecture Gideon of wave_map is
 	signal pulse    : unsigned(11 downto 0);
 begin
 
-triangle <= osc_val(22 downto 11) when (osc_val(23) xor (ring_mod and not msb_other)) ='0' else not osc_val(22 downto 11);
+triangle <= osc_val(22 downto 11) when (osc_val(23) xor (ring_mod and msb_other)) ='0' else not osc_val(22 downto 11);
 sawtooth <= osc_val(23 downto 12);
 pulse    <= (others => '0')       when osc_val(23 downto 12) < sq_width                    else (others => '1');
 
