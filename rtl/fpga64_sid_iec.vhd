@@ -260,7 +260,7 @@ component sid8580
 		audio_data    : out std_logic_vector(17 downto 0);
 		extfilter_en  : in std_logic
   );
-end component sid8580;
+end component;
 
 component mos6526
 	PORT (

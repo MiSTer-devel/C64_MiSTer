@@ -116,18 +116,17 @@ end
 
 // Waveform Output Selector
 always @(*) begin
-	case (control[7:4])
-		4'b0001: wave_out = triangle;
-		4'b0010: wave_out = sawtooth;
-		4'b0011: wave_out = {_st_out, 4'b0000};
-		4'b0100: wave_out = pulse;
-		4'b0101: wave_out = {p_t_out, 4'b0000} & pulse;
-		4'b0110: wave_out = {ps__out, 4'b0000} & pulse;
-		4'b0111: wave_out = {pst_out, 4'b0000} & pulse;
-		4'b1000: wave_out = noise;
-		default: wave_out = 0;
+	case (control[6:4])
+		3'b000: wave_out = 0;
+		3'b001: wave_out = triangle;
+		3'b010: wave_out = sawtooth;
+		3'b011: wave_out = {_st_out, 4'b0000};
+		3'b100: wave_out = pulse;
+		3'b101: wave_out = {p_t_out, 4'b0000} & pulse;
+		3'b110: wave_out = {ps__out, 4'b0000} & pulse;
+		3'b111: wave_out = {pst_out, 4'b0000} & pulse;
 	endcase
+	if (control[7]) wave_out = control[6:4] ? (wave_out & noise) : noise;
 end
-
 
 endmodule
