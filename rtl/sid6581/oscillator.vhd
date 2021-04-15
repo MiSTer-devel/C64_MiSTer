@@ -40,19 +40,14 @@ architecture Gideon of oscillator is
     type accu_array_t is array (natural range <>) of unsigned(23 downto 0);
     signal accu_reg  : accu_array_t(0 to 2) := (others => (others => '0'));
 
-    type int4_array is array (natural range <>) of integer range 0 to 2;
+    type int2_array is array (natural range <>) of integer range 0 to 2;
+    constant linked_voice : int2_array(0 to 2) := (2,0,1);
 
-    constant voice_linkage : int4_array(0 to 2) := (2,  0,  1);
-
-    signal ring_index   : integer range 0 to 2;
-    signal sync_index   : integer range 0 to 2;
     signal msb_register : std_logic_vector(0 to 2) := (others => '0');
     signal car_register : std_logic_vector(0 to 2) := (others => '0');
     signal do_sync      : std_logic;
 begin
-    ring_index <= voice_linkage(to_integer(voice_i));
-    sync_index <= voice_linkage(to_integer(voice_i));
-    do_sync    <= sync and car_register(sync_index);
+    do_sync <= sync and car_register(linked_voice(to_integer(voice_i)));
     
     process(clock)
         variable cur_accu   : unsigned(23 downto 0);
@@ -71,7 +66,7 @@ begin
 
             osc_val   <= new_accu(23 downto 0);
             carry_20  <= new_accu(20) xor cur_20;
-            msb_other <= msb_register(ring_index);
+            msb_other <= msb_register(linked_voice(to_integer(voice_i)));
             voice_o   <= voice_i;
             enable_o  <= enable_i;
             test_o    <= test;

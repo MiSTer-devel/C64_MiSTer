@@ -698,7 +698,7 @@ begin
                 lp_reg <= (others => '0');            
                 bp_reg <= (others => '0');            
                 program_cnt <= 0;
-            elsif program_cnt >= 10 then
+            elsif program_cnt > c_program'length then
                 if valid_in = '1' then
 						  if cfg /= "000" or scale_cnt = 20 then 
 							   scale_cnt <= 0;
