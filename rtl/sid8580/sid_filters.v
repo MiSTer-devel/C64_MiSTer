@@ -3,8 +3,7 @@ module sid_filters
 (
 	input             clk,
 	input             rst,
-	input      [ 7:0] Fc_lo,
-	input      [ 7:0] Fc_hi,
+	input      [10:0] Fc,
 	input      [ 7:0] Res_Filt,
 	input      [ 7:0] Mode_Vol,
 	input      [11:0] voice1,
@@ -43,7 +42,7 @@ assign divmul[15] = 395;
 wire [35:0] mul1 = w0 * Vhp;
 wire [35:0] mul2 = w0 * Vbp;
 wire [35:0] mul3 = q  * Vbp;
-wire [35:0] mul4 = 18'd82355 * ({Fc_hi, Fc_lo[2:0]} + 1'b1);
+wire [35:0] mul4 = 18'd82355 * (Fc + 1'b1);
 
 // Filter
 always @(posedge clk) begin

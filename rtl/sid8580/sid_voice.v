@@ -5,10 +5,8 @@ module sid_voice
 	input         clock,
 	input         ce_1m,
 	input         reset,
-	input   [7:0] freq_lo,
-	input   [7:0] freq_hi,
-	input   [7:0] pw_lo,
-	input   [3:0] pw_hi,
+	input  [15:0] freq,
+	input  [11:0] pw,
 	input   [7:0] control,
 	input   [7:0] att_dec,
 	input   [7:0] sus_rel,
@@ -74,7 +72,7 @@ always @(posedge clock) begin
 		if (reset || test_ctrl || ((sync_ctrl) && (!osc_msb_in) && (osc_msb_in != osc_msb_in_prv)))
 			oscillator <= 0;
 		else
-			oscillator <= oscillator + {freq_hi, freq_lo};
+			oscillator <= oscillator + freq;
 	end
 end
 
@@ -96,7 +94,7 @@ always @(posedge clock) begin
 		sawtooth   <=	oscillator[23:12];
 
 		pulse      <= 	(test_ctrl) ? 12'hfff :
-							(oscillator[23:12] >= {pw_hi, pw_lo}) ? {12{1'b1}} :
+							(oscillator[23:12] >= pw) ? {12{1'b1}} :
 							{12{1'b0}};
 
 		noise      <= 	{lfsr_noise[20], lfsr_noise[18], lfsr_noise[14],
