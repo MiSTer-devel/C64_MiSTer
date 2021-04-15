@@ -32,8 +32,8 @@ port (
 	waveform        : in  unsigned(11 downto 0);
 
 	--              
-	osc3            : out std_logic_vector(7 downto 0);
-	env3            : out std_logic_vector(7 downto 0);
+	osc3            : out unsigned(7 downto 0);
+	env3            : out unsigned(7 downto 0);
 
 	--
 	valid_out       : out std_logic;
@@ -63,8 +63,8 @@ begin
                 osc3 <= (others => '0');
                 env3 <= (others => '0');
             elsif voice_i = X"2" then
-                osc3 <= std_logic_vector(waveform(11 downto 4));
-                env3 <= std_logic_vector(enveloppe);
+                osc3 <= waveform(11 downto 4);
+                env3 <= enveloppe;
             end if;
 
             env_signed := '0' & signed(enveloppe);

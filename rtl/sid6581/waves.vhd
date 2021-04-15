@@ -16,6 +16,7 @@ use ieee.numeric_std.all;
 
 entity waves is
 port (
+	clock    : in  std_logic;
 	st_in    : in  unsigned (11 downto 0);
 	st_out   : out unsigned ( 7 downto 0);
 	pt_in    : in  unsigned (11 downto 0);
@@ -2087,12 +2088,17 @@ architecture tables of waves is
 		x"00", x"00", x"00", x"00", x"00", x"00", x"00", x"20",
 		x"00", x"00", x"00", x"00", x"00", x"00", x"00", x"30",
 		x"00", x"00", x"00", x"78", x"78", x"7e", x"7f", x"7f");
-
+		
 begin
 
-	st_out  <= c_wave_ST (to_integer(st_in));
-	pt_out  <= c_wave_PT (to_integer(pt_in));
-	ps_out  <= c_wave_PS (to_integer(ps_in));
-	pst_out <= c_wave_PST(to_integer(pst_in));
+	process(clock)
+	begin
+		if rising_edge(clock) then
+			st_out  <= c_wave_ST (to_integer(st_in));
+			pt_out  <= c_wave_PT (to_integer(pt_in));
+			ps_out  <= c_wave_PS (to_integer(ps_in));
+			pst_out <= c_wave_PST(to_integer(pst_in));
+		end if;
+	end process;
 
 end tables;

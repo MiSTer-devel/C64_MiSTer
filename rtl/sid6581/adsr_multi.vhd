@@ -28,10 +28,10 @@ port
 	enable_o : out std_logic;
 
 	gate     : in  std_logic;
-	attack   : in  std_logic_vector(3 downto 0);
-	decay    : in  std_logic_vector(3 downto 0);
-	sustain  : in  std_logic_vector(3 downto 0);
-	release  : in  std_logic_vector(3 downto 0);
+	attack   : in  unsigned(3 downto 0);
+	decay    : in  unsigned(3 downto 0);
+	sustain  : in  unsigned(3 downto 0);
+	release  : in  unsigned(3 downto 0);
 
 	env_out  : out unsigned(7 downto 0)
 );
@@ -126,11 +126,11 @@ begin
             -- 15 bit prescaler select --
             case cur_state is
             when st_attack =>
-                presc_select := to_integer(unsigned(attack));
+                presc_select := to_integer(attack);
             when st_decay =>
-                presc_select := to_integer(unsigned(decay));
+                presc_select := to_integer(decay);
             when others => -- includes release and idle
-                presc_select := to_integer(unsigned(release));
+                presc_select := to_integer(release);
             end case;
             presc_val := prescalers(presc_select)(14 downto 0);            
             
@@ -178,7 +178,7 @@ begin
                 end if;
                 
                 if do_count_15='1' and do_count_5='1' and 
-                    std_logic_vector(cur_env) /= (sustain & sustain) and
+                    cur_env /= (sustain & sustain) and
                     cur_env /= X"00" then
                     next_env := cur_env - 1;
                 end if;
@@ -231,6 +231,11 @@ architecture sorg of adsr_multi is
 		X"0094", X"00DB", X"010A", X"0138", 
 		X"0187", X"03D0", X"07A1", X"0C35", 
 		X"0F42", X"2DC7", X"4C4B", X"7A12" );
+		
+	signal voice_o1  : unsigned(1 downto 0);
+	signal enable_o1 : std_logic;
+	signal env_out1  : unsigned(7 downto 0);
+
 begin
 
 	process (clock)
@@ -260,9 +265,9 @@ begin
 			else                pre5_max := "00000";
 			end if;
 
-			   if state = ST_ATTACK  then pre15_max := adsrtable(to_integer(unsigned(attack))) (14 downto 0);
-			elsif state = ST_DEC_SUS then pre15_max := adsrtable(to_integer(unsigned(decay)))  (14 downto 0);
-			else                          pre15_max := adsrtable(to_integer(unsigned(release)))(14 downto 0);
+			   if state = ST_ATTACK  then pre15_max := adsrtable(to_integer(attack)) (14 downto 0);
+			elsif state = ST_DEC_SUS then pre15_max := adsrtable(to_integer(decay))  (14 downto 0);
+			else                          pre15_max := adsrtable(to_integer(release))(14 downto 0);
 			end if;
 			
 			if cur_pre15 = pre15_max then
@@ -279,7 +284,7 @@ begin
 							env := env + 1;
 
 						when ST_DEC_SUS =>
-							if env /= unsigned(sustain & sustain) and count = '1' then
+							if env /= (sustain & sustain) and count = '1' then
 								env := env - 1;
 							end if;
 
@@ -311,17 +316,21 @@ begin
 
 			if enable_i='1' then
 				 state_array(to_integer(voice_i)) <= count & gate & cur_pre5 & cur_pre15 & env & state;
-				 env_out <= env;
+				 env_out1 <= env;
 			end if;
 
-			voice_o  <= voice_i;
-			enable_o <= enable_i;
+			voice_o1  <= voice_i;
+			enable_o1 <= enable_i;
 
 			if reset='1' then
 				 state_array <= (others => (others => '0'));
-				 env_out     <= (others => '0');
-				 enable_o    <= '0';
+				 env_out1    <= (others => '0');
+				 enable_o1   <= '0';
 			end if;
+			
+			voice_o  <= voice_o1;
+			enable_o <= enable_o1;
+			env_out  <= env_out1;
 		end if;
 	end process;
 end architecture;

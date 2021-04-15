@@ -19,7 +19,7 @@ port (
     clock         : in  std_logic;
     reset         : in  std_logic;
                   
-    addr          : in  unsigned(4 downto 0);
+    addr          : in  std_logic_vector(4 downto 0);
     wren          : in  std_logic;
     wdata         : in  std_logic_vector(7 downto 0);
     rdata         : out std_logic_vector(7 downto 0);
@@ -39,15 +39,15 @@ port (
     
     -- Wave map parameters
     ring_mod      : out std_logic;
-    wave_sel      : out std_logic_vector(3 downto 0);
+    wave_sel      : out unsigned(3 downto 0);
     sq_width      : out unsigned(11 downto 0);
     
     -- ADSR parameters
     gate          : out std_logic;
-    attack        : out std_logic_vector(3 downto 0);
-    decay         : out std_logic_vector(3 downto 0);
-    sustain       : out std_logic_vector(3 downto 0);
-    release       : out std_logic_vector(3 downto 0);
+    attack        : out unsigned(3 downto 0);
+    decay         : out unsigned(3 downto 0);
+    sustain       : out unsigned(3 downto 0);
+    release       : out unsigned(3 downto 0);
 
     -- mixer 1 parameters
     filter_en     : out std_logic;
@@ -66,8 +66,8 @@ port (
     dac_out       : out signed(17 downto 0);
 
     -- readback
-    osc3          : in  std_logic_vector(7 downto 0);
-    env3          : in  std_logic_vector(7 downto 0)
+    osc3          : in  unsigned(7 downto 0);
+    env3          : in  unsigned(7 downto 0)
 );
 end sid_regs;
 
@@ -159,54 +159,54 @@ architecture gideon of sid_regs is
 
 begin
 	process(clock)
-		variable voice : integer range 0 to 3; 
-		variable reg   : unsigned(2 downto 0);
 	begin
 		if rising_edge(clock) then
 			if wren='1' then
 				last_wr <= wdata;
-				if addr < "10101" then
-					voice := 0;
-					reg := addr(2 downto 0);
-					if addr >= "01110" then
-						voice := 2;
-						reg := addr(2 downto 0) - "110";
-					elsif addr >= "00111" then
-						voice := 1;
-						reg := addr(2 downto 0) - "111";
-					end if;
-					
-					case reg is
-						when  "000" => freq_lo (voice) <= wdata;
-						when  "001" => freq_hi (voice) <= wdata;
-						when  "010" => phase_lo(voice) <= wdata;
-						when  "011" => phase_hi(voice) <= wdata;
-						when  "100" => control (voice) <= wdata;
-						when  "101" => att_dec (voice) <= wdata;
-						when  "110" => sust_rel(voice) <= wdata;
-						when others => null;
-					end case;
-				elsif addr = "10101" then filter_co( 2 downto 0) <= unsigned(wdata(2 downto 0));
-				elsif addr = "10110" then filter_co(10 downto 3) <= unsigned(wdata);
-				elsif addr = "10111" then filter_res <= unsigned(wdata(7 downto 4));
-												  filter_ex  <= wdata(3);
-												  filt_en_i  <= wdata(2 downto 0);
-				elsif addr = "11000" then voice3_off <= wdata(7);
-												  filter_hp  <= wdata(6);
-												  filter_bp  <= wdata(5);
-												  filter_lp  <= wdata(4);
-												  volume     <= unsigned(wdata(3 downto 0));
-												  dac_out    <= dac_map(to_integer(unsigned(wdata)));
-				end if;
+				case addr is
+					when "00000" => freq_lo (0) <= wdata;
+					when "00001" => freq_hi (0) <= wdata;
+					when "00010" => phase_lo(0) <= wdata;
+					when "00011" => phase_hi(0) <= wdata;
+					when "00100" => control (0) <= wdata;
+					when "00101" => att_dec (0) <= wdata;
+					when "00110" => sust_rel(0) <= wdata;
+					when "00111" => freq_lo (1) <= wdata;
+					when "01000" => freq_hi (1) <= wdata;
+					when "01001" => phase_lo(1) <= wdata;
+					when "01010" => phase_hi(1) <= wdata;
+					when "01011" => control (1) <= wdata;
+					when "01100" => att_dec (1) <= wdata;
+					when "01101" => sust_rel(1) <= wdata;
+					when "01110" => freq_lo (2) <= wdata;
+					when "01111" => freq_hi (2) <= wdata;
+					when "10000" => phase_lo(2) <= wdata;
+					when "10001" => phase_hi(2) <= wdata;
+					when "10010" => control (2) <= wdata;
+					when "10011" => att_dec (2) <= wdata;
+					when "10100" => sust_rel(2) <= wdata;
+					when "10101" => filter_co( 2 downto 0) <= unsigned(wdata(2 downto 0));
+					when "10110" => filter_co(10 downto 3) <= unsigned(wdata);
+					when "10111" => filter_res  <= unsigned(wdata(7 downto 4));
+										 filter_ex   <= wdata(3);
+										 filt_en_i   <= wdata(2 downto 0);
+					when "11000" => voice3_off  <= wdata(7);
+										 filter_hp   <= wdata(6);
+										 filter_bp   <= wdata(5);
+										 filter_lp   <= wdata(4);
+										 volume      <= unsigned(wdata(3 downto 0));
+										 dac_out     <= dac_map(to_integer(unsigned(wdata)));
+					when others => null;
+				end case;
 			end if;
 
 			-- Read
 			case addr is
-			when "11001" => rdata <= potx;
-			when "11010" => rdata <= poty;
-			when "11011" => rdata <= osc3;
-			when "11100" => rdata <= env3;
-			when others  => rdata <= last_wr;
+				when "11001" => rdata <= potx;
+				when "11010" => rdata <= poty;
+				when "11011" => rdata <= std_logic_vector(osc3);
+				when "11100" => rdata <= std_logic_vector(env3);
+				when others  => rdata <= last_wr;
 			end case;
 			
 			-- hack for 8-bit DAC mode
@@ -244,15 +244,15 @@ begin
 
 	-- Wave map parameters
 	ring_mod  <= control(to_integer(voice_wave))(2);
-	wave_sel  <= control(to_integer(voice_wave))(7 downto 4);
+	wave_sel  <= unsigned(control(to_integer(voice_wave))(7 downto 4));
 	sq_width  <= unsigned(phase_hi(to_integer(voice_wave))(3 downto 0)) & unsigned(phase_lo(to_integer(voice_wave)));
 
 	-- ADSR parameters
 	gate      <= control(to_integer(voice_adsr))(0);
-	attack    <= att_dec(to_integer(voice_adsr))(7 downto 4);
-	decay     <= att_dec(to_integer(voice_adsr))(3 downto 0);
-	sustain   <= sust_rel(to_integer(voice_adsr))(7 downto 4);
-	release   <= sust_rel(to_integer(voice_adsr))(3 downto 0);
+	attack    <= unsigned(att_dec(to_integer(voice_adsr))(7 downto 4));
+	decay     <= unsigned(att_dec(to_integer(voice_adsr))(3 downto 0));
+	sustain   <= unsigned(sust_rel(to_integer(voice_adsr))(7 downto 4));
+	release   <= unsigned(sust_rel(to_integer(voice_adsr))(3 downto 0));
 
 	-- Mixer 1 parameters
 	filter_en <= filt_en_i(to_integer(voice_mul));

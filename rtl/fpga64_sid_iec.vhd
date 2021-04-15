@@ -582,7 +582,7 @@ port map (
 	clock => clk32,
 	reset => reset,
 
-	addr => cpuAddr(4 downto 0),
+	addr => std_logic_vector(cpuAddr(4 downto 0)),
 	wren => sid_we and sid_sel_int,
 	wdata => std_logic_vector(cpuDo),
 	rdata => sid_do6581,

@@ -21,7 +21,7 @@ port (
     clock         : in  std_logic;
     reset         : in  std_logic;
                   
-    addr          : in  unsigned(4 downto 0);
+    addr          : in  std_logic_vector(4 downto 0);
     wren          : in  std_logic;
     wdata         : in  std_logic_vector(7 downto 0);
     rdata         : out std_logic_vector(7 downto 0);
@@ -62,15 +62,15 @@ architecture structural of sid_top is
     -- Wave map parameters
     signal msb_other   : std_logic;
     signal ring_mod    : std_logic;
-    signal wave_sel    : std_logic_vector(3 downto 0);
+    signal wave_sel    : unsigned(3 downto 0);
     signal sq_width    : unsigned(11 downto 0);
     
     -- ADSR parameters
     signal gate        : std_logic;
-    signal attack      : std_logic_vector(3 downto 0);
-    signal decay       : std_logic_vector(3 downto 0);
-    signal sustain     : std_logic_vector(3 downto 0);
-    signal release     : std_logic_vector(3 downto 0);
+    signal attack      : unsigned(3 downto 0);
+    signal decay       : unsigned(3 downto 0);
+    signal sustain     : unsigned(3 downto 0);
+    signal release     : unsigned(3 downto 0);
 
     -- Filter enable
     signal filter_en   : std_logic;
@@ -85,8 +85,8 @@ architecture structural of sid_top is
     signal voice3_off  : std_logic;
 
     -- readback
-    signal osc3        : std_logic_vector(7 downto 0);
-    signal env3        : std_logic_vector(7 downto 0);
+    signal osc3        : unsigned(7 downto 0);
+    signal env3        : unsigned(7 downto 0);
 
     -- intermediate flags and signals
     signal test_wave   : std_logic;
