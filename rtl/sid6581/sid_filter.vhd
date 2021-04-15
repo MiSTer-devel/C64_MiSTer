@@ -700,7 +700,7 @@ begin
                 program_cnt <= 0;
             elsif program_cnt > c_program'length then
                 if valid_in = '1' then
-						  if cfg /= "000" or scale_cnt = 20 then 
+						  if cfg /= "000" or scale_cnt = 15 then 
 							   scale_cnt <= 0;
                         program_cnt <= 0;
 						  else
