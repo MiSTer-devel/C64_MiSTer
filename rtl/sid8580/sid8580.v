@@ -48,6 +48,8 @@ reg  [7:0] Filter_Fc_hi;
 reg  [7:0] Filter_Res_Filt;
 reg  [7:0] Filter_Mode_Vol;
 
+wire[17:0] sound;
+
 wire [7:0] Misc_Osc3_Random;
 wire [7:0] Misc_Env3;
 
@@ -165,7 +167,7 @@ sid_filters filters
 	.voice3(voice_3),
 	.input_valid(ce_1m),
 	.ext_in(12'hfff),
-	.sound(audio_data),
+	.sound(sound),
 	.extfilter_en(extfilter_en)
 );
 
@@ -226,6 +228,7 @@ end
 
 
 // Register Decoding
+reg dac_mode;
 always @(posedge clk) begin
 	if (reset) begin
 		Voice_1_Freq_lo <= 0;
@@ -285,7 +288,19 @@ always @(posedge clk) begin
 				5'h18: Filter_Mode_Vol <= data_in;
 			endcase
 		end
+		
+		dac_mode <= ((Voice_1_Control & 8'hf9) == 8'h49 && (Voice_2_Control & 8'hf9) == 8'h49 && (Voice_3_Control & 8'hf9) == 8'h49);
 	end
 end
+
+wire [17:0] dac_out;
+sid8580_dac dac
+(
+	.clock(clk),
+	.addr(Filter_Mode_Vol),
+	.dout(dac_out)
+);
+
+assign audio_data = dac_mode ? dac_out : sound;
 
 endmodule
