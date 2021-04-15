@@ -105,6 +105,10 @@ architecture structural of sid_top is
     signal band_pass   : signed(17 downto 0) := (others => '0');
     signal low_pass    : signed(17 downto 0) := (others => '0');
     signal mixed_out   : signed(17 downto 0) := (others => '0');
+	 
+    signal dac_mode    : std_logic;
+    signal dac_out     : signed(17 downto 0);
+
 begin
  
 	i_regs: entity work.sid_regs
@@ -155,6 +159,9 @@ begin
 		filter_bp   => filter_bp,
 		filter_lp   => filter_lp,
 		voice3_off  => voice3_off,
+
+		dac_mode    => dac_mode,
+		dac_out     => dac_out,
 
 		-- readback
 		osc3        => osc3,
@@ -300,7 +307,9 @@ begin
 
 		volume      => volume,
 
-		mixed_out   => sample
+		mixed_out   => mixed_out
 	);
+	
+	sample <= dac_out when dac_mode = '1' else mixed_out;
 
 end structural;
