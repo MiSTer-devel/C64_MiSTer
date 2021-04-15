@@ -74,8 +74,8 @@ reg [7:0] _st_out[3];
 reg [7:0] p_t_out[3];
 reg [7:0] ps__out[3];
 reg [7:0] pst_out[3];
-wire [11:0] sawtooth[3];
-wire [11:0] triangle[3];
+wire [11:0] acc_ps[3];
+wire [11:0] acc_t[3];
 
 // Voice 1 Instantiation
 sid_voice v1
@@ -97,8 +97,8 @@ sid_voice v1
 	.p_t_out(p_t_out[0]),
 	.ps__out(ps__out[0]),
 	.pst_out(pst_out[0]),
-	.sawtooth(sawtooth[0]),
-	.triangle(triangle[0])
+	.acc_ps(acc_ps[0]),
+	.acc_t(acc_t[0])
 );
 
 // Voice 2 Instantiation
@@ -121,8 +121,8 @@ sid_voice v2
 	.p_t_out(p_t_out[1]),
 	.ps__out(ps__out[1]),
 	.pst_out(pst_out[1]),
-	.sawtooth(sawtooth[1]),
-	.triangle(triangle[1])
+	.acc_ps(acc_ps[1]),
+	.acc_t(acc_t[1])
 );
 
 // Voice 3 Instantiation
@@ -147,8 +147,8 @@ sid_voice v3
 	.p_t_out(p_t_out[2]),
 	.ps__out(ps__out[2]),
 	.pst_out(pst_out[2]),
-	.sawtooth(sawtooth[2]),
-	.triangle(triangle[2])
+	.acc_ps(acc_ps[2]),
+	.acc_t(acc_t[2])
 );
 
 // Filter Instantiation
@@ -172,8 +172,8 @@ sid_filters filters
 sid_tables sid_tables
 (
 	.clock(clk),
-	.sawtooth(f_sawtooth),
-	.triangle(f_triangle),
+	.acc_ps(f_acc_ps),
+	.acc_t(f_acc_t),
 	._st_out(f__st_out),
 	.p_t_out(f_p_t_out),
 	.ps__out(f_ps__out),
@@ -184,8 +184,8 @@ wire [7:0] f__st_out;
 wire [7:0] f_p_t_out;
 wire [7:0] f_ps__out;
 wire [7:0] f_pst_out;
-reg [11:0] f_sawtooth;
-reg [11:0] f_triangle;
+reg [11:0] f_acc_ps;
+reg [11:0] f_acc_t;
 
 always @(posedge clk) begin
 	reg [3:0] state;
@@ -195,8 +195,8 @@ always @(posedge clk) begin
 
 	case(state)
 		1,5,9: begin
-			f_sawtooth <= sawtooth[state[3:2]];
-			f_triangle <= triangle[state[3:2]];
+			f_acc_ps <= acc_ps[state[3:2]];
+			f_acc_t  <= acc_t[state[3:2]];
 		end
 	endcase
 
