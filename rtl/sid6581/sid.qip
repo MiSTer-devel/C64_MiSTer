@@ -4,6 +4,7 @@ set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) my_math_pk
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) oscillator.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) Q_table.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) wave_map.vhd ]
+set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) waves.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) sid_ctrl.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) sid_filter.vhd ]
 set_global_assignment -name VHDL_FILE [file join $::quartus(qip_path) sid_mixer.vhd ]

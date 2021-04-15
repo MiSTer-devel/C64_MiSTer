@@ -47,11 +47,31 @@ architecture Gideon of wave_map is
 	signal triangle : unsigned(11 downto 0);
 	signal sawtooth : unsigned(11 downto 0);
 	signal pulse    : unsigned(11 downto 0);
+	signal ring_msb : std_logic;
+
+	signal st_out   : unsigned(7 downto 0);
+	signal pt_out   : unsigned(7 downto 0);
+	signal ps_out   : unsigned(7 downto 0);
+	signal pst_out  : unsigned(7 downto 0);
 begin
 
-triangle <= osc_val(22 downto 11) when (osc_val(23) xor (ring_mod and msb_other)) ='0' else not osc_val(22 downto 11);
+ring_msb <= (osc_val(23) xor (ring_mod and not msb_other));
+triangle <= osc_val(22 downto 11) when ring_msb ='0' else not osc_val(22 downto 11);
 sawtooth <= osc_val(23 downto 12);
-pulse    <= (others => '0')       when osc_val(23 downto 12) < sq_width                    else (others => '1');
+pulse    <= (others => '0') when osc_val(23 downto 12) < sq_width and test = '0' else (others => '1');
+
+mixed_waves : work.waves 
+port map
+(
+	st_in   => sawtooth,
+	st_out  => st_out,
+	pt_in   => ring_msb & osc_val(22 downto 12),
+	pt_out  => pt_out,
+	ps_in   => sawtooth,
+	ps_out  => ps_out,
+	pst_in  => sawtooth,
+	pst_out => pst_out
+);
 
 process(clock)
 	variable noise : unsigned(22 downto 0);
@@ -66,12 +86,21 @@ begin
 			noise := noise(21 downto 0) & (noise(22) xor noise(17));
 		end if;
 		
-		wave := (others => '0');
-		if wave_sel  /= x"0" then wave := (others => '1');   end if; 
-		if wave_sel(0) = '1' then wave := wave and triangle; end if;
-		if wave_sel(1) = '1' then wave := wave and sawtooth; end if;
-		if wave_sel(2) = '1' then wave := wave and pulse;    end if;
-		if wave_sel(3) = '1' then wave := wave and (noise(20)&noise(18)&noise(14)&noise(11)&noise(9)&noise(5)&noise(2)&noise(0) & x"0"); end if;
+		case wave_sel(2 downto 0) is
+			when "000" => wave := (others => '0');
+			when "001" => wave := triangle;
+			when "010" => wave := sawtooth;
+			when "011" => wave := st_out & x"0";
+			when "100" => wave := pulse;
+			when "101" => wave := (pt_out & x"0") and pulse;
+			when "110" => wave := (ps_out & x"0") and pulse;
+			when "111" => wave := (pst_out & x"0") and pulse;
+		end case;
+		
+		if wave_sel(3) = '1' then
+			if wave_sel(2 downto 0) = "000" then wave := x"fff"; end if;
+			wave := wave and (noise(20)&noise(18)&noise(14)&noise(11)&noise(9)&noise(5)&noise(2)&noise(0) & x"0");
+		end if;
 
 		if enable_i='1' then
 			noise_reg(to_integer(voice_i)) <= noise;
