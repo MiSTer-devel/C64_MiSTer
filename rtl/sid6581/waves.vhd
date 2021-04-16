@@ -2089,6 +2089,10 @@ architecture tables of waves is
 		x"00", x"00", x"00", x"00", x"00", x"00", x"00", x"30",
 		x"00", x"00", x"00", x"78", x"78", x"7e", x"7f", x"7f");
 		
+	signal st_in_r  : unsigned(11 downto 0);
+	signal pt_in_r  : unsigned(11 downto 0);
+	signal ps_in_r  : unsigned(11 downto 0);
+	signal pst_in_r : unsigned(11 downto 0);
 begin
 
 	process(clock)
@@ -2100,5 +2104,22 @@ begin
 			pst_out <= c_wave_PST(to_integer(pst_in));
 		end if;
 	end process;
+	
+-- non-BRAM version
+--	process(clock)
+--	begin
+--		if rising_edge(clock) then
+--			st_in_r  <= st_in;
+--			pt_in_r  <= pt_in;
+--			ps_in_r  <= ps_in;
+--			pst_in_r <= pst_in;
+--		end if;
+--	end process;
+--
+--	st_out  <= c_wave_ST (to_integer(st_in_r));
+--	pt_out  <= c_wave_PT (to_integer(pt_in_r));
+--	ps_out  <= c_wave_PS (to_integer(ps_in_r));
+--	pst_out <= c_wave_PST(to_integer(pst_in_r));
+	
 
 end tables;
