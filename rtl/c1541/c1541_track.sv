@@ -275,6 +275,7 @@ always @(posedge clk) begin
 	end
 	else
 	if(busy) begin
+		// We requested IO, is there any update ?
 		if(old_ack && ~ack) begin
 			if((!metadata_track && !saving && cur_half_track != half_track)) begin
 				// Was loading, but track changed. Stop so a new read is initiated.
@@ -295,7 +296,7 @@ always @(posedge clk) begin
 				cur_half_track <= half_track;
 				sd_buff_base <= 0;
 				lba_count <= 0;
-				rd <= 1; // metadata_track is only read on disk change.
+				rd <= 1; // metadata_track is only read on disk change, before loading a track.
 			end
 			else
 			if(saving && (cur_half_track != half_track)) begin
@@ -324,8 +325,10 @@ always @(posedge clk) begin
 	end
 	else
 	if(ready) begin
+		// There is a disk, should we be doing anything ?
 		if (next_dirty_lba_count && cur_half_track != half_track) begin
-			saving <= 1;
+			// Current LBA must be written, and head is moving to another track: trigger write
+			saving <= 1; /// XXX: what if we are already saving (ex: previous LBA took more to send to hard CPU than drive head to exit current one) ?
 			sd_buff_base <= buff_bit_addr_lba - next_dirty_lba_count;
 			lba_count <= ~next_dirty_lba_count;
 			wr <= 1;
@@ -338,11 +341,14 @@ always @(posedge clk) begin
 			(cur_half_track != half_track) ||
 			(old_disk_change && !disk_change)
 		) begin
+			// Head moved to another track or disk changed
 			saving <= 0;
 			if (old_disk_change && !disk_change) begin
+				// Disk changed, load disk metadata.
 				cur_half_track <= 7'd84;
 				sd_buff_base <= 0;
 			end else begin
+				// Track changed, load new track.
 				cur_half_track <= half_track;
 				if (cur_half_track < half_track) begin
 					buff_bit_addr <= next_scaled_buff_bit_addr;
