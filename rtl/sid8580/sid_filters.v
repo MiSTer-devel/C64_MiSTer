@@ -67,7 +67,7 @@ always @(posedge clk) begin
 		case (state)
 			0:	if (input_valid) begin
 					state <= state + 1'd1;
-					if(!(^mulr[21:20])) sound <= -mulr[20:3];
+					if(!(^mulr[21:20])) sound <= mulr[20:3];
 					Vi <= 0;
 					Vnf <= 0;
 				end
@@ -116,7 +116,7 @@ always @(posedge clk) begin
 				end
 			9:	begin
 					state <= state + 1'd1;
-					mula <= (extfilter_en) ? Vnf - Vf : Vnf + Vi;
+					mula <= (extfilter_en) ? Vnf + Vf : Vnf + Vi;
 					mulb <= Mode_Vol[3:0];
 				end
 			10:begin
