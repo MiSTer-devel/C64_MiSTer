@@ -31,10 +31,6 @@ port (
 	enveloppe       : in  unsigned(7 downto 0);
 	waveform        : in  unsigned(11 downto 0);
 
-	--              
-	osc3            : out unsigned(7 downto 0);
-	env3            : out unsigned(7 downto 0);
-
 	--
 	valid_out       : out std_logic;
 
@@ -54,29 +50,17 @@ begin
     process(clock)
         variable mult_ext   : signed(21 downto 0);
         variable mult_trunc : signed(21 downto 4);
-        variable env_signed : signed(8 downto 0);
-        variable wave_signed: signed(11 downto 0);
     begin
         if rising_edge(clock) then
-            -- latch outputs
-            if reset='1' then
-                osc3 <= (others => '0');
-                env3 <= (others => '0');
-            elsif voice_i = X"2" then
-                osc3 <= waveform(11 downto 4);
-                env3 <= enveloppe;
-            end if;
 
-            env_signed := '0' & signed(enveloppe);
-            wave_signed := not waveform(11) & signed(waveform(10 downto 0));
-            
             mult_ext   := extend(mult_m, mult_ext'length);
             mult_trunc := mult_ext(mult_trunc'range);
-            filter_m <= filter_en;
-            voice_m  <= voice_i;
-            mult_m   <= env_signed * wave_signed; 
-            valid_out <= '0';
-            enable_d  <= enable_i;
+            filter_m   <= filter_en;
+            voice_m    <= voice_i;
+            mult_m     <= signed('0' & enveloppe) * signed(not waveform(11) & waveform(10 downto 0)); 
+            valid_out  <= '0';
+            enable_d   <= enable_i;
+
             if enable_d='1' then
                 if voice_m = 0 then
                     valid_out <= '1';
@@ -90,17 +74,14 @@ begin
                         accu_u <= mult_trunc;
                     end if;
                 else
-                    valid_out <= '0';
                     if filter_m='1' then
                         accu_f <= sum_limit(accu_f, mult_trunc);
-                    else
-                        if (voice_m /= 2) or (voice3_off = '0') then
-                            accu_u <= sum_limit(accu_u, mult_trunc);
-                        end if;
+                    elsif (voice_m /= 2) or (voice3_off = '0') then
+                        accu_u <= sum_limit(accu_u, mult_trunc);
                     end if;
                 end if;
             end if;
-                        
+
             if reset = '1' then
                 valid_out  <= '0';
                 accu_u     <= (others => '0');
@@ -110,6 +91,5 @@ begin
             end if;
         end if;
     end process;
-    
-    
+
 end signed_wave;

@@ -66,8 +66,8 @@ port (
     dac_out       : out signed(17 downto 0);
 
     -- readback
-    osc3          : in  unsigned(7 downto 0);
-    env3          : in  unsigned(7 downto 0)
+    waveform      : in  unsigned(7 downto 0);
+    enveloppe     : in  unsigned(7 downto 0)
 );
 end sid_regs;
 
@@ -84,6 +84,8 @@ architecture gideon of sid_regs is
 
 	signal filt_en_i : std_logic_vector(2 downto 0) := (others => '0');
 	signal last_wr   : std_logic_vector(7 downto 0);
+	signal osc3      : std_logic_vector(7 downto 0);
+	signal env3      : std_logic_vector(7 downto 0);
 
 	type signed_array_t is array(natural range <>) of signed(17 downto 0);
 	constant dac_map : signed_array_t(0 to 255) :=
@@ -204,11 +206,11 @@ begin
 			case addr is
 				when "11001" => rdata <= potx;
 				when "11010" => rdata <= poty;
-				when "11011" => rdata <= std_logic_vector(osc3);
-				when "11100" => rdata <= std_logic_vector(env3);
+				when "11011" => rdata <= osc3;
+				when "11100" => rdata <= env3;
 				when others  => rdata <= last_wr;
 			end case;
-			
+
 			-- hack for 8-bit DAC mode
 			if (control(0) and x"F9") = X"49" and (control(1) and x"F9") = X"49" and (control(2) and x"F9") = X"49" then
 				dac_mode <= '1';
@@ -256,5 +258,15 @@ begin
 
 	-- Mixer 1 parameters
 	filter_en <= filt_en_i(to_integer(voice_mul));
+
+	process(clock)
+	begin
+		if rising_edge(clock) then
+			if voice_mul = 2 then
+				osc3 <= std_logic_vector(waveform);
+				env3 <= std_logic_vector(enveloppe);
+			end if;
+		end if;
+	end process;
 
 end gideon;

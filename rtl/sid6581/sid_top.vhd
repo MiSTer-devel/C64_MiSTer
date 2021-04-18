@@ -84,10 +84,6 @@ architecture structural of sid_top is
     signal filter_lp   : std_logic;
     signal voice3_off  : std_logic;
 
-    -- readback
-    signal osc3        : unsigned(7 downto 0);
-    signal env3        : unsigned(7 downto 0);
-
     -- intermediate flags and signals
     signal test_wave   : std_logic;
     signal osc_val     : unsigned(23 downto 0);
@@ -97,7 +93,6 @@ architecture structural of sid_top is
 
     signal valid_sum   : std_logic;
     signal valid_filt  : std_logic;
-    signal valid_mix   : std_logic;
 
     signal filter_out  : signed(17 downto 0) := (others => '0');
     signal direct_out  : signed(17 downto 0) := (others => '0');
@@ -164,8 +159,8 @@ begin
 		dac_out     => dac_out,
 
 		-- readback
-		osc3        => osc3,
-		env3        => env3
+		waveform    => waveform(11 downto 4),
+		enveloppe   => enveloppe
 	);
 
 	i_ctrl: entity work.sid_ctrl
@@ -221,7 +216,7 @@ begin
 		enable_o  => enable_mul,
 		wave_out  => waveform
 	);
-
+	
 	adsr: entity work.adsr_multi(sorg)
 	port map
 	(
@@ -253,9 +248,6 @@ begin
 		enveloppe  => enveloppe,
 		waveform   => waveform,
 		filter_en  => filter_en,
-
-		osc3       => osc3,
-		env3       => env3,
 
 		valid_out  => valid_sum,
 		filter_out => filter_out,
