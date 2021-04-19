@@ -104,7 +104,8 @@ class I64(BaseImage):
         gcr_half_track_dict = {}
         for half_track_number, (track_speed_and_delay_integer, _, track_length, _, _) in enumerate(track_metadata_list):
             track = istream.read(cls._TRACK_LENGTH)
-            if track != cls._BLANK_TRACK:
+            # Emit mandatory and non-empty tracks
+            if (half_track_number & 1 == 0 and half_track_number < 70) or track != cls._BLANK_TRACK:
                 gcr_half_track_dict[half_track_number] = (track[:track_length], track_speed_and_delay_integer >> 6)
         return cls(gcr_half_track_dict)
 
