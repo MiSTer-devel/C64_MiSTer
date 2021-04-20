@@ -117,7 +117,6 @@ assign acc_t  = {oscillator[23] ^ (ringmod_ctrl & ~osc_msb_in), oscillator[22:12
 // Waveform Output Selector
 always @(*) begin
 	case (control[6:4])
-		3'b000: wave_out = 0;
 		3'b001: wave_out = triangle;
 		3'b010: wave_out = sawtooth;
 		3'b011: wave_out = {_st_out, 4'b0000};

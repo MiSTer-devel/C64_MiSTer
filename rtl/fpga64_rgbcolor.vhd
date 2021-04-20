@@ -35,22 +35,23 @@ begin
 	process(index)
 	begin
 		case index is
-		when X"0" => r <= X"00"; g <= X"00"; b <= X"00";
-		when X"1" => r <= X"FF"; g <= X"FF"; b <= X"FF";
-		when X"2" => r <= X"81"; g <= X"33"; b <= X"38";
-		when X"3" => r <= X"75"; g <= X"ce"; b <= X"c8";
-		when X"4" => r <= X"8e"; g <= X"3c"; b <= X"97";
-		when X"5" => r <= X"56"; g <= X"ac"; b <= X"4d";
-		when X"6" => r <= X"2e"; g <= X"2c"; b <= X"9b";
-		when X"7" => r <= X"ed"; g <= X"f1"; b <= X"71";
-		when X"8" => r <= X"8e"; g <= X"50"; b <= X"29";
-		when X"9" => r <= X"55"; g <= X"38"; b <= X"00";
-		when X"A" => r <= X"c4"; g <= X"6c"; b <= X"71";
-		when X"B" => r <= X"4a"; g <= X"4a"; b <= X"4a";
-		when X"C" => r <= X"7b"; g <= X"7b"; b <= X"7b";
-		when X"D" => r <= X"a9"; g <= X"ff"; b <= X"9f";
-		when X"E" => r <= X"70"; g <= X"6d"; b <= X"eb";
-		when X"F" => r <= X"b2"; g <= X"b2"; b <= X"b2";
-		end case;
-	end process;
+		 when X"0" => r <= X"00"; g <= X"00"; b <= X"00";
+		 when X"1" => r <= X"FF"; g <= X"FF"; b <= X"FF";
+		 when X"2" => r <= X"96"; g <= X"28"; b <= X"2E";
+		 when X"3" => r <= X"5B"; g <= X"D6"; b <= X"CE";
+		 when X"4" => r <= X"9F"; g <= X"2D"; b <= X"AD";
+		 when X"5" => r <= X"41"; g <= X"B9"; b <= X"36";
+		 when X"6" => r <= X"27"; g <= X"24"; b <= X"C4";
+		 when X"7" => r <= X"EF"; g <= X"F3"; b <= X"47";
+		 when X"8" => r <= X"9F"; g <= X"48"; b <= X"15";
+		 when X"9" => r <= X"5E"; g <= X"35"; b <= X"00";
+		 when X"A" => r <= X"DA"; g <= X"5F"; b <= X"66";
+		 when X"B" => r <= X"47"; g <= X"47"; b <= X"47";
+		 when X"C" => r <= X"78"; g <= X"78"; b <= X"78";
+		 when X"D" => r <= X"91"; g <= X"FF"; b <= X"84";
+		 when X"E" => r <= X"68"; g <= X"64"; b <= X"FF";
+		 when X"F" => r <= X"AE"; g <= X"AE"; b <= X"AE";
+
+end case;
+end process;
 end Behavioral;
