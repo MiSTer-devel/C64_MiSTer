@@ -124,6 +124,7 @@ begin
 		wave := (others => '0');
 		if enable_o1 = '1' then
 			case wave_sel1(2 downto 0) is
+				when "000" => wave := (others => '0');
 				when "001" => wave := triangle1;
 				when "010" => wave := sawtooth1;
 				when "011" => wave := st_out & x"0";
@@ -131,7 +132,6 @@ begin
 				when "101" => wave := (pt_out & x"0")  and pulse1;
 				when "110" => wave := (ps_out & x"0")  and pulse1;
 				when "111" => wave := (pst_out & x"0") and pulse1;
-				when others => null;
 			end case;
 			if wave_sel1(3) = '1' then
 				if wave_sel1(2 downto 0) = "000" then wave := x"fff"; end if;
