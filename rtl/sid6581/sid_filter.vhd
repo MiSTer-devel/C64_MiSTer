@@ -606,13 +606,9 @@ architecture dsvf of sid_filter is
     alias  mult_enable  : std_logic is instruction(7);
 
     -- operations to execute the filter:
-    -- bp_f      = f * bp_reg      
-    -- q_contrib = q * bp_reg      
-    -- lp        = bp_f + lp_reg   
-    -- temp      = input - lp      
-    -- hp        = temp - q_contrib
-    -- hp_f      = f * hp          
-    -- bp        = hp_f + bp_reg   
+    -- lp        = (f * bp_reg) + lp_reg
+    -- hp_reg    = input - lp - (q * bp_reg)
+    -- bp        = (f * hp_reg) + bp_reg   
     -- bp_reg    = bp              
     -- lp_reg    = lp              
 

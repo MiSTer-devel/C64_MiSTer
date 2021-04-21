@@ -41,18 +41,8 @@ end sid_mixer;
 
 architecture arith of sid_mixer is
     signal mix_i    : signed(17 downto 0);    
-    signal mix_uns  : unsigned(16 downto 0);    
-    signal vol_uns  : unsigned(16 downto 0);
-    signal vol_s    : signed(16 downto 0);
     signal state    : integer range 0 to 7;
-    signal p_mul    : unsigned(33 downto 0);
-    signal p_mul_s  : signed(34 downto 0);
-    
-    type t_volume_lut is array(natural range <>) of unsigned(15 downto 0);
-    constant c_volume_lut : t_volume_lut(0 to 15) := (
-        X"0000", X"0EEF", X"1DDE", X"2CCD", X"3BBC", X"4AAA", X"5999", X"6888",
-        X"7777", X"8666", X"9555", X"A444", X"B333", X"C221", X"D110", X"DFFF" );
-
+    signal p_mul_s  : signed(22 downto 0);
 
 begin
     process(clock)
@@ -84,19 +74,19 @@ begin
                 if filter_lp='1' then
                     mix_i <= sub_limit(mix_i, low_pass);
                 end if;
-                vol_s <= '0' & signed(c_volume_lut(to_integer(volume)));
 
             when 4 =>
-                p_mul_s <= mix_i * vol_s;
+                p_mul_s <= mix_i * signed('0' & volume);
+
+            when 5 =>
+                mixed_out <= p_mul_s(22 downto 5);
                 valid_out <= '1';
                 state <= 0;
-
+                
             when others =>
                 state <= 0;
-                
-            end case;
 
-            mixed_out <= p_mul_s(33 downto 16) - (p_mul_s(33)&p_mul_s(33)&p_mul_s(33 downto 18));
+            end case;
 
             if reset='1' then
                 mix_i <= (others => '0');

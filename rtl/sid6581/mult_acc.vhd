@@ -53,7 +53,7 @@ begin
     begin
         if rising_edge(clock) then
 
-            mult_ext   := extend(mult_m, mult_ext'length);
+            mult_ext   := mult_m(mult_m'length-1) & mult_m;
             mult_trunc := mult_ext(mult_trunc'range);
             filter_m   <= filter_en;
             voice_m    <= voice_i;
