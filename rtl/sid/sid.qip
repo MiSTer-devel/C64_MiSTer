@@ -1,0 +1,5 @@
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) sid_top.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) sid_voice.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) sid_tables.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) sid_filters.sv ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) sid_envelope.sv ]

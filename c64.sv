@@ -196,7 +196,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXX XXXXXXXXXXXXXXXXX XXXXXXX XXXXXXXX
+// XXXXXX XXXXXXXXXXXXXXXXX XXXXXXX XXXX XX 
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -223,9 +223,9 @@ localparam CONF_STR = {
 	"P1OUV,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"P1-;",
 	"P1OD,Left SID,6581,8580;",
-	"D4P1o24,Left Filter,Default,8580 Low,8580 High,6581 v1,6581 v2,Custom 1,Custom 2,Custom 3;",
+	"D4P1o23,Left Filter,Default,Custom 1,Custom 2,Custom 3;",
 	"P1OG,Right SID,6581,8580;",
-	"D5P1o57,Right Filter,Default,8580 Low,8580 High,6581 v1,6581 v2,Custom 1,Custom 2,Custom 3;",
+	"D5P1o56,Right Filter,Default,Custom 1,Custom 2,Custom 3;",
 	"P1OKM,Right SID Port,Same,DE00,D420,D500,DF00;",
 	"P1FC7,FLT,Load Custom Filters;",
 	"P1-;",
@@ -780,7 +780,7 @@ wire        romH;
 wire        UMAXromH;
 
 wire        sid_we;
-wire [17:0] audio_l;
+wire [17:0] audio_l,audio_r;
 wire  [7:0] r,g,b;
 
 wire        ntsc = status[2];
@@ -821,7 +821,7 @@ fpga64_sid_iec fpga64
 	.iof(IOF),
 	.iof_ext(opl_en),
 	.ioe_ext(1'b0),
-	.io_data(sid2_oe ? (status[16] ? data_8580 : data_6581) : opl_dout),
+	.io_data(sid2_oe ? data_sid : opl_dout),
 
 	.joya(joyA_c64 | {1'b0, pd12_mode[1] & paddle_2_btn, pd12_mode[1] & paddle_1_btn, 2'b00} | {pd12_mode[0] & mouse_btn[0], 3'b000, pd12_mode[0] & mouse_btn[1]}),
 	.joyb(joyB_c64 | {1'b0, pd34_mode[1] & paddle_4_btn, pd34_mode[1] & paddle_3_btn, 2'b00} | {pd34_mode[0] & mouse_btn[0], 3'b000, pd34_mode[0] & mouse_btn[1]}),
@@ -837,14 +837,14 @@ fpga64_sid_iec fpga64
 	.idle(idle),
 	.sid_we_ext(sid_we),
 	.sid_mode({status[22:21]==1,status[20]}),
-	.sid_cfg(status[36:34]),
+	.sid_cfg(status[35:34]),
 	.sid_ld_clk(clk_sys),
 	.sid_ld_addr(sid_ld_addr),
 	.sid_ld_data(sid_ld_data),
 	.sid_ld_wr(sid_ld_wr),
 	
 	.audio_data(audio_l),
-	.extfilter_en(1),
+	.sid_filter(1),
 	.sid_ver(status[13]),
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
@@ -1140,29 +1140,6 @@ end
 wire sid2_we = (status[22:20]==1) ? ioe_we : (status[22:20]==4) ? iof_we : sid_we;
 wire sid2_oe = (status[22:20]==1) ? IOE    : (status[22:20]==4) ? IOF    : ~IOE & ~IOF;
 
-wire [17:0] audio6581_r;
-wire  [7:0] data_6581;
-sid_top sid_6581
-(
-	.clock(clk_sys),
-	.reset(~reset_n),
-	.start_iter(ce_1m[31]),
-
-	.addr(c64_addr[4:0]),
-	.wren(sid2_we),
-	.wdata(c64_data_out),
-	.rdata(data_6581),
-
-	.extfilter_en(1),
-	.cfg(status[39:37]),
-	.sample(audio6581_r),
-
-	.ld_clk(clk_sys),
-	.ld_addr(sid_ld_addr),
-	.ld_data(sid_ld_data),
-	.ld_wr(sid_ld_wr)
-);
-
 reg [11:0] sid_ld_addr = 0;
 reg [15:0] sid_ld_data = 0;
 reg        sid_ld_wr   = 0;
@@ -1180,9 +1157,8 @@ always @(posedge clk_sys) begin
 	end
 end
 
-wire [17:0] audio8580_r;
-wire  [7:0] data_8580;
-sid8580 sid_8580
+wire  [7:0] data_sid;
+sid_top sid
 (
 	.clk(clk_sys),
 	.reset(~reset_n),
@@ -1191,13 +1167,19 @@ sid8580 sid_8580
 	.addr(c64_addr[4:0]),
 	.we(sid2_we),
 	.data_in(c64_data_out),
-	.data_out(data_8580),
+	.data_out(data_sid),
 
-	.extfilter_en(1),
-	.audio_data(audio8580_r)
+	.audio_data(audio_r),
+
+	.filter_en(1),
+	.cfg(status[38:37]),
+	.mode(status[16]),
+
+	.ld_clk(clk_sys),
+	.ld_addr(sid_ld_addr),
+	.ld_data(sid_ld_data),
+	.ld_wr(sid_ld_wr)
 );	
-
-wire [17:0] audio_r = status[16] ? audio8580_r : audio6581_r;
 
 reg [15:0] alo,aro;
 always @(posedge clk_sys) begin

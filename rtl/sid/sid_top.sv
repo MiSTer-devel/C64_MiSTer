@@ -1,5 +1,9 @@
 
-module sid8580
+module sid_top 
+#(
+	parameter MULTI_FILTERS = 1, 
+	parameter USE_8580_TABLES  = 1
+)
 (
 	input         reset,
 
@@ -13,71 +17,68 @@ module sid8580
 
 	input   [7:0] pot_x,
 	input   [7:0] pot_y,
+	input  [13:0] ext_in,
 
-	input         extfilter_en,
-	output [17:0] audio_data
+	output [17:0] audio_data,
+
+	input         filter_en,
+	input         mode,
+	input   [1:0] mixctl,
+	input   [2:0] cfg,
+	input         ld_clk,
+	input  [11:0] ld_addr,
+	input  [15:0] ld_data,
+	input         ld_wr
 );
 
 // Internal Signals
-reg [15:0] Voice_1_Freq;
-reg [11:0] Voice_1_Pw;
-reg  [7:0] Voice_1_Control;
-reg  [7:0] Voice_1_Att_dec;
-reg  [7:0] Voice_1_Sus_Rel;
+reg  [15:0] Voice_1_Freq;
+reg  [11:0] Voice_1_Pw;
+reg   [7:0] Voice_1_Control;
+reg   [7:0] Voice_1_Att_dec;
+reg   [7:0] Voice_1_Sus_Rel;
 
-reg [15:0] Voice_2_Freq;
-reg [11:0] Voice_2_Pw;
-reg  [7:0] Voice_2_Control;
-reg  [7:0] Voice_2_Att_dec;
-reg  [7:0] Voice_2_Sus_Rel;
+reg  [15:0] Voice_2_Freq;
+reg  [11:0] Voice_2_Pw;
+reg   [7:0] Voice_2_Control;
+reg   [7:0] Voice_2_Att_dec;
+reg   [7:0] Voice_2_Sus_Rel;
 
-reg [15:0] Voice_3_Freq;
-reg [11:0] Voice_3_Pw;
-reg  [7:0] Voice_3_Control;
-reg  [7:0] Voice_3_Att_dec;
-reg  [7:0] Voice_3_Sus_Rel;
+reg  [15:0] Voice_3_Freq;
+reg  [11:0] Voice_3_Pw;
+reg   [7:0] Voice_3_Control;
+reg   [7:0] Voice_3_Att_dec;
+reg   [7:0] Voice_3_Sus_Rel;
 
-reg [10:0] Filter_Fc;
-reg  [7:0] Filter_Res_Filt;
-reg  [7:0] Filter_Mode_Vol;
+reg  [10:0] Filter_Fc;
+reg   [7:0] Filter_Res_Filt;
+reg   [7:0] Filter_Mode_Vol;
 
-wire[17:0] sound;
+wire  [7:0] Misc_Osc3;
+wire  [7:0] Misc_Env3;
 
-wire [7:0] Misc_Osc3_Random;
-wire [7:0] Misc_Env3;
-
-reg  [7:0] do_buf;
-reg  [7:0] sidrandom;
-
-wire [11:0] voice_1;
-wire [11:0] voice_2;
-wire [11:0] voice_3;
-wire [17:0] voice_mixed;
-reg  [17:0] voice_volume;
+wire [13:0] voice_1;
+wire [13:0] voice_2;
+wire [13:0] voice_3;
 
 wire        voice_1_PA_MSB;
 wire        voice_2_PA_MSB;
 wire        voice_3_PA_MSB;
 
-wire [18:0] filtered_audio;
-wire [17:0] unsigned_audio;
-wire [18:0] unsigned_filt;
-
-localparam DC_offset = 14'b00111111111111;
-
-reg [7:0] _st_out[3];
-reg [7:0] p_t_out[3];
-reg [7:0] ps__out[3];
-reg [7:0] pst_out[3];
+wire  [7:0] _st_out[3];
+wire  [7:0] p_t_out[3];
+wire  [7:0] ps__out[3];
+wire  [7:0] pst_out[3];
 wire [11:0] acc_ps[3];
 wire [11:0] acc_t[3];
 
-// Voice 1 Instantiation
+
 sid_voice v1
 (
 	.clock(clk),
 	.ce_1m(ce_1m),
 	.reset(reset),
+	.mode(mode),
 	.freq(Voice_1_Freq),
 	.pw(Voice_1_Pw),
 	.control(Voice_1_Control),
@@ -85,7 +86,7 @@ sid_voice v1
 	.sus_rel(Voice_1_Sus_Rel),
 	.osc_msb_in(voice_3_PA_MSB),
 	.osc_msb_out(voice_1_PA_MSB),
-	.signal_out(voice_1),
+	.voice_out(voice_1),
 	._st_out(_st_out[0]),
 	.p_t_out(p_t_out[0]),
 	.ps__out(ps__out[0]),
@@ -94,12 +95,13 @@ sid_voice v1
 	.acc_t(acc_t[0])
 );
 
-// Voice 2 Instantiation
+
 sid_voice v2
 (
 	.clock(clk),
 	.ce_1m(ce_1m),
 	.reset(reset),
+	.mode(mode),
 	.freq(Voice_2_Freq),
 	.pw(Voice_2_Pw),
 	.control(Voice_2_Control),
@@ -107,7 +109,7 @@ sid_voice v2
 	.sus_rel(Voice_2_Sus_Rel),
 	.osc_msb_in(voice_1_PA_MSB),
 	.osc_msb_out(voice_2_PA_MSB),
-	.signal_out(voice_2),
+	.voice_out(voice_2),
 	._st_out(_st_out[1]),
 	.p_t_out(p_t_out[1]),
 	.ps__out(ps__out[1]),
@@ -116,12 +118,13 @@ sid_voice v2
 	.acc_t(acc_t[1])
 );
 
-// Voice 3 Instantiation
+
 sid_voice v3
 (
 	.clock(clk),
 	.ce_1m(ce_1m),
 	.reset(reset),
+	.mode(mode),
 	.freq(Voice_3_Freq),
 	.pw(Voice_3_Pw),
 	.control(Voice_3_Control),
@@ -129,8 +132,8 @@ sid_voice v3
 	.sus_rel(Voice_3_Sus_Rel),
 	.osc_msb_in(voice_2_PA_MSB),
 	.osc_msb_out(voice_3_PA_MSB),
-	.signal_out(voice_3),
-	.osc_out(Misc_Osc3_Random),
+	.voice_out(voice_3),
+	.osc_out(Misc_Osc3),
 	.env_out(Misc_Env3),
 	._st_out(_st_out[2]),
 	.p_t_out(p_t_out[2]),
@@ -140,26 +143,36 @@ sid_voice v3
 	.acc_t(acc_t[2])
 );
 
-// Filter Instantiation
-sid_filters filters
+
+wire [17:0] sound;
+sid_filters #(MULTI_FILTERS) filters
 (
 	.clk(clk),
 	.rst(reset),
 	.Fc(Filter_Fc),
 	.Res_Filt(Filter_Res_Filt),
 	.Mode_Vol(Filter_Mode_Vol),
-	.voice1(voice_1),
-	.voice2(voice_2),
-	.voice3(voice_3),
+	.voice1({{4{voice_1[13]}},voice_1}),
+	.voice2({{4{voice_2[13]}},voice_2}),
+	.voice3({{4{voice_3[13]}},voice_3}),
+	.ext_in({{4{ext_in[13]}},ext_in}),
 	.input_valid(ce_1m),
-	.ext_in(12'hfff),
 	.sound(sound),
-	.extfilter_en(extfilter_en)
+	.enable(filter_en),
+
+	.mode(mode),
+	.mixctl(mixctl),
+	.cfg(cfg),
+	.ld_clk(ld_clk),
+	.ld_addr(ld_addr),
+	.ld_data(ld_data),
+	.ld_wr(ld_wr)
 );
 
-sid_tables sid_tables
+sid_tables #(USE_8580_TABLES) sid_tables
 (
 	.clock(clk),
+	.mode(mode),
 	.acc_ps(f_acc_ps),
 	.acc_t(f_acc_t),
 	._st_out(f__st_out),
@@ -168,17 +181,17 @@ sid_tables sid_tables
 	.pst_out(f_pst_out)
 );
 
-wire [7:0] f__st_out;
-wire [7:0] f_p_t_out;
-wire [7:0] f_ps__out;
-wire [7:0] f_pst_out;
-reg [11:0] f_acc_ps;
-reg [11:0] f_acc_t;
+wire  [7:0] f__st_out;
+wire  [7:0] f_p_t_out;
+wire  [7:0] f_ps__out;
+wire  [7:0] f_pst_out;
+reg  [11:0] f_acc_ps;
+reg  [11:0] f_acc_t;
 
 always @(posedge clk) begin
 	reg [3:0] state;
 	
-	if(~&state) state <= state + 1'd1;;
+	if(~&state) state <= state + 1'd1;
 	if(ce_1m) state <= 0;
 
 	case(state)
@@ -199,22 +212,20 @@ always @(posedge clk) begin
 end
 
 
-assign data_out = do_buf;
-
-reg [7:0] last_wr;
-always @(*) begin
+always_comb begin
 	case (addr)
-		  5'h19: do_buf = pot_x;
-		  5'h1a: do_buf = pot_y;
-		  5'h1b: do_buf = Misc_Osc3_Random;
-		  5'h1c: do_buf = Misc_Env3;
-		default: do_buf = last_wr;
+		  5'h19: data_out = pot_x;
+		  5'h1a: data_out = pot_y;
+		  5'h1b: data_out = Misc_Osc3;
+		  5'h1c: data_out = Misc_Env3;
+		default: data_out = last_wr;
 	endcase
 end
 
 
 // Register Decoding
-reg dac_mode;
+reg       dac_mode;
+reg [7:0] last_wr;
 always @(posedge clk) begin
 	if (reset) begin
 		Voice_1_Freq    <= 0;
@@ -276,6 +287,7 @@ wire [17:0] dac_out;
 sid8580_dac dac
 (
 	.clock(clk),
+	.mode(mode),
 	.addr(Filter_Mode_Vol),
 	.dout(dac_out)
 );

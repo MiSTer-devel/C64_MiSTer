@@ -5,6 +5,7 @@ module sid_voice
 	input         clock,
 	input         ce_1m,
 	input         reset,
+	input         mode,
 	input  [15:0] freq,
 	input  [11:0] pw,
 	input   [7:0] control,
@@ -21,7 +22,7 @@ module sid_voice
 	output [11:0] acc_t,
 	
 	output        osc_msb_out,
-	output [11:0] signal_out,
+	output [13:0] voice_out,
 	output [ 7:0] osc_out,
 	output [ 7:0] env_out
 );
@@ -37,7 +38,8 @@ reg  [11:0] noise;
 reg  [22:0] lfsr_noise;
 wire [ 7:0] envelope;
 reg  [11:0] wave_out;
-reg  [19:0] dca_out;
+reg  [11:0] wave_out_r;
+reg signed [19:0] dca_out;
 
 wire noise_ctrl    = control[7];
 wire test_ctrl     = control[3];
@@ -46,12 +48,14 @@ wire sync_ctrl     = control[1];
 
 // Signal Assignments
 assign osc_msb_out = oscillator[23];
-assign signal_out  = dca_out[19:8];
-assign osc_out     = wave_out[11:4];
+assign voice_out   = dca_out[19:6];
+assign osc_out     = wave_out_r[11:4];
 assign env_out     = envelope;
 
 // Digital Controlled Amplifier
-always @(posedge clock) if(ce_1m) dca_out <= wave_out * envelope;
+always @(posedge clock) if(ce_1m) dca_out <= $signed({~wave_out[11], wave_out[10:0]}) * $signed({1'b0, envelope});
+
+always @(posedge clock) if(ce_1m) wave_out_r <= wave_out;
 
 // Envelope Instantiation
 sid_envelope adsr
@@ -67,9 +71,13 @@ sid_envelope adsr
 
 // Phase Accumulating Oscillator
 always @(posedge clock) begin
+	reg test_delay;
+
 	if(ce_1m) begin
 		osc_msb_in_prv <= osc_msb_in;
-		if (reset || test_ctrl || ((sync_ctrl) && (!osc_msb_in) && (osc_msb_in != osc_msb_in_prv)))
+		test_delay <= mode & test_ctrl;
+		
+		if (reset || test_ctrl || test_delay || (sync_ctrl && ~osc_msb_in && osc_msb_in_prv))
 			oscillator <= 0;
 		else
 			oscillator <= oscillator + freq;
@@ -87,26 +95,21 @@ always @(posedge clock) begin
 		lfsr_noise <= 23'h7fffff;
 	end
 	else if(ce_1m) begin
-		triangle   <=	(ringmod_ctrl) ?
-							{({11{~osc_msb_in}} ^ {{11{oscillator[23]}}}) ^ oscillator[22:12], 1'b0} :
-							{{11{oscillator[23]}} ^ oscillator[22:12], 1'b0};
+		triangle   <=	{12{(oscillator[23] ^ (ringmod_ctrl & ~osc_msb_in))}} ^ oscillator[22:11];
 
 		sawtooth   <=	oscillator[23:12];
 
-		pulse      <= 	(test_ctrl) ? 12'hfff :
-							(oscillator[23:12] >= pw) ? {12{1'b1}} :
-							{12{1'b0}};
+		pulse      <= 	test_ctrl ? 12'hfff :
+							(oscillator[23:12] >= pw) ? 12'hfff : 12'h000;
 
 		noise      <= 	{lfsr_noise[20], lfsr_noise[18], lfsr_noise[14],
 							lfsr_noise[11], lfsr_noise[9], lfsr_noise[5],
 							lfsr_noise[2], lfsr_noise[0], 4'b0000};
 
-		osc_edge   <= 	(oscillator[19] && !osc_edge) ? 1'b1 :
-							(!oscillator[19] && osc_edge) ? 1'b0 :
-							osc_edge;
+		osc_edge   <= 	oscillator[19];
 
-		lfsr_noise <= 	(oscillator[19] && !osc_edge) ?
-							{lfsr_noise[21:0], (lfsr_noise[22] | test_ctrl) ^ lfsr_noise[17]} :
+		lfsr_noise <= 	test_ctrl ? 23'h7fffff :
+							(oscillator[19] & ~osc_edge) ? {lfsr_noise[21:0], lfsr_noise[22] ^ lfsr_noise[17]} :
 							lfsr_noise;
     end
 end

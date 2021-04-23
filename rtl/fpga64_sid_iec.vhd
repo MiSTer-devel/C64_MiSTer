@@ -98,7 +98,7 @@ port(
 
 	--Connector to the SID
 	audio_data  : out std_logic_vector(17 downto 0);
-	extfilter_en: in  std_logic;
+	sid_filter  : in  std_logic;
 	sid_ver     : in  std_logic;
 	sid_we_ext  : out std_logic;
 	sid_mode    : in  std_logic_vector(1 downto 0);
@@ -232,33 +232,37 @@ signal colorData    : unsigned(3 downto 0);
 signal colorDataAec : unsigned(3 downto 0);
 
 -- SID signals
-signal sid_do       : std_logic_vector(7 downto 0);
-signal sid_do6581   : std_logic_vector(7 downto 0);
-signal sid_do8580   : std_logic_vector(7 downto 0);
+signal sid_do       : unsigned(7 downto 0);
+signal sid_do_int   : unsigned(7 downto 0);
 signal sid_we       : std_logic;
 signal sid_sel_int  : std_logic;
-signal audio_6581   : signed(17 downto 0);
 signal pot_x1       : std_logic_vector(7 downto 0);
 signal pot_y1       : std_logic_vector(7 downto 0);
 signal pot_x2       : std_logic_vector(7 downto 0);
 signal pot_y2       : std_logic_vector(7 downto 0);
-signal audio_8580   : std_logic_vector(17 downto 0);
 
 signal clk_1MHz     : std_logic_vector(31 downto 0);
 
-component sid8580
+component sid_top
 	port (
-		reset         : in std_logic;
-		clk           : in std_logic;
-		ce_1m         : in std_logic;
-		we            : in std_logic;
-		addr          : in std_logic_vector(4 downto 0);
-		data_in       : in std_logic_vector(7 downto 0);
-		data_out      : out std_logic_vector(7 downto 0);
-		pot_x         : in std_logic_vector(7 downto 0);
-		pot_y         : in std_logic_vector(7 downto 0);
+		reset         : in  std_logic;
+		clk           : in  std_logic;
+		ce_1m         : in  std_logic;
+		we            : in  std_logic;
+		addr          : in  unsigned(4 downto 0);
+		data_in       : in  unsigned(7 downto 0);
+		data_out      : out unsigned(7 downto 0);
+		pot_x         : in  std_logic_vector(7 downto 0);
+		pot_y         : in  std_logic_vector(7 downto 0);
 		audio_data    : out std_logic_vector(17 downto 0);
-		extfilter_en  : in std_logic
+		filter_en     : in  std_logic;
+
+		mode          : in  std_logic;
+		cfg           : in  std_logic_vector(2 downto 0);
+		ld_clk        : in  std_logic;
+		ld_addr       : in  std_logic_vector(11 downto 0);
+		ld_data       : in  std_logic_vector(15 downto 0);
+		ld_wr         : in  std_logic
   );
 end component;
 
@@ -428,7 +432,7 @@ port map (
 	cpuData => cpuDo,
 	vicAddr => vicAddr,
 	vicData => vicData,
-	sidData => unsigned(sid_do),
+	sidData => sid_do,
 	colorData => colorData,
 	cia1Data => cia1Do,
 	cia2Data => cia2Do,
@@ -565,56 +569,36 @@ begin
 	end if;
 end process;
 
-audio_data  <= std_logic_vector(audio_6581) when sid_ver='0' else audio_8580;
-
 sid_we      <= pulseWrRam and phi0_cpu and cs_sid;
 sid_sel_int <= not sid_mode(1) or (not sid_mode(0) and not cpuAddr(5)) or (sid_mode(0) and not cpuAddr(8));
 sid_we_ext  <= sid_we and (not sid_mode(1) or not sid_sel_int);
-sid_do      <= std_logic_vector(io_data) when sid_sel_int = '0' else sid_do6581 when sid_ver='0' else sid_do8580;
+sid_do      <= io_data when sid_sel_int = '0' else sid_do_int;
 
 pot_x1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot1;
 pot_y1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot2;
 pot_x2 <= (others => '1' ) when cia1_pao(7) = '0' else not pot3;
 pot_y2 <= (others => '1' ) when cia1_pao(7) = '0' else not pot4;
 
-sid_6581: entity work.sid_top
-port map (
-	clock => clk32,
-	reset => reset,
-
-	addr => std_logic_vector(cpuAddr(4 downto 0)),
-	wren => sid_we and sid_sel_int,
-	wdata => std_logic_vector(cpuDo),
-	rdata => sid_do6581,
-
-	potx => pot_x1 and pot_x2,
-	poty => pot_y1 and pot_y2,
-
-	extfilter_en => extfilter_en,
-	cfg => sid_cfg,
-
-	start_iter => clk_1MHz(31),
-	sample => audio_6581,
-
-	ld_clk  => sid_ld_clk,
-	ld_addr => sid_ld_addr,
-	ld_data => sid_ld_data,
-	ld_wr   => sid_ld_wr
-);
-
-sid_8580 : sid8580
+sid : sid_top
 port map (
 	reset => reset,
 	clk => clk32,
 	ce_1m => clk_1MHz(31),
 	we => sid_we and sid_sel_int,
-	addr => std_logic_vector(cpuAddr(4 downto 0)),
-	data_in => std_logic_vector(cpuDo),
-	data_out => sid_do8580,
+	addr => cpuAddr(4 downto 0),
+	data_in => cpuDo,
+	data_out => sid_do_int,
 	pot_x => pot_x1 and pot_x2,
 	pot_y => pot_y1 and pot_y2,
-	audio_data => audio_8580,
-	extfilter_en => extfilter_en
+	audio_data => audio_data,
+	filter_en => sid_filter,
+
+	mode    => sid_ver,
+	cfg     => sid_cfg,
+	ld_clk  => sid_ld_clk,
+	ld_addr => sid_ld_addr,
+	ld_data => sid_ld_data,
+	ld_wr   => sid_ld_wr
 );
 
 -- -----------------------------------------------------------------------
