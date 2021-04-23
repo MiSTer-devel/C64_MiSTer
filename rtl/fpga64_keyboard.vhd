@@ -65,14 +65,14 @@ architecture rtl of fpga64_keyboard is
 	signal key_return: std_logic := '0';
 	signal key_left: std_logic := '0';
 	signal key_right: std_logic := '0';
-	signal key_f1: std_logic := '0';
-	signal key_f2: std_logic := '0';
-	signal key_f3: std_logic := '0';
-	signal key_f4: std_logic := '0';
-	signal key_f5: std_logic := '0';
-	signal key_f6: std_logic := '0';
-	signal key_f7: std_logic := '0';
-	signal key_f8: std_logic := '0';
+	signal key_F1: std_logic := '0';
+	signal key_F2: std_logic := '0';
+	signal key_F3: std_logic := '0';
+	signal key_F4: std_logic := '0';
+	signal key_F5: std_logic := '0';
+	signal key_F6: std_logic := '0';
+	signal key_F7: std_logic := '0';
+	signal key_F8: std_logic := '0';
 	signal key_up: std_logic := '0';
 	signal key_down: std_logic := '0';
 
@@ -142,19 +142,35 @@ architecture rtl of fpga64_keyboard is
 	signal mod_key1: std_logic := '0';
 	signal mod_key2: std_logic := '0';
 
+	signal key_shift: std_logic := '0';
+	
 	-- for joystick emulation on PS2
 	signal old_state : std_logic;
+	
+	signal delay_cnt : integer range 0 to 300000;
+	signal delay_end : std_logic;
+	signal ps2_stb   : std_logic;
+	signal key_8s    : std_logic := '0';
 
 begin
+
+	delay_end <= '1' when delay_cnt = 0 else '0';
 
 	pressed <= ps2_key(9);
 	--extended<= ps2_key(8);
 
 	mod_key <= mod_key1 or mod_key2;
+	key_shift <= key_shiftl or key_shiftr;
 	
 	matrix: process(clk)
 	begin
 		if rising_edge(clk) then
+		
+			ps2_stb <= ps2_key(10);
+
+			if delay_cnt /= 0 then
+				delay_cnt <= delay_cnt - 1;
+			end if;
 
 			-- reading A, scan pattern on B
 			pao(0) <= pai(0) and joyB(0) and
@@ -162,10 +178,10 @@ begin
 				((pbi(0) or not key_del) and
 				(pbi(1) or not key_return) and
 				(pbi(2) or not (key_left or key_right)) and
-				(pbi(3) or not (key_f7 or key_f8)) and
-				(pbi(4) or not (key_f1 or key_f2)) and
-				(pbi(5) or not (key_f3 or key_f4)) and
-				(pbi(6) or not (key_f5 or key_f6)) and
+				(pbi(3) or not (key_F7 or key_F8)) and
+				(pbi(4) or not (key_F1 or key_F2)) and
+				(pbi(5) or not (key_F3 or key_F4)) and
+				(pbi(6) or not (key_F5 or key_F6)) and
 				(pbi(7) or not (key_up or key_down))));
 			pao(1) <= pai(1) and joyB(1) and
 				((not backwardsReadingEnabled) or
@@ -176,7 +192,7 @@ begin
 				(pbi(4) or not key_Z) and
 				(pbi(5) or not key_S) and
 				(pbi(6) or not key_E) and
-				(pbi(7) or not (key_left or key_up or key_shiftL or key_f2 or key_f4 or key_f6 or key_f8))));
+				(pbi(7) or not (key_left or key_up or (key_shiftl and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8))));
 			pao(2) <= pai(2) and joyB(2) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_5) and
@@ -220,10 +236,10 @@ begin
 			pao(6) <= pai(6) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_pound) and
-				(pbi(1) or not key_star) and
+				(pbi(1) or not (key_star or (key_8s and delay_end))) and
 				(pbi(2) or not key_semicolon) and
 				(pbi(3) or not key_home) and
-				(pbi(4) or not key_shiftr) and
+				(pbi(4) or not (key_left or key_up or (key_shiftr and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8)) and
 				(pbi(5) or not key_equal) and
 				(pbi(6) or not key_arrowup) and
 				(pbi(7) or not key_slash)));
@@ -255,7 +271,7 @@ begin
 				(pai(3) or not key_Y) and
 				(pai(4) or not key_I) and
 				(pai(5) or not key_P) and
-				(pai(6) or not key_star) and
+				(pai(6) or not (key_star or (key_8s and delay_end))) and
 				(pai(7) or not key_arrowleft);
 			pbo(2) <= pbi(2) and joyA(2) and
 				(pai(0) or not (key_left or key_right)) and
@@ -282,7 +298,7 @@ begin
 				(pai(3) or not key_B) and
 				(pai(4) or not key_M) and
 				(pai(5) or not key_dot) and
-				(pai(6) or not key_shiftr) and
+				(pai(6) or not (key_left or key_up or (key_shiftr and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8)) and
 				(pai(7) or not key_space);
 			pbo(5) <= pbi(5) and
 				(pai(0) or not (key_F3 or key_F4)) and
@@ -304,7 +320,7 @@ begin
 				(pai(7) or not key_Q);
 			pbo(7) <= pbi(7) and
 				(pai(0) or not (key_up or key_down)) and
-				(pai(1) or not (key_left or key_up or key_shiftL or key_f2 or key_f4 or key_f6 or key_f8)) and
+				(pai(1) or not (key_left or key_up or (key_shiftl and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8)) and
 				(pai(2) or not key_X) and
 				(pai(3) or not key_V) and
 				(pai(4) or not key_N) and
@@ -312,82 +328,90 @@ begin
 				(pai(6) or not key_slash) and
 				(pai(7) or not key_runstop);
 
-			case ps2_key(7 downto 0) is
-				when X"05" => key_F1 <= pressed;
-				when X"06" => key_F2 <= pressed;
-				when X"04" => key_F3 <= pressed;
-				when X"0C" => key_F4 <= pressed;
-				when X"03" => key_F5 <= pressed;
-				when X"0B" => key_F6 <= pressed;
-				when X"83" => key_F7 <= pressed;
-				when X"0A" => key_F8 <= pressed;
-				when X"01" => key_pound <= pressed; -- F9
-				when X"09" => key_plus <= pressed;  -- F10
-				when X"0E" => key_arrowleft <= pressed;
-				when X"11" => key_commodore <= pressed; 
-				when X"12" => key_shiftl <= pressed;
-				when X"14" => key_ctrl <= pressed; 
-				when X"15" => key_Q <= pressed; 
-				when X"16" => key_1 <= pressed; 
-				when X"1A" => key_Z <= pressed; 
-				when X"1B" => key_S <= pressed; 
-				when X"1C" => key_A <= pressed; 
-				when X"1D" => key_W <= pressed; 
-				when X"1E" => key_2 <= pressed; 
-				when X"1F" => mod_key1 <= pressed; 
-				when X"21" => key_C <= pressed; 
-				when X"22" => key_X <= pressed; 
-				when X"23" => key_D <= pressed; 
-				when X"24" => key_E <= pressed; 
-				when X"25" => key_4 <= pressed; 
-				when X"26" => key_3 <= pressed; 
-				when X"27" => mod_key2 <= pressed; 
-				when X"29" => key_space <= pressed; 
-				when X"2A" => key_V <= pressed; 
-				when X"2B" => key_F <= pressed; 
-				when X"2C" => key_T <= pressed; 
-				when X"2D" => key_R <= pressed; 
-				when X"2E" => key_5 <= pressed; 
-				when X"31" => key_N <= pressed; 
-				when X"32" => key_B <= pressed; 
-				when X"33" => key_H <= pressed; 
-				when X"34" => key_G <= pressed; 
-				when X"35" => key_Y <= pressed; 
-				when X"36" => key_6 <= pressed; 
-				when X"3A" => key_M <= pressed; 
-				when X"3B" => key_J <= pressed; 
-				when X"3C" => key_U <= pressed; 
-				when X"3D" => key_7 <= pressed; 
-				when X"3E" => key_8 <= pressed;
-				when X"41" => key_comma <= pressed; 
-				when X"42" => key_K <= pressed;
-				when X"43" => key_I <= pressed; 
-				when X"44" => key_O <= pressed; 
-				when X"45" => key_0 <= pressed; 
-				when X"46" => key_9 <= pressed; 
-				when X"49" => key_dot <= pressed; 
-				when X"4A" => key_slash <= pressed; 
-				when X"4B" => key_L <= pressed; 
-				when X"4C" => key_colon <= pressed; 
-				when X"4D" => key_P <= pressed; 
-				when X"4E" => key_minus <= pressed;
-				when X"52" => key_semicolon <= pressed; 
-				when X"54" => key_at <= pressed; 
-				when X"55" => key_equal <= pressed;
-				when X"59" => key_shiftr <= pressed;
-				when X"5A" => key_Return <= pressed; 
-				when X"5B" => key_star <= pressed; 
-				when X"5D" => key_arrowup <= pressed;
-				when X"6B" => key_left <= pressed;
-				when X"6C" => key_home <= pressed; 
-				when X"66" => key_del <= pressed; 
-				when X"72" => key_down <= pressed;
-				when X"74" => key_right <= pressed;
-				when X"75" => key_up <= pressed;
-				when X"76" => key_runstop <= pressed; 
-				when X"78" => restore_key <= pressed; -- F11
-				when others => null;
-			end case;
+			if ps2_key(10) /= ps2_stb then
+				case ps2_key(7 downto 0) is
+					when X"05" => key_F1 <= pressed;
+					when X"06" => key_F2 <= pressed;
+					when X"04" => key_F3 <= pressed;
+					when X"0C" => key_F4 <= pressed;
+					when X"03" => key_F5 <= pressed;
+					when X"0B" => key_F6 <= pressed;
+					when X"83" => key_F7 <= pressed;
+					when X"0A" => key_F8 <= pressed;
+					when X"01" => key_pound <= pressed; -- F9
+					when X"09" => key_equal <= pressed; -- F10
+					when X"0E" => key_arrowleft <= pressed;
+					when X"11" => key_commodore <= pressed; 
+					when X"12" => key_shiftl <= pressed;
+					when X"14" => key_ctrl <= pressed; 
+					when X"15" => key_Q <= pressed; 
+					when X"16" => key_1 <= pressed; 
+					when X"1A" => key_Z <= pressed; 
+					when X"1B" => key_S <= pressed; 
+					when X"1C" => key_A <= pressed; 
+					when X"1D" => key_W <= pressed; 
+					when X"1E" => key_2 <= pressed; 
+					when X"1F" => mod_key1 <= pressed; 
+					when X"21" => key_C <= pressed; 
+					when X"22" => key_X <= pressed; 
+					when X"23" => key_D <= pressed; 
+					when X"24" => key_E <= pressed; 
+					when X"25" => key_4 <= pressed; 
+					when X"26" => key_3 <= pressed; 
+					when X"27" => mod_key2 <= pressed; 
+					when X"29" => key_space <= pressed; 
+					when X"2A" => key_V <= pressed; 
+					when X"2B" => key_F <= pressed; 
+					when X"2C" => key_T <= pressed; 
+					when X"2D" => key_R <= pressed; 
+					when X"2E" => key_5 <= pressed; 
+					when X"31" => key_N <= pressed; 
+					when X"32" => key_B <= pressed; 
+					when X"33" => key_H <= pressed; 
+					when X"34" => key_G <= pressed; 
+					when X"35" => key_Y <= pressed; 
+					when X"36" => key_7 <= pressed and     key_shift;
+									  key_6 <= pressed and not key_shift;
+					when X"3A" => key_M <= pressed; 
+					when X"3B" => key_J <= pressed; 
+					when X"3C" => key_U <= pressed; 
+					when X"3D" => key_6 <= pressed and     key_shift;
+									  key_7 <= pressed and not key_shift;
+					when X"3E" => key_8s <= pressed and    key_shift;
+									  key_8 <= pressed and not key_shift;
+									  delay_cnt <= 300000;
+					when X"41" => key_comma <= pressed; 
+					when X"42" => key_K <= pressed;
+					when X"43" => key_I <= pressed; 
+					when X"44" => key_O <= pressed; 
+					when X"45" => key_9 <= pressed and     key_shift;
+									  key_0 <= pressed and not key_shift;
+					when X"46" => key_8 <= pressed and     key_shift;
+									  key_9 <= pressed and not key_shift;
+					when X"49" => key_dot <= pressed; 
+					when X"4A" => key_slash <= pressed; 
+					when X"4B" => key_L <= pressed; 
+					when X"4C" => key_colon <= pressed; 
+					when X"4D" => key_P <= pressed; 
+					when X"4E" => key_minus <= pressed;
+					when X"52" => key_semicolon <= pressed; 
+					when X"54" => key_at <= pressed; 
+					when X"55" => key_plus <= pressed;
+					when X"59" => key_shiftr <= pressed;
+					when X"5A" => key_Return <= pressed; 
+					when X"5B" => key_star <= pressed; 
+					when X"5D" => key_arrowup <= pressed;
+					when X"6B" => key_left <= pressed;
+					when X"6C" => key_home <= pressed; 
+					when X"66" => key_del <= pressed; 
+					when X"72" => key_down <= pressed;
+					when X"74" => key_right <= pressed;
+					when X"75" => key_up <= pressed;
+					when X"76" => key_runstop <= pressed; 
+					when X"78" => restore_key <= pressed; -- F11
+					when others => null;
+				end case;
+			end if;
 		end if;
 	end process;
 end architecture;

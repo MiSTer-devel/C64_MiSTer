@@ -23,7 +23,7 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 ### Keyboard
 * F2,F4,F6,F8,Left/Up keys automatically activate Shift key.
 * F9 - pound key.
-* F10 - plus key.
+* F10 - = key.
 * F11 - restore key. Also special key in AR/FC carts.
 * Alt - C= key.
 
