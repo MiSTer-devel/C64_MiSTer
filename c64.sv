@@ -714,14 +714,15 @@ always @(posedge clk_sys) begin
 	if(~reset_n) act <= 0;
 	if(act) begin
 		to <= to + 1;
-		if(to > 640000) begin
+		if(to > 1280000) begin
 			to <= 0;
 			act <= act + 1'd1;
 			case(act)
 				// PS/2 scan codes
 				1:  key <= 'h12;
-				2:  key <= 'h6c;  // <HOME/CLR> instead of ending with ":" so not to break compatibility (eg "a mind is born")
-				5:  key <= 'h12;  // Unstuck shift
+				2:  key <= 'h5a;  // make sure enter is released (sometimes got captured)
+				3:  key <= 'h6c;  // <HOME/CLR> instead of ending with ":" so not to break compatibility (eg "a mind is born")
+				5:  key <= 'h12;  // release shift
 				7:  key <= 'h2d;  // R
 				9:  key <= 'h3c;  // U
 				11: key <= 'h31;  // N
@@ -729,6 +730,7 @@ always @(posedge clk_sys) begin
 				15: act <= 0;
 			endcase
 			key[9] <= act[0];
+			key[10] <= ~key[10];
 		end
 	end
 	else begin
@@ -1181,14 +1183,34 @@ sid_top sid
 	.ld_wr(sid_ld_wr)
 );	
 
+localparam [3:0] comp_f1 = 4;
+localparam [3:0] comp_a1 = 2;
+localparam       comp_x1 = ((32767 * (comp_f1 - 1)) / ((comp_f1 * comp_a1) - 1)) + 1; // +1 to make sure it won't overflow
+localparam       comp_b1 = comp_x1 * comp_a1;
+
+function [15:0] compr; input [15:0] inp;
+	reg [15:0] v, v1;
+	begin
+		v  = inp[15] ? (~inp) + 1'd1 : inp;
+		v1 = (v < comp_x1[15:0]) ? (v * comp_a1) : (((v - comp_x1[15:0])/comp_f1) + comp_b1[15:0]);
+		v  = v1;
+		compr = inp[15] ? ~(v-1'd1) : v;
+	end
+endfunction
+
 reg [15:0] alo,aro;
 always @(posedge clk_sys) begin
 	reg [16:0] alm,arm;
+	reg [15:0] cout;
+	reg [15:0] cin;
+	
+	cin  <= opl_out - {{3{opl_out[15]}},opl_out[15:3]};
+	cout <= compr(cin);
 
-	alm <= {opl_out[15],opl_out} + {audio_l[17],audio_l[17:2]} + {cass_snd, 10'd0};
-	arm <= {opl_out[15],opl_out} + {audio_r[17],audio_r[17:2]} + {cass_snd, 10'd0};
-	alo <= ($signed(alm) > $signed(17'd32767)) ? 16'd32767 : ($signed(alm) < $signed(-17'd32768)) ? -16'd32768 : alm[15:0];
-	aro <= ($signed(arm) > $signed(17'd32767)) ? 16'd32767 : ($signed(arm) < $signed(-17'd32768)) ? -16'd32768 : arm[15:0];
+	alm <= {cout[15],cout} + {audio_l[17],audio_l[17:2]} + {cass_snd, 10'd0};
+	arm <= {cout[15],cout} + {audio_r[17],audio_r[17:2]} + {cass_snd, 10'd0};
+	alo <= ^alm[16:15] ? {alm[16], {15{alm[15]}}} : alm[15:0];
+	aro <= ^arm[16:15] ? {arm[16], {15{arm[15]}}} : arm[15:0];
 end
 
 assign AUDIO_L = alo;
