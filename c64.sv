@@ -196,7 +196,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXX XXXXXXXXXXXXXXXXX XXXXXXX XXXX XX 
+// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX 
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -235,6 +235,7 @@ localparam CONF_STR = {
 	"P2,Hardware;", 
 	"P2-;",
 	"P2OP,Enable Drive #9,No,Yes;",
+	"P2R6,Reset Disk Drives;",
 	"P2-;",
 	"P2O1,User Port,Joysticks,UART;",
 	"P2OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
@@ -910,6 +911,8 @@ wire c64_iec_clk;
 wire c64_iec_data;
 wire c64_iec_atn;
 
+wire c1541_reset = ~reset_n | status[6];
+
 wire c1541_1_iec_clk;
 wire c1541_1_iec_data;
 wire c1541_1_led;
@@ -934,7 +937,7 @@ c1541_sd c1541_1
 	.iec_clk_i(c64_iec_clk),
 	.iec_data_o(c1541_1_iec_data),
 	.iec_clk_o(c1541_1_iec_clk),
-	.iec_reset_i(~reset_n),
+	.iec_reset_i(c1541_reset),
 
 	.sd_lba(sd_lba1),
 	.sd_rd(sd_rd[0]),
@@ -972,7 +975,7 @@ c1541_sd c1541_2
 	.iec_clk_i(c64_iec_clk | ~drive9),
 	.iec_data_o(c1541_2_iec_data),
 	.iec_clk_o(c1541_2_iec_clk),
-	.iec_reset_i(~reset_n),
+	.iec_reset_i(c1541_reset),
 
 	.sd_lba(sd_lba2),
 	.sd_rd(sd_rd[1]),
