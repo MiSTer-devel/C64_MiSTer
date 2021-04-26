@@ -39,7 +39,7 @@ reg  [22:0] lfsr_noise;
 wire [ 7:0] envelope;
 reg  [11:0] wave_out;
 reg  [11:0] wave_out_r;
-reg signed [19:0] dca_out;
+reg  [19:0] dca_out;
 
 wire noise_ctrl    = control[7];
 wire test_ctrl     = control[3];
@@ -51,11 +51,6 @@ assign osc_msb_out = oscillator[23];
 assign voice_out   = dca_out[19:6];
 assign osc_out     = wave_out_r[11:4];
 assign env_out     = envelope;
-
-// Digital Controlled Amplifier
-always @(posedge clock) if(ce_1m) dca_out <= $signed({~wave_out[11], wave_out[10:0]}) * $signed({1'b0, envelope});
-
-always @(posedge clock) if(ce_1m) wave_out_r <= wave_out;
 
 // Envelope Instantiation
 sid_envelope adsr
@@ -130,6 +125,27 @@ always @(*) begin
 		3'b111: wave_out = {pst_out, 4'b0000} & pulse;
 	endcase
 	if (noise_ctrl) wave_out = control[6:4] ? (wave_out & noise) : noise;
+end
+
+// for OSC3 readback
+always @(posedge clock) if(ce_1m) wave_out_r <= wave_out;
+
+// DAC with floating input simulation
+always @(posedge clock) begin
+	reg [16:0] keep_cnt;
+	reg [11:0] dac_out;
+
+	if(ce_1m) begin
+		if(keep_cnt) keep_cnt <= keep_cnt - 1'd1;
+		else dac_out <= 0;
+
+		if(control[7:4]) begin
+			keep_cnt <= 'h14000;
+			dac_out  <= wave_out;
+		end
+
+		dca_out <= $signed({~dac_out[11], dac_out[10:0]}) * $signed({1'b0, envelope});
+	end
 end
 
 endmodule
