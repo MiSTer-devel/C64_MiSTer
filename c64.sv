@@ -196,7 +196,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX 
+// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX XX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -229,7 +229,8 @@ localparam CONF_STR = {
 	"P1OKM,Right SID Port,Same,DE00,D420,D500,DF00;",
 	"P1FC7,FLT,Load Custom Filters;",
 	"P1-;",
-	"P1OC,Sound Expander,No,OPL2;",
+	"P1OC,Sound Expander,Disabled,OPL2;",
+	"P1o89,DigiMax,Disabled,DE00,DF00;",
 	"P1OIJ,Stereo Mix,None,25%,50%,100%;",
 
 	"P2,Hardware;", 
@@ -1184,7 +1185,37 @@ sid_top sid
 	.ld_addr(sid_ld_addr),
 	.ld_data(sid_ld_data),
 	.ld_wr(sid_ld_wr)
-);	
+);
+
+//DigiMax
+reg [8:0] dac_l, dac_r;
+always @(posedge clk_sys) begin
+	reg [8:0] dac[4];
+	reg [3:0] act;
+
+	if(!status[41:40] || ~reset_n) begin
+		dac <= '{0,0,0,0};
+		act <= 0;
+	end
+	else if((status[41] ? iof_we : ioe_we) && ~c64_addr[2]) begin
+		dac[c64_addr[1:0]] <= c64_data_out;
+		if(c64_data_out) act[c64_addr[1:0]] <= 1;
+	end
+
+	// guess mono/stereo/4-chan modes
+	if(act<2) begin
+		dac_l <= dac[0] + dac[0];
+		dac_r <= dac[0] + dac[0];
+	end
+	else if(act<3) begin
+		dac_l <= dac[1] + dac[1];
+		dac_r <= dac[0] + dac[0];
+	end
+	else begin
+		dac_l <= dac[1] + dac[2];
+		dac_r <= dac[0] + dac[3];
+	end
+end
 
 localparam [3:0] comp_f1 = 4;
 localparam [3:0] comp_a1 = 2;
@@ -1210,8 +1241,8 @@ always @(posedge clk_sys) begin
 	cin  <= opl_out - {{3{opl_out[15]}},opl_out[15:3]};
 	cout <= compr(cin);
 
-	alm <= {cout[15],cout} + {audio_l[17],audio_l[17:2]} + {cass_snd, 10'd0};
-	arm <= {cout[15],cout} + {audio_r[17],audio_r[17:2]} + {cass_snd, 10'd0};
+	alm <= {cout[15],cout} + {audio_l[17],audio_l[17:2]} + {2'b0,dac_l,6'd0} + {cass_snd, 10'd0};
+	arm <= {cout[15],cout} + {audio_r[17],audio_r[17:2]} + {2'b0,dac_r,6'd0} + {cass_snd, 10'd0};
 	alo <= ^alm[16:15] ? {alm[16], {15{alm[15]}}} : alm[15:0];
 	aro <= ^arm[16:15] ? {arm[16], {15{arm[15]}}} : arm[15:0];
 end
