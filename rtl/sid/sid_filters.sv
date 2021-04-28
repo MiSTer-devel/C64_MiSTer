@@ -31,13 +31,10 @@ reg signed [17:0] Vbp;
 reg signed [17:0] w0;
 reg signed [17:0] q;
 
-wire [10:0] divmul[32] =
+wire [10:0] divmul[16] =
 '{
-	1448, 1323, 1218, 1128, 1051, 984, 925, 872,
-	 825,  783,  745,  710,  679, 650, 624, 599,
-	 
-	1448, 1328, 1218, 1117, 1024, 939, 861, 790,
-	 724,  664,  609,  558,  512, 470, 431, 395
+	1433, 1313, 1202, 1104, 1024, 938, 859, 788,
+	 716,  656,  601,  552,  512, 469, 429, 394
 };
 
 wire [35:0] mul1 = w0 * Vhp;
@@ -115,7 +112,7 @@ always @(posedge clk) begin
 
 					                      dVlp <= {mul2[35], mul2[35:19]}; // w0 * Vbp
 					                      Vbp  <= sub_limit(Vbp, dVbp);
-					                      q    <= divmul[{mode, Res_Filt[7:4]}];
+					                      q    <= divmul[Res_Filt[7:4]];
 				end
 			5:	begin
 					if(Mode_Vol[5])       Vf   <= add_limit(Vf, Vbp);
