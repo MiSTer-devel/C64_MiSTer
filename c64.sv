@@ -729,17 +729,20 @@ always @(posedge clk_sys) begin
 				9:  key <= 'h3c;  // U
 				11: key <= 'h31;  // N
 				13: key <= 'h5a;  // <RETURN>
-				15: act <= 0;
+				15: key <= 'h00;
 			endcase
 			key[9] <= act[0];
-			key[10] <= ~key[10];
+			key[10] <= (act == 15) ? ps2_key[10] : ~key[10];
 		end
 	end
 	else begin
 		to <= 0;
 		key <= ps2_key;
 	end
-	if(start_strk) act <= 1;
+	if(start_strk) begin
+		act <= 1;
+		key <= 0;
+	end
 end
 
 assign SDRAM_CKE  = 1;
