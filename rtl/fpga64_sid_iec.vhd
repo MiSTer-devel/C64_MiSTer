@@ -167,6 +167,7 @@ signal aec          : std_logic;
 signal enableCpu    : std_logic;
 signal enableVic    : std_logic;
 signal enablePixel  : std_logic;
+signal enableSid    : std_logic;
 
 signal irq_cia1     : std_logic;
 signal irq_cia2     : std_logic;
@@ -240,8 +241,6 @@ signal pot_x1       : std_logic_vector(7 downto 0);
 signal pot_y1       : std_logic_vector(7 downto 0);
 signal pot_x2       : std_logic_vector(7 downto 0);
 signal pot_y2       : std_logic_vector(7 downto 0);
-
-signal clk_1MHz     : std_logic_vector(31 downto 0);
 
 component sid_top
 	port (
@@ -349,6 +348,7 @@ begin
 		enableCia_n <= '0';
 		enableCia_p <= '0';
 		enableCpu <= '0';
+		enableSid <= '0';
 
 		case sysCycle is
 		when CYCLE_VIC2 =>
@@ -360,6 +360,7 @@ begin
 			enableCia_n <= '1';
 		when CYCLE_CPUF =>
 			enableCia_p <= '1';
+			enableSid <= '1';
 		when others =>
 			null;
 		end case;
@@ -557,17 +558,6 @@ end process;
 -- -----------------------------------------------------------------------
 -- SID
 -- -----------------------------------------------------------------------
-div1m: process(clk32)				-- this process devides 32 MHz to 1MHz (for the SID)
-begin									
-	if (rising_edge(clk32)) then			    			
-		if (reset = '1') then				
-			clk_1MHz 	<= "00000000000000000000000000000001";
-		else
-			clk_1MHz(31 downto 1) <= clk_1MHz(30 downto 0);
-			clk_1MHz(0)           <= clk_1MHz(31);
-		end if;
-	end if;
-end process;
 
 sid_we      <= pulseWrRam and phi0_cpu and cs_sid;
 sid_sel_int <= not sid_mode(1) or (not sid_mode(0) and not cpuAddr(5)) or (sid_mode(0) and not cpuAddr(8));
@@ -583,7 +573,7 @@ sid : sid_top
 port map (
 	reset => reset,
 	clk => clk32,
-	ce_1m => clk_1MHz(31),
+	ce_1m => enableSid,
 	we => sid_we and sid_sel_int,
 	addr => cpuAddr(4 downto 0),
 	data_in => cpuDo,
