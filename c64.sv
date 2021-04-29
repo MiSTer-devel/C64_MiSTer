@@ -337,10 +337,15 @@ always @(posedge CLK_50M) begin
 end
 
 reg reset_n;
+reg reset_wait = 0;
 always @(posedge clk_sys) begin
 	integer reset_counter;
+	integer wait_counter;
+	reg old_download;
 
-	if (status[0] | status[17] | buttons[1] | !pll_locked) begin
+	old_download <= ioctl_download;
+
+	if (status[0] | status[17] | buttons[1] | (~old_download & ioctl_download & load_prg) | !pll_locked) begin
 		reset_counter <= 100000;
 		reset_n <= 0;
 	end
@@ -348,15 +353,25 @@ always @(posedge clk_sys) begin
 		reset_counter <= 255;
 		reset_n <= 0;
 	end
-	else if (ioctl_download || inj_meminit);
+	else if ((ioctl_download || inj_meminit) & ~reset_wait);
 	else if (erasing) force_erase <= 0;
-	else if (!reset_counter) reset_n <= 1;
+	else if (!reset_counter) begin
+		reset_n <= 1;
+
+		//TODO: cath CPU at the address when init finished instead of blind wait.
+		if(wait_counter) wait_counter <= wait_counter - 1;
+		else reset_wait <= 0;
+	end
 	else begin
 		reset_counter <= reset_counter - 1;
 		if (reset_counter == 100) force_erase <= 1;
 	end
-end 
 
+	if(~old_download & ioctl_download & load_prg) begin
+		reset_wait <= 1;
+		wait_counter <= 3*32000000;
+	end
+end
 
 wire [15:0] joyA,joyB,joyC,joyD;
 
@@ -430,7 +445,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_data),
-	.ioctl_wait(ioctl_req_wr)
+	.ioctl_wait(ioctl_req_wr|reset_wait)
 );
 
 wire game;
@@ -527,16 +542,11 @@ reg  [3:0] cart_hdr_cnt;
 reg        cart_hdr_wr;
 reg [31:0] cart_blk_len;
 
-reg [15:0] inj_start;
-reg [15:0] inj_end;
-
 reg        force_erase;
 reg        erasing;
 
-wire       load_inj = (ioctl_index[5:0] == 4);
-wire       load_prg = (ioctl_index[7:6] == 0) && load_inj;
 reg        inj_meminit = 0;
-reg  [7:0] inj_meminit_data;
+wire       load_prg = ioctl_index == 4;
 
 wire       io_cycle;
 reg        io_cycle_ce;
@@ -547,17 +557,18 @@ reg  [7:0] io_cycle_data;
 localparam TAP_ADDR = 25'h200000;
 
 always @(posedge clk_sys) begin
-	reg [4:0] erase_to;
-	reg old_download;
-	reg erase_cram;
-	reg io_cycleD;
-	reg old_st0 = 0;
-	reg old_meminit;
+	reg  [4:0] erase_to;
+	reg        old_download;
+	reg        erase_cram;
+	reg        io_cycleD;
+	reg        old_st0 = 0;
+	reg        old_meminit;
+	reg [15:0] inj_end;
+	reg  [7:0] inj_meminit_data;
 
 	old_download <= ioctl_download;
 	io_cycleD <= io_cycle;
 	cart_hdr_wr <= 0;
-	old_meminit <= inj_meminit;
 	
 	if (~io_cycle & io_cycleD) begin
 		io_cycle_ce <= 1;
@@ -577,15 +588,13 @@ always @(posedge clk_sys) begin
 	if (io_cycle & io_cycleD) {io_cycle_ce, io_cycle_we} <= 0;
 
 	if (ioctl_wr) begin
-		if (load_inj) begin
-			if (load_prg) begin
-				// PRG header
-				// Load address low-byte
-				if      (ioctl_addr == 0) begin ioctl_load_addr[7:0]  <= ioctl_data; inj_start[7:0]  <= ioctl_data; inj_end[7:0]  <= ioctl_data; end
-				// Load address high-byte
-				else if (ioctl_addr == 1) begin ioctl_load_addr[15:8] <= ioctl_data; inj_start[15:8] <= ioctl_data; inj_end[15:8] <= ioctl_data; end
-				else begin ioctl_req_wr <= 1; inj_end <= inj_end + 1'b1; end
-			end
+		if (load_prg) begin
+			// PRG header
+			// Load address low-byte
+			if      (ioctl_addr == 0) begin ioctl_load_addr[7:0]  <= ioctl_data; inj_end[7:0]  <= ioctl_data; end
+			// Load address high-byte
+			else if (ioctl_addr == 1) begin ioctl_load_addr[15:8] <= ioctl_data; inj_end[15:8] <= ioctl_data; end
+			else begin ioctl_req_wr <= 1; inj_end <= inj_end + 1'b1; end
 		end
 
 		if (load_cart) begin
@@ -643,7 +652,7 @@ always @(posedge clk_sys) begin
 	end 
 
 	// meminit for RAM injection
-	if (old_download != ioctl_download && load_inj && !inj_meminit) begin
+	if (old_download != ioctl_download && load_prg && !inj_meminit) begin
 		inj_meminit <= 1;
 		ioctl_load_addr <= 0;
 	end
@@ -684,7 +693,8 @@ always @(posedge clk_sys) begin
 		end
 	end
 
-	start_strk <= (old_meminit && !inj_meminit);
+	old_meminit <= inj_meminit;
+	start_strk  <= old_meminit & ~inj_meminit;
 	
 	old_st0 <= status[0];
 	if (~old_st0 & status[0]) cart_attached <= 0;
@@ -721,18 +731,15 @@ always @(posedge clk_sys) begin
 			act <= act + 1'd1;
 			case(act)
 				// PS/2 scan codes
-				1:  key <= 'h12;
-				2:  key <= 'h5a;  // make sure enter is released (sometimes got captured)
-				3:  key <= 'h6c;  // <HOME/CLR> instead of ending with ":" so not to break compatibility (eg "a mind is born")
-				5:  key <= 'h12;  // release shift
-				7:  key <= 'h2d;  // R
-				9:  key <= 'h3c;  // U
-				11: key <= 'h31;  // N
-				13: key <= 'h5a;  // <RETURN>
-				15: key <= 'h00;
+				 1: key <= 'h2d;  // R
+				 3: key <= 'h3c;  // U
+				 5: key <= 'h31;  // N
+				 7: key <= 'h5a;  // <RETURN>
+				 9: key <= 'h00;
+				10: act <= 0;
 			endcase
-			key[9] <= act[0];
-			key[10] <= (act == 15) ? ps2_key[10] : ~key[10];
+			key[9]  <= act[0];
+			key[10] <= (act >= 9) ? ps2_key[10] : ~key[10];
 		end
 	end
 	else begin
