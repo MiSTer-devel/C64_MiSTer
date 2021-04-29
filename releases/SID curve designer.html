@@ -98,42 +98,45 @@ function clear_area(ctx) {
 }
 
 function make_grid(ctx) {
-    ctx.strokeStyle = 'rgba(0, 0, 0, 255)';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(cwidth, 0);
-    ctx.lineTo(cwidth, cheight);
-    ctx.lineTo(0, cheight);
-    ctx.closePath();
-    ctx.stroke();
+	ctx.strokeStyle = 'rgba(0, 0, 0, 255)';
+	ctx.beginPath();
+	ctx.moveTo(0, 0);
+	ctx.lineTo(cwidth, 0);
+	ctx.lineTo(cwidth, cheight);
+	ctx.lineTo(0, cheight);
+	ctx.closePath();
+	ctx.stroke();
 
-    for (var x = 0; x < 2048; x += 128) {
-        ctx.strokeStyle = x % 512 == 0 ? 'rgba(32, 32, 32, 128)' : 'rgba(128, 128, 128, 128)';
+	for (var x = 0; x < 2048; x += 128) {
+		ctx.strokeStyle = x % 512 == 0 ? 'rgba(32, 32, 32, 128)' : 'rgba(128, 128, 128, 128)';
 
-        var coord1 = viewtransform([x, ymin]);
-        var coord2 = viewtransform([x, ymax]);
-        ctx.beginPath();
-        ctx.moveTo(Math.floor(coord1[0]), coord1[1]);
-        ctx.lineTo(Math.floor(coord2[0]), coord2[1]);
-        ctx.stroke();
-    }
+		var coord1 = viewtransform([x, ymin]);
+		var coord2 = viewtransform([x, ymax]);
+		ctx.beginPath();
+		ctx.moveTo(Math.floor(coord1[0]), coord1[1]);
+		ctx.lineTo(Math.floor(coord2[0]), coord2[1]);
+		ctx.stroke();
+	}
     
-    for (var y = 0; y < ymax; y += 100) {
-	var color = 'rgba(192, 192, 192, 128)';
-	if (y == 1000 || y == 10000)
-	    color = 'rgba(0, 0, 0, 128)';
-        ctx.strokeStyle = color;
-	if (y > 1000 && y % 1000 != 0)
-	    continue;
-	if (y > 10000 && y % 10000 != 0)
-	    continue;
-        var coord1 = viewtransform([0, y]);
-        var coord2 = viewtransform([2048, y]);
-        ctx.beginPath();
-        ctx.moveTo(coord1[0], Math.floor(coord1[1] + 0.5));
-        ctx.lineTo(coord2[0], Math.floor(coord2[1] + 0.5));
-        ctx.stroke();
-    }
+	for (var y = 0; y < ymax; y += 100) {
+		var color = 'rgba(192, 192, 192, 128)';
+		if (y == 1000 || y == 10000) color = 'rgba(0, 0, 0, 128)';
+		ctx.strokeStyle = color;
+		if (y > 1000 && y % 1000 != 0) continue;
+		if (y > 10000 && y % 10000 != 0) continue;
+		var coord1 = viewtransform([0, y]);
+		var coord2 = viewtransform([2048, y]);
+		ctx.beginPath();
+		ctx.moveTo(coord1[0], Math.floor(coord1[1] + 0.5));
+		ctx.lineTo(coord2[0], Math.floor(coord2[1] + 0.5));
+		ctx.stroke();
+		if (y == 1000 || y == 10000) {
+			ctx.font = '12px';
+			var color = 'rgba(0, 0, 128, 128)';
+			ctx.strokeStyle = color;
+			ctx.strokeText(y/1000+" KHz", coord1[0]+5, coord1[1]-5);
+		}
+	}
 }
 
 function draw_lines(ctx, list) {
@@ -157,10 +160,10 @@ function update_view() {
     make_grid(ctx);
 
     var list1 = parse_type1($('#type1def').value);
-    ctx.strokeStyle = 'rgba(255, 180, 180, 255)';
+    ctx.strokeStyle = 'rgba(192, 192, 192, 255)';
     draw_lines(ctx, list1);
 
-    ctx.strokeStyle = 'rgba(255, 200, 200, 255)';
+    ctx.strokeStyle = 'rgba(192, 192, 192, 255)';
     draw_lines(ctx, list1.map(function(x) { return [x[0], x[1]*1.1]; }));
     draw_lines(ctx, list1.map(function(x) { return [x[0], x[1]/1.1]; }));
 
@@ -170,7 +173,7 @@ function update_view() {
     });
 
     var list2 = make_type3_list(vals);
-    ctx.strokeStyle = 'rgba(255, 0, 255, 255)';
+    ctx.strokeStyle = 'rgba(255, 0, 0, 255)';
     draw_lines(ctx, list2);
 }
 
@@ -295,8 +298,6 @@ modify the frequency response between the lp and hp outputs. This often biases
 hp level down with increasing frequency, but I have seen chips where there
 is very little bias and sometimes the bias is U-shaped function. It follows
 that the measurements themselves are imperfect. The error bars below are 10 %.
-Results above 20 kHz are probably completely unreliable, because many
-soundcards have imperfect frequency response in that range during recording.
 </p>
 
 <form id="theform" action="." method="GET">
@@ -569,23 +570,38 @@ soundcards have imperfect frequency response in that range during recording.
 <table>
     <tr>
         <td>Base Resistance:</td>
-        <td><input type="text" id="baseresistance" value="1.30e6" title="controls the start of curve -- get this right first"/></td>
+        <td><input type="text" id="baseresistance" value="1.30e6"/></td>
+    </tr>
+    <tr>
+		  <td colspan="2">controls the start of curve -- get this right first<br/><br/></td>
     </tr>
     <tr>
         <td>Offset:</td>
-        <td><input type="text" id="offset" value="2.9e8" title="partially controls the point when the curve starts to rise"/>
+        <td><input type="text" id="offset" value="2.9e8"/>
+    </tr>
+    <tr>
+		  <td colspan="2">partially controls the point when the curve starts to rise<br/><br/></td>
     </tr>
     <tr>
         <td>Steepness:</td>
-        <td><input type="text" id="steepness" value="1.007" title="controls the steepness around the midpoint and also the point it starts to rise"/></td>
+        <td><input type="text" id="steepness" value="1.007"/></td>
+    </tr>
+    <tr>
+		  <td colspan="2">controls the steepness around the midpoint<br/>and also the point it starts to rise<br/><br/></td>
     </tr>
     <tr>
         <td>Minimum FET Resistance:</td>
-        <td><input type="text" id="minimumfetresistance" value="1.9e4" title="controls behaviour at the very top end"/></td>
+        <td><input type="text" id="minimumfetresistance" value="1.9e4"/></td>
+    </tr>
+    <tr>
+		  <td colspan="2">controls behaviour at the very top end<br/><br/></td>
     </tr>
     <tr>
         <td>DAC fidelity:</td>
-        <td><input type="text" id="dac" value="0.966" title="controls perfection of DAC"/></td>
+        <td><input type="text" id="dac" value="0.966"/></td>
+    </tr>
+    <tr>
+		  <td colspan="2">controls perfection of DAC<br/><br/></td>
     </tr>
 </table>
     <input type="button" id="optimize" value="Optimize"/>
