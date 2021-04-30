@@ -21,6 +21,8 @@
 module c1541_track
 (
 	input         clk,
+	input         ce,
+
 	input         reset,
 
 	input         sd_clk,
@@ -82,7 +84,7 @@ reg [12:0] base_fix;
 reg [12:0] sd_buff_base;
 reg rd,wr;
 
-always @(posedge clk) begin
+always @(posedge clk) if(ce) begin
 	reg ack1,ack2,ack;
 	reg old_ack;
 	reg [5:0] cur_track = 0;

@@ -13,7 +13,7 @@
 //                             : remove iec internal OR wired
 //                             : synched atn_in (sometime no IRQ with real c64)
 //
-// Input clk 32MHz
+// Input clk 16MHz
 //
 //-------------------------------------------------------------------------------
 
@@ -21,6 +21,8 @@ module c1541_sd
 (
 	//clk_c1541 ports
 	input         clk_c1541,
+	input         ce_c1541,
+
 	input         pause,
 
 	input         disk_change,
@@ -70,7 +72,7 @@ end
 
 reg readonly = 0;
 reg ch_state;
-always @(posedge clk_c1541) begin
+always @(posedge clk_c1541) if(ce_c1541) begin
 	integer ch_timeout;
 	reg     prev_change;
 
@@ -80,7 +82,7 @@ always @(posedge clk_c1541) begin
 		ch_state <= 1;
 	end else ch_state <= 0;
 	if (~prev_change & disk_change) begin
-		ch_timeout <= 15000000;
+		ch_timeout <= 30000000;
 		readonly <= disk_readonly;
 	end
 end
@@ -93,7 +95,8 @@ wire [1:0] freq;
 
 c1541_logic c1541_logic
 (
-	.clk32(clk_c1541),
+	.clk(clk_c1541),
+	.ce(ce_c1541),
 	.reset(reset),
 	.pause(pause),
 
@@ -138,7 +141,8 @@ wire [7:0] byte_addr;
 
 c1541_gcr c1541_gcr
 (
-	.clk32(clk_c1541),
+	.clk(clk_c1541),
+	.ce(ce_c1541),
 
 	.dout(gcr_do),
 	.din(gcr_di),
@@ -183,13 +187,14 @@ c1541_track c1541_track
 	.sector(sector),
 
 	.clk(clk_c1541),
+	.ce(ce_c1541),
 	.reset(reset),
 	.busy(sd_busy)
 );
 
 reg [5:0] track;
 reg       save_track;
-always @(posedge clk_c1541) begin
+always @(posedge clk_c1541) if(ce_c1541) begin
 	reg       track_modified;
 	reg [6:0] track_num;
 	reg [1:0] stp_r;

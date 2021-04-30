@@ -9,8 +9,10 @@
 //
 module c1541_logic
 (
-	input        clk32,
+	input        clk,
+	input        ce,
 	input        reset,
+
 	input        pause,
 
 	// serial bus
@@ -58,7 +60,7 @@ assign freq   = uc3_pb_o[6:5] | ~uc3_pb_oe[6:5];
 reg iec_atn;
 reg iec_data;
 reg iec_clk;
-always @(posedge clk32) begin
+always @(posedge clk) begin
 	reg iec_atn_d1, iec_data_d1, iec_clk_d1;
 	reg iec_atn_d2, iec_data_d2, iec_clk_d2;
 
@@ -77,16 +79,20 @@ end
 
 reg p2_h_r;
 reg p2_h_f;
-always @(posedge clk32) begin
-	reg [4:0] div;
+always @(posedge clk) begin
+	reg [3:0] div;
 	reg       ena, ena1;
-	div <= div + 1'd1;
-	
-	ena1 <= ~pause;
-	if(div[3:0]) ena <= ena1;
 
-	p2_h_r <= ena && !div[4] && !div[3:0];
-	p2_h_f <= ena &&  div[4] && !div[3:0];
+	ena1 <= ~pause;
+	if(div[2:0]) ena <= ena1;
+
+	p2_h_r <= 0;
+	p2_h_f <= 0;
+	if(ce) begin
+		div <= div + 1'd1;
+		p2_h_r <= ena && !div[3] && !div[2:0];
+		p2_h_f <= ena &&  div[3] && !div[2:0];
+	end
 end
 
 // The address decoder only sees A15 A12 A11 and A10, which means the
@@ -118,7 +124,7 @@ T65 cpu
 	.mode(2'b00),
 	.res_n(~reset),
 	.enable(p2_h_f),
-	.clk(clk32),
+	.clk(clk),
 	.rdy(1'b1),
 	.abort_n(1'b1),
 	.irq_n(cpu_irq_n),
@@ -133,18 +139,18 @@ T65 cpu
 reg [7:0] rom_do;
 (* ram_init_file = "rtl/c1541/c1541_rom.mif" *) reg [7:0] rom[16384];
 always @(posedge c1541rom_clk) if (c1541rom_wr) rom[c1541rom_addr] <= c1541rom_data;
-always @(posedge clk32) rom_do <= rom[cpu_a[13:0]];
+always @(posedge clk) if(ce) rom_do <= rom[cpu_a[13:0]];
 
 reg [7:0] romstd_do;
 (* ram_init_file = "rtl/c1541/c1541_rom.mif" *) reg [7:0] romstd[16384];
 always @(posedge c1541rom_clk) if (c1541stdrom_wr) romstd[c1541rom_addr] <= c1541rom_data;
-always @(posedge clk32) romstd_do <= romstd[cpu_a[13:0]];
+always @(posedge clk) if(ce) romstd_do <= romstd[cpu_a[13:0]];
 
 reg [7:0] ram[2048];
 reg [7:0] ram_do;
 wire      ram_wr = ram_cs & ~cpu_rw;
-always @(posedge clk32) if (ram_wr) ram[cpu_a[10:0]] <= cpu_do;
-always @(posedge clk32) ram_do <= ram[cpu_a[10:0]];
+always @(posedge clk) if (ce & ram_wr) ram[cpu_a[10:0]] <= cpu_do;
+always @(posedge clk) if(ce) ram_do <= ram[cpu_a[10:0]];
 
 
 // UC1 (VIA6522) signals
@@ -155,7 +161,7 @@ wire [7:0] uc1_pb_oe;
 
 c1541_via6522 uc1
 (
-	.clock(clk32),
+	.clock(clk),
 	.rising(p2_h_r),
 	.falling(p2_h_f),
 	.reset(reset),
@@ -166,7 +172,7 @@ c1541_via6522 uc1
 	.data_in(cpu_do),
 	.data_out(uc1_do),
 
-	.port_a_i({7'h7f,tr00_sense_n}),
+	.port_a_i(8'hff),
 
 	.port_b_o(uc1_pb_o),
 	.port_b_t(uc1_pb_oe),
@@ -197,7 +203,7 @@ wire       soe = uc3_ca2_o | ~uc3_ca2_oe;
 
 c1541_via6522 uc3
 (
-	.clock(clk32),
+	.clock(clk),
 	.rising(p2_h_r),
 	.falling(p2_h_f),
 	.reset(reset),

@@ -433,7 +433,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(c1541_1_busy ? sd_buff_din1 : sd_buff_din2),
+	.sd_buff_din(sd_ack[0] ? sd_buff_din1 : sd_buff_din2),
 	.sd_buff_wr(sd_buff_wr),
 	.img_mounted(sd_change),
 	.img_readonly(disk_readonly),
@@ -866,11 +866,13 @@ fpga64_sid_iec fpga64
 	.audio_data(audio_l),
 	.sid_filter(1),
 	.sid_ver(status[13]),
+
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
 	.iec_clk_o(c64_iec_clk),
-	.iec_data_i(c64_iec_data_i),
-	.iec_clk_i(c64_iec_clk_i),
+	.iec_data_i(c1541_1_iec_data & (~drive9 | c1541_2_iec_data)),
+	.iec_clk_i(c1541_1_iec_clk & (~drive9 | c1541_2_iec_clk)),
+
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
 	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
@@ -910,20 +912,6 @@ c1351 mouse
 
 wire drive9 = status[25];
 
-reg c64_iec_data_i, c64_iec_clk_i;
-always @(posedge clk_sys) begin
-	reg iec_data_d1, iec_clk_d1;
-	reg iec_data_d2, iec_clk_d2;
-
-	iec_data_d1 <= c1541_1_iec_data & (~drive9 | c1541_2_iec_data);
-	iec_data_d2 <= iec_data_d1;
-	if(iec_data_d1 == iec_data_d2) c64_iec_data_i <= iec_data_d2;
-
-	iec_clk_d1 <= c1541_1_iec_clk & (~drive9 | c1541_2_iec_clk);
-	iec_clk_d2 <= iec_clk_d1;
-	if(iec_clk_d1 == iec_clk_d2) c64_iec_clk_i <= iec_clk_d2;
-end
-
 wire c64_iec_clk;
 wire c64_iec_data;
 wire c64_iec_atn;
@@ -933,11 +921,24 @@ wire c1541_reset = ~reset_n | status[6];
 wire c1541_1_iec_clk;
 wire c1541_1_iec_data;
 wire c1541_1_led;
-wire c1541_1_busy;
 
-c1541_sd c1541_1
+c1541_sd c1541_8
 (
-	.clk_c1541(clk64 & c1541_ce),
+	// C1541 signals
+	.clk_c1541(clk_sys),
+	.ce_c1541(c1541_ce),
+
+	.iec_atn_i(c64_iec_atn),
+	.iec_data_i(c64_iec_data),
+	.iec_clk_i(c64_iec_clk),
+	.iec_data_o(c1541_1_iec_data),
+	.iec_clk_o(c1541_1_iec_clk),
+	.iec_reset_i(c1541_reset),
+
+	.led(c1541_1_led),
+
+
+	// implementation and system specific signals
 	.clk_sys(clk_sys),
 	.pause(c64_pause),
 
@@ -950,13 +951,6 @@ c1541_sd c1541_1
 	.disk_readonly(disk_readonly),
 	.drive_num(0),
 
-	.iec_atn_i(c64_iec_atn),
-	.iec_data_i(c64_iec_data),
-	.iec_clk_i(c64_iec_clk),
-	.iec_data_o(c1541_1_iec_data),
-	.iec_clk_o(c1541_1_iec_clk),
-	.iec_reset_i(c1541_reset),
-
 	.sd_lba(sd_lba1),
 	.sd_rd(sd_rd[0]),
 	.sd_wr(sd_wr[0]),
@@ -964,19 +958,30 @@ c1541_sd c1541_1
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_din(sd_buff_din1),
-	.sd_buff_wr(sd_buff_wr),
-	.sd_busy(c1541_1_busy),
-
-	.led(c1541_1_led)
+	.sd_buff_wr(sd_buff_wr)
 );
 
 wire c1541_2_iec_clk;
 wire c1541_2_iec_data;
 wire c1541_2_led;
 
-c1541_sd c1541_2
+c1541_sd c1541_9
 (
-	.clk_c1541(clk64 & c1541_ce),
+	// C1541 signals
+	.clk_c1541(clk_sys),
+	.ce_c1541(c1541_ce),
+
+	.iec_atn_i(c64_iec_atn | ~drive9),
+	.iec_data_i(c64_iec_data | ~drive9),
+	.iec_clk_i(c64_iec_clk | ~drive9),
+	.iec_data_o(c1541_2_iec_data),
+	.iec_clk_o(c1541_2_iec_clk),
+	.iec_reset_i(c1541_reset),
+
+	.led(c1541_2_led),
+
+
+	// implementation and system specific signals
 	.clk_sys(clk_sys),
 	.pause(c64_pause),
 
@@ -989,13 +994,6 @@ c1541_sd c1541_2
 	.disk_readonly(disk_readonly),
 	.drive_num(1),
 
-	.iec_atn_i(c64_iec_atn | ~drive9),
-	.iec_data_i(c64_iec_data | ~drive9),
-	.iec_clk_i(c64_iec_clk | ~drive9),
-	.iec_data_o(c1541_2_iec_data),
-	.iec_clk_o(c1541_2_iec_clk),
-	.iec_reset_i(c1541_reset),
-
 	.sd_lba(sd_lba2),
 	.sd_rd(sd_rd[1]),
 	.sd_wr(sd_wr[1]),
@@ -1003,20 +1001,18 @@ c1541_sd c1541_2
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_din(sd_buff_din2),
-	.sd_buff_wr(sd_buff_wr),
-
-	.led(c1541_2_led)
+	.sd_buff_wr(sd_buff_wr)
 );
 
 reg c1541_ce;
-always @(negedge clk64) begin
+always @(posedge clk_sys) begin
 	int sum = 0;
 	int msum;
 	
-	msum <= ntsc ? 65454537 : 63055911;
+	msum <= ntsc ? 32727264 : 31527954;
 
 	c1541_ce <= 0;
-	sum = sum + 32000000;
+	sum = sum + 16000000;
 	if(sum >= msum) begin
 		sum = sum - msum;
 		c1541_ce <= 1;

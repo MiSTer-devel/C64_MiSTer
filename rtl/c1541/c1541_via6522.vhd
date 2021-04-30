@@ -379,7 +379,7 @@ begin
             when X"D" => -- IFR
                 data_out  <= irq_out & irq_flags;
             when X"E" => -- IER
-                data_out  <= '0' & irq_mask;
+                data_out  <= '1' & irq_mask;
             when X"F" => -- ORA
                 data_out  <= ira;
             when others =>

@@ -8,6 +8,7 @@ port
 (
 	-- clk_c1541 ports
 	clk_c1541      : in  std_logic;
+	ce_c1541       : in  std_logic; -- 16 MHz
 	pause          : in  std_logic;
 
 	disk_change    : in  std_logic;
