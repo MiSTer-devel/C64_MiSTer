@@ -58,7 +58,7 @@ entity fpga64_keyboard is
 end fpga64_keyboard;
 
 architecture rtl of fpga64_keyboard is	
-	signal extended: std_logic := '0';
+	signal extended: boolean;
 	signal pressed: std_logic := '0';
 
 	signal key_del: std_logic := '0';
@@ -143,6 +143,8 @@ architecture rtl of fpga64_keyboard is
 	signal mod_key2: std_logic := '0';
 
 	signal key_shift: std_logic := '0';
+	signal key_inst: std_logic := '0';
+	signal key_caps: std_logic := '0';
 	
 	-- for joystick emulation on PS2
 	signal old_state : std_logic;
@@ -157,7 +159,7 @@ begin
 	delay_end <= '1' when delay_cnt = 0 else '0';
 
 	pressed <= ps2_key(9);
-	--extended<= ps2_key(8);
+	extended<= ps2_key(8) = '1';
 
 	mod_key <= mod_key1 or mod_key2;
 	key_shift <= key_shiftl or key_shiftr;
@@ -175,7 +177,7 @@ begin
 			-- reading A, scan pattern on B
 			pao(0) <= pai(0) and joyB(0) and
 				((not backwardsReadingEnabled) or
-				((pbi(0) or not key_del) and
+				((pbi(0) or not (key_del or key_inst)) and
 				(pbi(1) or not key_return) and
 				(pbi(2) or not (key_left or key_right)) and
 				(pbi(3) or not (key_F7 or key_F8)) and
@@ -192,7 +194,7 @@ begin
 				(pbi(4) or not key_Z) and
 				(pbi(5) or not key_S) and
 				(pbi(6) or not key_E) and
-				(pbi(7) or not (key_left or key_up or (key_shiftl and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8))));
+				(pbi(7) or not (key_left or key_up or (key_shiftl and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8))));
 			pao(2) <= pai(2) and joyB(2) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_5) and
@@ -239,7 +241,7 @@ begin
 				(pbi(1) or not (key_star or (key_8s and delay_end))) and
 				(pbi(2) or not key_semicolon) and
 				(pbi(3) or not key_home) and
-				(pbi(4) or not (key_left or key_up or (key_shiftr and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8)) and
+				(pbi(4) or not (key_left or key_up or (key_shiftr and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8)) and
 				(pbi(5) or not key_equal) and
 				(pbi(6) or not key_arrowup) and
 				(pbi(7) or not key_slash)));
@@ -250,13 +252,13 @@ begin
 				(pbi(2) or not key_ctrl) and
 				(pbi(3) or not key_2) and
 				(pbi(4) or not key_space) and
-				(pbi(5) or not key_commodore) and
+				(pbi(5) or not (key_commodore or key_caps)) and
 				(pbi(6) or not key_Q) and
 				(pbi(7) or not key_runstop)));
 
 			-- reading B, scan pattern on A
 			pbo(0) <= pbi(0) and joyA(0) and 
-				(pai(0) or not key_del) and
+				(pai(0) or not (key_del or key_inst)) and
 				(pai(1) or not key_3) and
 				(pai(2) or not key_5) and
 				(pai(3) or not key_7) and
@@ -298,7 +300,7 @@ begin
 				(pai(3) or not key_B) and
 				(pai(4) or not key_M) and
 				(pai(5) or not key_dot) and
-				(pai(6) or not (key_left or key_up or (key_shiftr and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8)) and
+				(pai(6) or not (key_left or key_up or (key_shiftr and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8)) and
 				(pai(7) or not key_space);
 			pbo(5) <= pbi(5) and
 				(pai(0) or not (key_F3 or key_F4)) and
@@ -308,7 +310,7 @@ begin
 				(pai(4) or not key_K) and
 				(pai(5) or not key_colon) and
 				(pai(6) or not key_equal) and
-				(pai(7) or not key_commodore);
+				(pai(7) or not (key_commodore or key_caps));
 			pbo(6) <= pbi(6) and
 				(pai(0) or not (key_F5 or key_F6)) and
 				(pai(1) or not key_E) and
@@ -320,7 +322,7 @@ begin
 				(pai(7) or not key_Q);
 			pbo(7) <= pbi(7) and
 				(pai(0) or not (key_up or key_down)) and
-				(pai(1) or not (key_left or key_up or (key_shiftl and not key_8s) or key_F2 or key_F4 or key_F6 or key_F8)) and
+				(pai(1) or not (key_left or key_up or (key_shiftl and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8)) and
 				(pai(2) or not key_X) and
 				(pai(3) or not key_V) and
 				(pai(4) or not key_N) and
@@ -338,8 +340,9 @@ begin
 					when X"0B" => key_F6 <= pressed;
 					when X"83" => key_F7 <= pressed;
 					when X"0A" => key_F8 <= pressed;
-					when X"01" => key_pound <= pressed; -- F9
+					when X"01" => key_arrowup <= pressed; -- F9
 					when X"09" => key_equal <= pressed; -- F10
+					when X"0D" => key_commodore <= pressed; 
 					when X"0E" => key_arrowleft <= pressed;
 					when X"11" => key_commodore <= pressed; 
 					when X"12" => key_shiftl <= pressed;
@@ -397,18 +400,28 @@ begin
 					when X"52" => key_semicolon <= pressed; 
 					when X"54" => key_at <= pressed; 
 					when X"55" => key_plus <= pressed;
+					when X"58" => key_caps <= pressed;
 					when X"59" => key_shiftr <= pressed;
 					when X"5A" => key_Return <= pressed; 
 					when X"5B" => key_star <= pressed; 
-					when X"5D" => key_arrowup <= pressed;
-					when X"6B" => key_left <= pressed;
-					when X"6C" => key_home <= pressed; 
+					when X"5D" => key_pound <= pressed;
 					when X"66" => key_del <= pressed; 
-					when X"72" => key_down <= pressed;
-					when X"74" => key_right <= pressed;
-					when X"75" => key_up <= pressed;
+					when X"69" => if extended then key_equal   <= pressed; else key_1   <= pressed; end if;
+					when X"6B" => if extended then key_left    <= pressed; else key_4   <= pressed; end if;
+					when X"6C" => if extended then key_home    <= pressed; else key_7   <= pressed; end if;
+					when X"70" => if extended then key_inst    <= pressed; else key_0   <= pressed; end if;
+					when X"71" => if extended then key_del     <= pressed; else key_dot <= pressed; end if;
+					when X"72" => if extended then key_down    <= pressed; else key_2   <= pressed; end if;
+					when X"73" => key_5 <= pressed; 
+					when X"74" => if extended then key_right   <= pressed; else key_6   <= pressed; end if;
+					when X"75" => if extended then key_up      <= pressed; else key_8   <= pressed; end if;
 					when X"76" => key_runstop <= pressed; 
 					when X"78" => restore_key <= pressed; -- F11
+					when X"79" => key_plus <= pressed; 
+					when X"7A" => if extended then key_arrowup <= pressed; else key_3   <= pressed; end if;
+					when X"7B" => key_minus <= pressed; 
+					when X"7C" => key_star <= pressed; 
+					when X"7D" => if extended then restore_key <= pressed; else key_9   <= pressed; end if;
 					when others => null;
 				end case;
 			end if;
