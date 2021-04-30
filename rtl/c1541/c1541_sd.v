@@ -21,6 +21,7 @@ module c1541_sd
 (
 	//clk_c1541 ports
 	input         clk_c1541,
+	input         pause,
 
 	input         disk_change,
 	input         disk_readonly,
@@ -94,6 +95,7 @@ c1541_logic c1541_logic
 (
 	.clk32(clk_c1541),
 	.reset(reset),
+	.pause(pause),
 
 	// serial bus
 	.sb_clk_in(iec_clk_i),

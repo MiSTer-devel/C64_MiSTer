@@ -59,6 +59,7 @@ module emu
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
+	output        HDMI_FREEZE,
 
 `ifdef MISTER_FB
 	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
@@ -196,12 +197,11 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX XX
+// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX XXX
 
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;UART2400;",
-	"h0-;",
 	"S0,D64T64,Mount Drive #8;",
 	"H0S1,D64T64,Mount Drive #9;",
 	"-;",
@@ -247,6 +247,7 @@ localparam CONF_STR = {
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
 	"-;",
+	"oA,Pause When OSD is Open,No,Yes;",
 	"RH,Reset;",
 	"R0,Reset & Detach Cartridge;",
 	"J,Fire 1,Fire 2,Fire 3,Paddle Btn;",
@@ -780,6 +781,7 @@ sdram sdram
 
 wire  [7:0] c64_data_out;
 wire [15:0] c64_addr;
+wire        c64_pause;
 wire        idle;
 wire        ram_ce;
 wire        ram_we;
@@ -794,6 +796,7 @@ wire        romH;
 wire        UMAXromH;
 
 wire        sid_we;
+wire        sid_ce;
 wire [17:0] audio_l,audio_r;
 wire  [7:0] r,g,b;
 
@@ -803,6 +806,8 @@ fpga64_sid_iec fpga64
 (
 	.clk32(clk_sys),
 	.reset_n(reset_n),
+	.pause(freeze),
+	.pause_out(c64_pause),
 	.bios(status[15:14]),
 	.ps2_key(key),
 	.ramaddr(c64_addr),
@@ -856,6 +861,7 @@ fpga64_sid_iec fpga64
 	.sid_ld_addr(sid_ld_addr),
 	.sid_ld_data(sid_ld_data),
 	.sid_ld_wr(sid_ld_wr),
+	.sid_ce(sid_ce),
 	
 	.audio_data(audio_l),
 	.sid_filter(1),
@@ -931,8 +937,9 @@ wire c1541_1_busy;
 
 c1541_sd c1541_1
 (
-	.clk_c1541(clk64 & ce_c1541),
+	.clk_c1541(clk64 & c1541_ce),
 	.clk_sys(clk_sys),
+	.pause(c64_pause),
 
 	.rom_addr(ioctl_addr[13:0]),
 	.rom_data(ioctl_data),
@@ -969,8 +976,9 @@ wire c1541_2_led;
 
 c1541_sd c1541_2
 (
-	.clk_c1541(clk64 & ce_c1541),
+	.clk_c1541(clk64 & c1541_ce),
 	.clk_sys(clk_sys),
+	.pause(c64_pause),
 
 	.rom_addr(ioctl_addr[13:0]),
 	.rom_data(ioctl_data),
@@ -1000,21 +1008,20 @@ c1541_sd c1541_2
 	.led(c1541_2_led)
 );
 
-reg ce_c1541;
+reg c1541_ce;
 always @(negedge clk64) begin
 	int sum = 0;
 	int msum;
 	
 	msum <= ntsc ? 65454537 : 63055911;
 
-	ce_c1541 <= 0;
+	c1541_ce <= 0;
 	sum = sum + 32000000;
 	if(sum >= msum) begin
 		sum = sum - msum;
-		ce_c1541 <= 1;
+		c1541_ce <= 1;
 	end
 end
-
 
 wire hsync;
 wire vsync;
@@ -1026,6 +1033,7 @@ wire vsync_out;
 video_sync sync
 (
 	.clk32(clk_sys),
+	.pause(c64_pause),
 	.hsync(hsync),
 	.vsync(vsync),
 	.ntsc(ntsc),
@@ -1096,6 +1104,15 @@ video_freak video_freak
 	.SCALE(status[31:30])
 );
 
+wire freeze_sync;
+reg freeze;
+always @(posedge clk_sys) begin
+	reg old_sync;
+	
+	old_sync <= freeze_sync;
+	if(old_sync ^ freeze_sync) freeze <= OSD_STATUS & status[42];
+end
+
 video_mixer #(.GAMMA(1)) video_mixer
 (
 	.CLK_VIDEO(CLK_VIDEO),
@@ -1112,6 +1129,10 @@ video_mixer #(.GAMMA(1)) video_mixer
 	.VSync(vsync_out),
 	.HBlank(hblank),
 	.VBlank(vblank),
+
+	.HDMI_FREEZE(HDMI_FREEZE),
+	.freeze(freeze),
+	.freeze_sync(freeze_sync),
 
 	.CE_PIXEL(CE_PIXEL),
 	.VGA_R(VGA_R),
@@ -1138,9 +1159,6 @@ opl3 #(.OPLCLK(47291931)) opl_inst
 
 	.sample_l(opl_out)
 );
-
-reg [31:0] ce_1m;
-always @(posedge clk_sys) ce_1m <= reset_n ? {ce_1m[30:0], ce_1m[31]} : 1;
 
 reg ioe_we, iof_we;
 always @(posedge clk_sys) begin
@@ -1178,7 +1196,7 @@ sid_top sid
 (
 	.clk(clk_sys),
 	.reset(~reset_n),
-	.ce_1m(ce_1m[31]),
+	.ce_1m(sid_ce),
 
 	.addr(c64_addr[4:0]),
 	.we(sid2_we),

@@ -11,6 +11,7 @@ module c1541_logic
 (
 	input        clk32,
 	input        reset,
+	input        pause,
 
 	// serial bus
 	input        sb_clk_in,
@@ -78,10 +79,14 @@ reg p2_h_r;
 reg p2_h_f;
 always @(posedge clk32) begin
 	reg [4:0] div;
+	reg       ena, ena1;
 	div <= div + 1'd1;
+	
+	ena1 <= ~pause;
+	if(div[3:0]) ena <= ena1;
 
-	p2_h_r <= !div[4] && !div[3:0];
-	p2_h_f <=  div[4] && !div[3:0];
+	p2_h_r <= ena && !div[4] && !div[3:0];
+	p2_h_f <= ena &&  div[4] && !div[3:0];
 end
 
 // The address decoder only sees A15 A12 A11 and A10, which means the

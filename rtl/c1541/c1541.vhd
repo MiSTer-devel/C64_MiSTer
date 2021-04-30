@@ -8,6 +8,7 @@ port
 (
 	-- clk_c1541 ports
 	clk_c1541      : in  std_logic;
+	pause          : in  std_logic;
 
 	disk_change    : in  std_logic;
 	disk_readonly  : in  std_logic;

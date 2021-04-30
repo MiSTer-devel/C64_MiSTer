@@ -39,6 +39,9 @@ port(
 	clk32       : in  std_logic;
 	reset_n     : in  std_logic;
 	bios        : in  std_logic_vector(1 downto 0);
+	
+	pause       : in  std_logic := '0';
+	pause_out   : out std_logic;
 
 	-- keyboard interface (use any ordinairy PS2 keyboard)
 	ps2_key     : in  std_logic_vector(10 downto 0);
@@ -107,6 +110,7 @@ port(
 	sid_ld_addr : in  std_logic_vector(11 downto 0);
 	sid_ld_data : in  std_logic_vector(15 downto 0);
 	sid_ld_wr   : in  std_logic;
+	sid_ce      : out std_logic;
 
 	-- IEC
 	iec_data_o	: out std_logic;
@@ -156,6 +160,9 @@ type sysCycleDef is (
 );
 
 signal sysCycle     : sysCycleDef := sysCycleDef'low;
+signal preCycle     : sysCycleDef := sysCycleDef'low;
+signal sysEnable    : std_logic;
+
 signal phi0_cpu     : std_logic;
 signal cpuHasBus    : std_logic;
 
@@ -306,20 +313,28 @@ io_cycle <= '1' when
 	(sysCycle = CYCLE_IEC2)  or (sysCycle = CYCLE_IEC3)  else '0';
 
 idle <= '1' when
-	(sysCycle = CYCLE_IDLE4) or (sysCycle = CYCLE_IDLE5) or
-	(sysCycle = CYCLE_IDLE6) or (sysCycle = CYCLE_IDLE7) else '0';
+	(preCycle = CYCLE_IDLE4) or (preCycle = CYCLE_IDLE5) or
+	(preCycle = CYCLE_IDLE6) or (preCycle = CYCLE_IDLE7) else '0';
 
 -- -----------------------------------------------------------------------
 -- System state machine, controls bus accesses
 -- and triggers enables of other components
 -- -----------------------------------------------------------------------
+
+sysCycle <= preCycle when sysEnable = '1' else CYCLE_IDLE4;
+pause_out <= not sysEnable;
+
 process(clk32)
 begin
 	if rising_edge(clk32) then
-		if sysCycle = sysCycleDef'high then
-			sysCycle <= sysCycleDef'low;
+		if preCycle = sysCycleDef'high then
+			preCycle <= sysCycleDef'low;
 		else
-			sysCycle <= sysCycleDef'succ(sysCycle);
+			preCycle <= sysCycleDef'succ(preCycle);
+		end if;
+		
+		if preCycle = CYCLE_IDLE4 then
+			sysEnable <= not pause;
 		end if;
 	end if;
 end process;
@@ -563,6 +578,7 @@ sid_we      <= pulseWrRam and phi0_cpu and cs_sid;
 sid_sel_int <= not sid_mode(1) or (not sid_mode(0) and not cpuAddr(5)) or (sid_mode(0) and not cpuAddr(8));
 sid_we_ext  <= sid_we and (not sid_mode(1) or not sid_sel_int);
 sid_do      <= io_data when sid_sel_int = '0' else sid_do_int;
+sid_ce      <= enableSid;
 
 pot_x1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot1;
 pot_y1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot2;
