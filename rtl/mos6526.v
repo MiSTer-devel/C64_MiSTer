@@ -152,16 +152,20 @@ always @(posedge clk) begin
   else begin
     if (phi2_p) begin
       if (int_reset) icr[4] <= 1'b0;
-      flag_n_prev <= flag_n;
+    flag_n_prev <= flag_n;
       if (!flag_n && flag_n_prev) icr[4] <= 1'b1;
     end
   end
 end
 
 // Port Control Output
+reg pcr;
 always @(posedge clk) begin
-  if (!cs_n && rs == 4'h1) pc_n <= 1'b0;
-  else pc_n <= phi2_p ? 1'b1 : pc_n;
+  if (!cs_n && rs == 4'h1) pcr <= 1'b0;
+  if (phi2_p) begin
+	 pc_n <= pcr;
+	 pcr  <= 1'b1;
+  end
 end
 
 // Timer A
