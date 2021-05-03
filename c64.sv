@@ -341,13 +341,17 @@ reg reset_n;
 reg reset_wait = 0;
 always @(posedge clk_sys) begin
 	integer reset_counter;
-	integer wait_counter;
 	reg old_download;
 
 	old_download <= ioctl_download;
 
-	if (status[0] | status[17] | buttons[1] | (~old_download & ioctl_download & load_prg) | !pll_locked) begin
+	if (RESET | status[0] | status[17] | buttons[1] | !pll_locked) begin
 		reset_counter <= 100000;
+		reset_n <= 0;
+	end
+	else if(~old_download & ioctl_download & load_prg) begin
+		reset_wait <= 1;
+		reset_counter <= 255;
 		reset_n <= 0;
 	end
 	else if (reset_crt || (ioctl_download && load_cart)) begin
@@ -358,19 +362,11 @@ always @(posedge clk_sys) begin
 	else if (erasing) force_erase <= 0;
 	else if (!reset_counter) begin
 		reset_n <= 1;
-
-		//TODO: cath CPU at the address when init finished instead of blind wait.
-		if(wait_counter) wait_counter <= wait_counter - 1;
-		else reset_wait <= 0;
+		if(reset_wait && c64_addr == 'hFFCF) reset_wait <= 0;
 	end
 	else begin
 		reset_counter <= reset_counter - 1;
 		if (reset_counter == 100) force_erase <= 1;
-	end
-
-	if(~old_download & ioctl_download & load_prg) begin
-		reset_wait <= 1;
-		wait_counter <= 3*32000000;
 	end
 end
 
