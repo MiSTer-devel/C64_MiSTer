@@ -92,8 +92,6 @@ port(
 	-- joystick interface
 	joyA        : in  std_logic_vector(6 downto 0);
 	joyB        : in  std_logic_vector(6 downto 0);
-	joyC        : in  std_logic_vector(6 downto 0);
-	joyD        : in  std_logic_vector(6 downto 0);
 	pot1        : in  std_logic_vector(7 downto 0);
 	pot2        : in  std_logic_vector(7 downto 0);
 	pot3        : in  std_logic_vector(7 downto 0);
@@ -111,6 +109,15 @@ port(
 	sid_ld_data : in  std_logic_vector(15 downto 0);
 	sid_ld_wr   : in  std_logic;
 	sid_ce      : out std_logic;
+	
+	-- USER
+	pb_i        : in  unsigned(7 downto 0);
+	pb_o        : out unsigned(7 downto 0);
+	pa2_i       : in  std_logic;
+	pa2_o       : out std_logic;
+	pc2_n_o     : out std_logic;
+	flag2_n_i   : in  std_logic;
+	sp2_i       : in  std_logic;
 
 	-- IEC
 	iec_data_o	: out std_logic;
@@ -126,21 +133,7 @@ port(
 	cass_motor  : out std_logic;
 	cass_write  : out std_logic;
 	cass_sense  : in  std_logic;
-	cass_in     : in  std_logic;
-
-	uart_enable : in  std_logic;
-
-	uart_txd    : out std_logic; -- CIA2, PortA(2) 
-	uart_rts    : out std_logic; -- CIA2, PortB(1)
-	uart_dtr    : out std_logic; -- CIA2, PortB(2)
-	uart_ri_out	: out std_logic; -- CIA2, PortB(3)
-	uart_dcd_out: out std_logic; -- CIA2, PortB(4)
-
-	uart_rxd    : in std_logic; -- CIA2, PortB(0)
-	uart_ri_in  : in std_logic; -- CIA2, PortB(3)
-	uart_dcd_in : in std_logic; -- CIA2, PortB(4)
-	uart_cts    : in std_logic; -- CIA2, PortB(6)
-	uart_dsr    : in std_logic  -- CIA2, PortB(7)
+	cass_in     : in  std_logic
 );
 end fpga64_sid_iec;
 
@@ -652,22 +645,22 @@ port map (
 
 	pa_in => cia2_pai,
 	pa_out => cia2_pao,
-	pb_in => cia2_pbi,
+	pb_in => pb_i and cia2_pbo,
 	pb_out => cia2_pbo,
 
-	-- Looks like most of the old terminal programs use the FLAG_N input (and to PB0) on CIA2 to
-	-- trigger an interrupt on the falling edge of the RXD input.
-	-- (and they don't use the "SP" pin for some reason?) ElectronAsh.
-	flag_n => uart_rxd,
-	
-	sp_in => uart_rxd,	-- Hooking up to the SP pin anyway, ready for the "UP9600" style serial.
+	flag_n => flag2_n_i,
+	pc_n => pc2_n_o,
+
+	sp_in => sp2_i,
 	cnt_in => '1',
 
 	tod => todclk, --vicVSync,
 
 	irq_n => irq_cia2
 );
-	
+
+pb_o <= cia2_pbo;
+
 -- generate TOD clock from stable 32 MHz
 -- Can we simply use vicVSync?
 process(clk32, reset)
@@ -790,45 +783,8 @@ begin
 	end if;
 end process;
 
-cia2_pai(5 downto 0) <= cia2_pao(5 downto 0);
-
-process(joyC, joyD, cia2_pbo, uart_rxd, uart_ri_in, uart_dcd_in, uart_cts, uart_dsr, uart_enable)
-begin
-	if uart_enable = '1' then
-		cia2_pbi(0) <= uart_rxd;
-		cia2_pbi(1) <= '1';
-		cia2_pbi(2) <= '1';
-		cia2_pbi(3) <= uart_ri_in;
-		cia2_pbi(4) <= uart_dcd_in;
-		cia2_pbi(5) <= '1';
-		cia2_pbi(6) <= uart_cts;
-		cia2_pbi(7) <= uart_dsr;
-	else
-		if cia2_pbo(7) = '1' then
-			cia2_pbi(3 downto 0) <= not unsigned(joyC(3 downto 0));
-		else
-			cia2_pbi(3 downto 0) <= not unsigned(joyD(3 downto 0));
-		end if;
-		if joyC(6 downto 4) /= "000" then
-			cia2_pbi(4) <= '0';
-		else
-			cia2_pbi(4) <= '1';
-		end if;
-		if joyD(6 downto 4) /= "000" then
-			cia2_pbi(5) <= '0';
-		else
-			cia2_pbi(5) <= '1';
-		end if;
-		cia2_pbi(7 downto 6) <= cia2_pbo(7 downto 6);
-	end if;
-end process;
-
--- UART outputs...
-uart_txd <= cia2_pao(2);
-uart_rts <= cia2_pbo(1);
-uart_dtr <= cia2_pbo(2);
-uart_ri_out <= cia2_pbo(3);
-uart_dcd_out <= cia2_pbo(4);
+cia2_pai(5 downto 0) <= cia2_pao(5 downto 3) & pa2_i & cia2_pao(1 downto 0);
+pa2_o <= cia2_pao(2);
 
 -- -----------------------------------------------------------------------
 -- VIC bank to address lines

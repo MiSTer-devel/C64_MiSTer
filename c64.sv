@@ -197,7 +197,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX XXX
+// X XXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX XXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -238,7 +238,7 @@ localparam CONF_STR = {
 	"P2OP,Enable Drive #9,No,Yes;",
 	"P2R6,Reset Disk Drives;",
 	"P2-;",
-	"P2O1,User Port,Joysticks,UART;",
+	"P2oBC,User Port,Joysticks,UART,Disk ParPort;",
 	"P2OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
 	"P2OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
 	"P2-;",
@@ -844,8 +844,6 @@ fpga64_sid_iec fpga64
 
 	.joya(joyA_c64 | {1'b0, pd12_mode[1] & paddle_2_btn, pd12_mode[1] & paddle_1_btn, 2'b00} | {pd12_mode[0] & mouse_btn[0], 3'b000, pd12_mode[0] & mouse_btn[1]}),
 	.joyb(joyB_c64 | {1'b0, pd34_mode[1] & paddle_4_btn, pd34_mode[1] & paddle_3_btn, 2'b00} | {pd34_mode[0] & mouse_btn[0], 3'b000, pd34_mode[0] & mouse_btn[1]}),
-	.joyc(joyC_c64),
-	.joyd(joyD_c64),
 
 	.pot1(pd12_mode[1] ? paddle_1 : pd12_mode[0] ? mouse_x : {8{joyA_c64[5]}}),
 	.pot2(pd12_mode[1] ? paddle_2 : pd12_mode[0] ? mouse_y : {8{joyA_c64[6]}}),
@@ -872,26 +870,22 @@ fpga64_sid_iec fpga64
 	.iec_clk_o(c64_iec_clk),
 	.iec_data_i(c1541_1_iec_data & (~drive9 | c1541_2_iec_data)),
 	.iec_clk_i(c1541_1_iec_clk & (~drive9 | c1541_2_iec_clk)),
+	
+	.pb_i(pb_i),
+	.pb_o(pb_o),
+	.pa2_i(pa2_i),
+	.pa2_o(pa2_o),
+	.pc2_n_o(pc2_n_o),
+	.flag2_n_i(flag2_n_i),
+	.sp2_i(sp2_i),
 
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
-	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[14] && ioctl_download && ioctl_wr),
+	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[15:14] && ioctl_download && ioctl_wr),
 
 	.cass_motor(cass_motor),
 	.cass_sense(~tap_play),
-	.cass_in(cass_do),
-
-	.uart_enable(status[1]),
-	.uart_txd(UART_TXD),
-	.uart_rts(!UART_RTS), // Trying inverting these, as I think they are breaking minicom and other terminal programs on the HPS? ElectronAsh.
-	.uart_dtr(!UART_DTR),
-	.uart_ri_out(),
-	.uart_dcd_out(),
-	.uart_rxd(UART_RXD),
-	.uart_ri_in(1),	    // I think these are active-High on the User Port? (even those TXD and RXD seem to be active-low.) ElectronAsh.
-	.uart_dcd_in(1),
-	.uart_cts(1),
-	.uart_dsr(1)
+	.cass_in(cass_do)
 );
 
 wire [7:0] mouse_x;
@@ -918,9 +912,15 @@ wire c64_iec_atn;
 
 wire c1541_reset = ~reset_n | status[6];
 
+wire [7:0] c1541_par_i;
+wire       c1541_stb_i;
+
 wire c1541_1_iec_clk;
 wire c1541_1_iec_data;
 wire c1541_1_led;
+
+wire [7:0] c1541_1_par_o;
+wire       c1541_1_stb_o;
 
 c1541_sd c1541_8
 (
@@ -937,14 +937,19 @@ c1541_sd c1541_8
 
 	.led(c1541_1_led),
 
+	.par_data_i(c1541_par_i),
+	.par_stb_i(c1541_stb_i),
+	.par_data_o(c1541_1_par_o),
+	.par_stb_o(c1541_1_stb_o),
+
 
 	// implementation and system specific signals
 	.clk_sys(clk_sys),
 	.pause(c64_pause),
 
-	.rom_addr(ioctl_addr[13:0]),
+	.rom_addr({~ioctl_addr[14], ioctl_addr[13:0]}),
 	.rom_data(ioctl_data),
-	.rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
+	.rom_wr((ioctl_index == 0) && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
 
 	.disk_change(sd_change[0]),
@@ -965,6 +970,9 @@ wire c1541_2_iec_clk;
 wire c1541_2_iec_data;
 wire c1541_2_led;
 
+wire [7:0] c1541_2_par_o;
+wire       c1541_2_stb_o;
+
 c1541_sd c1541_9
 (
 	// C1541 signals
@@ -980,14 +988,18 @@ c1541_sd c1541_9
 
 	.led(c1541_2_led),
 
+	.par_data_i(c1541_par_i),
+	.par_stb_i(c1541_stb_i),
+	.par_data_o(c1541_2_par_o),
+	.par_stb_o(c1541_2_stb_o),
 
 	// implementation and system specific signals
 	.clk_sys(clk_sys),
 	.pause(c64_pause),
 
-	.rom_addr(ioctl_addr[13:0]),
+	.rom_addr({~ioctl_addr[14], ioctl_addr[13:0]}),
 	.rom_data(ioctl_data),
-	.rom_wr((ioctl_index == 0) &&  ioctl_addr[14] && ioctl_download && ioctl_wr),
+	.rom_wr((ioctl_index == 0) && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
 
 	.disk_change(sd_change[1]),
@@ -1005,19 +1017,7 @@ c1541_sd c1541_9
 );
 
 reg c1541_ce;
-always @(posedge clk_sys) begin
-	int sum = 0;
-	int msum;
-	
-	msum <= ntsc ? 32727264 : 31527954;
-
-	c1541_ce <= 0;
-	sum = sum + 16000000;
-	if(sum >= msum) begin
-		sum = sum - msum;
-		c1541_ce <= 1;
-	end
-end
+always @(posedge clk_sys) c1541_ce <= ~c1541_ce;
 
 wire hsync;
 wire vsync;
@@ -1346,5 +1346,41 @@ c1530 c1530
 	.play(cass_run),
 	.dout(cass_do)
 );
+
+//------------- USER PORT -----------------
+
+wire [7:0] pb_i, pb_o;
+wire       pa2_i, pa2_o;
+wire       pc2_n_o;
+wire       flag2_n_i;
+wire       sp2_i;
+
+always_comb begin
+	pa2_i       = pa2_o;
+	flag2_n_i   = 1;
+	sp2_i       = 1;
+	pb_i        = 8'hFF;
+	UART_TXD    = 1;
+	c1541_par_i = 8'hFF;
+	c1541_stb_i = 1;
+
+	case(status[44:43])
+		1: begin
+				pb_i[0]   = UART_RXD;
+				flag2_n_i = UART_RXD;
+				sp2_i     = UART_RXD;
+				UART_TXD  = pa2_o;
+				//UART_RTS  = pb_o[1];
+				//UART_DTR  = pb_o[2];
+			end
+		2: begin
+				c1541_par_i = pb_o;
+				c1541_stb_i = pc2_n_o;
+				pb_i        = c1541_1_par_o & c1541_2_par_o;
+				flag2_n_i   = c1541_1_stb_o & c1541_2_stb_o;
+			end
+		default: pb_i = {pb_o[7:6], !joyD_c64[3:0], !joyC_c64[3:0], pb_o[7] ? ~joyC_c64[3:0] : ~joyD_c64[3:0]};
+	endcase
+end
 
 endmodule
