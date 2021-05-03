@@ -23,12 +23,18 @@ module c1541_logic
 	output       sb_data_out,
 
 	input        c1541rom_clk,
-	input [13:0] c1541rom_addr,
+	input [14:0] c1541rom_addr,
 	input  [7:0] c1541rom_data,
 	input        c1541rom_wr,
 	input        c1541stdrom_wr,
 	input        c1541std,
 
+	// parallel bus
+	input  [7:0] par_data_in,
+	input        par_stb_in,
+	output [7:0] par_data_out,
+	output       par_stb_out,
+	
 	// drive-side interface
 	input  [1:0] ds,			// device select
 	input  [7:0] din,			// disk read data
@@ -43,19 +49,6 @@ module c1541_logic
 	input        tr00_sense_n,	// track 0 sense (unused?)
 	output       act			// activity LED
 );
-
-assign sb_data_out = ~(uc1_pb_o[1] | ~uc1_pb_oe[1]) & ~((uc1_pb_o[4] | ~uc1_pb_oe[4]) ^ ~sb_atn_in);
-assign sb_clk_out  = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
-
-assign dout = uc3_pa_o  | ~uc3_pa_oe;
-assign mode = uc3_cb2_o | ~uc3_cb2_oe;
-
-assign stp[1] = uc3_pb_o[0]   | ~uc3_pb_oe[0];
-assign stp[0] = uc3_pb_o[1]   | ~uc3_pb_oe[1];
-assign mtr    = uc3_pb_o[2]   | ~uc3_pb_oe[2];
-assign act    = uc3_pb_o[3]   | ~uc3_pb_oe[3];
-assign freq   = uc3_pb_o[6:5] | ~uc3_pb_oe[6:5];
-
 
 reg iec_atn;
 reg iec_data;
@@ -95,23 +88,22 @@ always @(posedge clk) begin
 	end
 end
 
-// The address decoder only sees A15 A12 A11 and A10, which means the
-// 0x0000-0x1FFF address map repeats 4 times (A14 & A13).
-// Also, it means the smallest chip addressing space is
-// 0x400-addresses-long (A9 to A0).
-// Above that, cpu_a[15] is set, which selects the ROM.
-wire ram_cs =(({cpu_a[15], cpu_a[12]   } == 2'b0__0__) ||
-	      ({cpu_a[15], cpu_a[12:11]} == 3'b0__10_));// RAM $0000-$17FF (2KB + mirrors)
-wire uc1_cs = ({cpu_a[15], cpu_a[12:10]} == 4'b0__110); // UC1 $1800-$1BFF (16B + mirrors)
-wire uc3_cs = ({cpu_a[15], cpu_a[12:10]} == 4'b0__111); // UC3 $1C00-$1FFF (16B + mirrors)
 
-wire  [7:0] cpu_di = (
-	!cpu_rw ? cpu_do :
-	ram_cs ? ram_do :
-	uc1_cs ? uc1_do :
-	uc3_cs ? uc3_do :
-	(c1541std ? romstd_do : rom_do)
-);
+//same decoder as on real HW
+wire [3:0] ls42 = {cpu_a[15],cpu_a[12:10]};
+wire ram_cs     = ls42 == 0 || ls42 == 1;
+wire uc1_cs     = ls42 == 6;
+wire uc3_cs     = ls42 == 7;
+wire rom_cs     = cpu_a[15];
+
+wire  [7:0] cpu_di =
+	!cpu_rw    ? cpu_do :
+	 ram_cs    ? ram_do :
+	 uc1_cs    ? uc1_do :
+	 uc3_cs    ? uc3_do :
+	 //extram_cs ? fram_do :
+	 rom_cs    ? (c1541std ? romstd_do : rom_do) :
+	 8'hFF;
 
 wire [23:0] cpu_a;
 wire  [7:0] cpu_do;
@@ -136,28 +128,70 @@ T65 cpu
 	.do(cpu_do)
 );
 
-reg [7:0] rom_do;
-(* ram_init_file = "rtl/c1541/c1541_rom.mif" *) reg [7:0] rom[16384];
-always @(posedge c1541rom_clk) if (c1541rom_wr) rom[c1541rom_addr] <= c1541rom_data;
-always @(posedge clk) if(ce) rom_do <= rom[cpu_a[13:0]];
+reg rom_32k_i = 0;
+always @(posedge c1541rom_clk) if (c1541rom_wr) rom_32k_i <= c1541rom_addr[14];
 
-reg [7:0] romstd_do;
-(* ram_init_file = "rtl/c1541/c1541_rom.mif" *) reg [7:0] romstd[16384];
-always @(posedge c1541rom_clk) if (c1541stdrom_wr) romstd[c1541rom_addr] <= c1541rom_data;
-always @(posedge clk) if(ce) romstd_do <= romstd[cpu_a[13:0]];
+reg rom_32k;
+always @(posedge clk) rom_32k <= rom_32k_i;
 
-reg [7:0] ram[2048];
-reg [7:0] ram_do;
-wire      ram_wr = ram_cs & ~cpu_rw;
-always @(posedge clk) if (ce & ram_wr) ram[cpu_a[10:0]] <= cpu_do;
-always @(posedge clk) if(ce) ram_do <= ram[cpu_a[10:0]];
+wire [7:0] rom_do;
+c1541mem #(8,15,"rtl/c1541/c1541_rom.mif") rom
+(
+	.clock_a(c1541rom_clk),
+	.address_a(c1541rom_addr),
+	.data_a(c1541rom_data),
+	.wren_a(c1541rom_wr),
 
+	.clock_b(clk),
+	.address_b({cpu_a[14] & rom_32k, cpu_a[13:0]}),
+	.data_b(cpu_do),
+	.wren_b(~cpu_rw & ce & rom_cs & ~cpu_a[14] & ~cpu_a[13] & rom_32k & ~c1541std), // first 8KB is writtable for Dolphin DOS
+	.q_b(rom_do)
+);
+
+wire [7:0] romstd_do;
+c1541mem #(8,14,"rtl/c1541/c1541_rom.mif") romstd
+(
+	.clock_a(c1541rom_clk),
+	.address_a(c1541rom_addr[13:0]),
+	.data_a(c1541rom_data),
+	.wren_a(c1541stdrom_wr),
+
+	.clock_b(clk),
+	.address_b(cpu_a[13:0]),
+	.q_b(romstd_do)
+);
+
+wire [7:0] ram_do;
+c1541mem #(8,11) ram
+(
+	.clock_a(clk),
+	.address_a(cpu_a[10:0]),
+	.data_a(cpu_do),
+	.wren_a(~cpu_rw & ram_cs & ce),
+
+	.clock_b(clk),
+	.address_b(cpu_a[10:0]),
+	.q_b(ram_do)
+);
 
 // UC1 (VIA6522) signals
 wire [7:0] uc1_do;
 wire       uc1_irq;
 wire [7:0] uc1_pb_o;
 wire [7:0] uc1_pb_oe;
+wire       uc1_cb2_o;
+wire       uc1_cb2_oe;
+wire       uc1_ca2_o;
+wire       uc1_ca2_oe;
+wire [7:0] uc1_pa_o;
+wire [7:0] uc1_pa_oe;
+
+assign     sb_data_out  = ~(uc1_pb_o[1] | ~uc1_pb_oe[1]) & ~((uc1_pb_o[4] | ~uc1_pb_oe[4]) ^ ~iec_atn);
+assign     sb_clk_out   = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
+
+assign     par_stb_out  = uc1_ca2_o | ~uc1_ca2_oe;
+assign     par_data_out = uc1_pa_o  | ~uc1_pa_oe;
 
 c1541_via6522 uc1
 (
@@ -172,17 +206,24 @@ c1541_via6522 uc1
 	.data_in(cpu_do),
 	.data_out(uc1_do),
 
-	.port_a_i(8'hff),
+	.port_a_i(par_data_in & par_data_out),
+	.port_a_o(uc1_pa_o),
+	.port_a_t(uc1_pa_oe),
 
 	.port_b_o(uc1_pb_o),
 	.port_b_t(uc1_pb_oe),
 	.port_b_i({~iec_atn, ds, 2'b11, ~(iec_clk & sb_clk_out), 1'b1, ~(iec_data & sb_data_out)}),
 
 	.ca1_i(~iec_atn),
-	.ca2_i(1'b1),
+	.ca2_i(par_stb_out),
+	.ca2_o(uc1_ca2_o),
+	.ca2_t(uc1_ca2_oe),
 
-	.cb1_i(1'b1),
-	.cb2_i(1'b1),
+	.cb1_i(par_stb_in),
+
+	.cb2_o(uc1_cb2_o),
+	.cb2_i(uc1_cb2_o | ~uc1_cb2_oe),
+	.cb2_t(uc1_cb2_oe),
 
 	.irq(uc1_irq)
 );
@@ -194,12 +235,24 @@ wire       uc3_irq;
 wire       uc3_ca2_o;
 wire       uc3_ca2_oe;
 wire [7:0] uc3_pa_o;
+wire       uc3_cb1_o;
+wire       uc3_cb1_oe;
 wire       uc3_cb2_o;
 wire       uc3_cb2_oe;
 wire [7:0] uc3_pa_oe;
 wire [7:0] uc3_pb_o;
 wire [7:0] uc3_pb_oe;
-wire       soe = uc3_ca2_o | ~uc3_ca2_oe;
+
+wire       soe    = uc3_ca2_o | ~uc3_ca2_oe;
+assign     dout   = uc3_pa_o  | ~uc3_pa_oe;
+assign     mode   = uc3_cb2_o | ~uc3_cb2_oe;
+
+assign     stp[1] = uc3_pb_o[0]   | ~uc3_pb_oe[0];
+assign     stp[0] = uc3_pb_o[1]   | ~uc3_pb_oe[1];
+assign     mtr    = uc3_pb_o[2]   | ~uc3_pb_oe[2];
+assign     act    = uc3_pb_o[3]   | ~uc3_pb_oe[3];
+assign     freq   = uc3_pb_o[6:5] | ~uc3_pb_oe[6:5];
+
 
 c1541_via6522 uc3
 (
@@ -225,16 +278,55 @@ c1541_via6522 uc3
 	.ca1_i(cpu_so_n),
 
 	.ca2_o(uc3_ca2_o),
-	.ca2_i(1'b1),
+	.ca2_i(soe),
 	.ca2_t(uc3_ca2_oe),
 
-	.cb1_i(1'b1),
+	.cb1_o(uc3_cb1_o),
+	.cb1_i(uc3_cb1_o | ~uc3_cb1_oe),
+	.cb1_t(uc3_cb1_oe),
 
 	.cb2_o(uc3_cb2_o),
-	.cb2_i(1'b1),
+	.cb2_i(mode),
 	.cb2_t(uc3_cb2_oe),
 
 	.irq(uc3_irq)
 );
+
+endmodule
+
+module c1541mem #(parameter DATAWIDTH, ADDRWIDTH, INITFILE=" ")
+(
+	input	                     clock_a,
+	input	     [ADDRWIDTH-1:0] address_a,
+	input	     [DATAWIDTH-1:0] data_a,
+	input	                     wren_a,
+	output reg [DATAWIDTH-1:0] q_a,
+
+	input	                     clock_b,
+	input	     [ADDRWIDTH-1:0] address_b,
+	input	     [DATAWIDTH-1:0] data_b,
+	input	                     wren_b,
+	output reg [DATAWIDTH-1:0] q_b
+);
+
+(* ram_init_file = INITFILE *) reg [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
+
+always @(posedge clock_a) begin
+	if(wren_a) begin
+		ram[address_a] <= data_a;
+		q_a <= data_a;
+	end else begin
+		q_a <= ram[address_a];
+	end
+end
+
+always @(posedge clock_b) begin
+	if(wren_b) begin
+		ram[address_b] <= data_b;
+		q_b <= data_b;
+	end else begin
+		q_b <= ram[address_b];
+	end
+end
 
 endmodule

@@ -23,6 +23,12 @@ port
 	iec_data_o     : out std_logic;
 	iec_clk_o      : out std_logic;
 
+	-- parallel bus
+	par_data_i     : in  std_logic_vector(7 downto 0) := (others => '1');
+	par_stb_i      : in  std_logic := '1';
+	par_data_o     : out std_logic_vector(7 downto 0);
+	par_stb_o      : out std_logic;
+
 	-- clk_sys ports
 	clk_sys        : in  std_logic;
 
@@ -35,7 +41,7 @@ port
 	sd_buff_din    : out std_logic_vector(7 downto 0);
 	sd_buff_wr     : in  std_logic;
 
-	rom_addr       : in  std_logic_vector(13 downto 0) := (others => '0');
+	rom_addr       : in  std_logic_vector(14 downto 0) := (others => '0');
 	rom_data       : in  std_logic_vector(7 downto 0) := (others => '0');
 	rom_wr         : in  std_logic := '0';
 	rom_std        : in  std_logic := '0'

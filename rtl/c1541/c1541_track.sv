@@ -60,7 +60,7 @@ always @(posedge sd_clk) begin
 end
 
 wire sd_b_ack = sd_ack & busy;
-trk_dpram buffer
+c1541mem #(8,13) buffer
 (
 	.clock_a(sd_clk),
 	.address_a(sd_buff_base + base_fix + sd_buff_addr),
@@ -151,43 +151,6 @@ always @(posedge clk) if(ce) begin
 			rd <= 1;
 			busy <= 1;
 		end
-	end
-end
-
-endmodule
-
-module trk_dpram #(parameter DATAWIDTH=8, ADDRWIDTH=13)
-(
-	input	                     clock_a,
-	input	     [ADDRWIDTH-1:0] address_a,
-	input	     [DATAWIDTH-1:0] data_a,
-	input	                     wren_a,
-	output reg [DATAWIDTH-1:0] q_a,
-
-	input	                     clock_b,
-	input	     [ADDRWIDTH-1:0] address_b,
-	input	     [DATAWIDTH-1:0] data_b,
-	input	                     wren_b,
-	output reg [DATAWIDTH-1:0] q_b
-);
-
-logic [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
-
-always_ff@(posedge clock_a) begin
-	if(wren_a) begin
-		ram[address_a] <= data_a;
-		q_a <= data_a;
-	end else begin
-		q_a <= ram[address_a];
-	end
-end
-
-always_ff@(posedge clock_b) begin
-	if(wren_b) begin
-		ram[address_b] <= data_b;
-		q_b <= data_b;
-	end else begin
-		q_b <= ram[address_b];
 	end
 end
 

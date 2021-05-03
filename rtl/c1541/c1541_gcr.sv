@@ -28,8 +28,8 @@ module c1541_gcr
 
 	input      [5:0] track,
 	output reg [4:0] sector,
-	output reg [7:0] byte_addr,
 
+	output reg [7:0] ram_addr,
 	input      [7:0] ram_do,
 	output reg [7:0] ram_di,
 	output reg       ram_we,
@@ -90,35 +90,31 @@ always_comb begin
 	endcase
 end
 
-wire [6:0] bit_clk_div[4] = '{63, 59, 55, 51};
-
-reg bit_clk_en;
+reg       bit_clk_en;
+reg [5:0] old_track;
 always @(posedge clk) if(ce) begin
 	reg [5:0] bit_clk_cnt;
 	reg       mode_r1;
 
+	old_track <= track;
 	mode_r1 <= mode;
 
-	if (mode_r1 ^ mode) begin		// read <-> write change
-		bit_clk_cnt = 0;
+	if (old_track != track && mode_r1 ^ mode) begin		// read/write change, track change
+		bit_clk_cnt = {freq,2'b00};
 		byte_n <= 1;
 		bit_clk_en <= 0;
-	end else begin
+	end
+	else begin
 		bit_clk_en <= 0;
-		if (bit_clk_cnt == bit_clk_div[freq]) begin
+		if (&bit_clk_cnt) begin
 			bit_clk_en <= 1;
-			bit_clk_cnt = 0;
+			bit_clk_cnt = {freq,2'b00};
 		end
 		else begin
 			bit_clk_cnt = bit_clk_cnt + 1'b1;
 		end
 
-		byte_n <= 1;
-		if (~byte_in_n & mtr & ram_ready) begin
-			if (bit_clk_cnt > 8) begin
-				if (bit_clk_cnt < 47) byte_n <= 0;
-			end
-		end
+		byte_n <= ~((~byte_in_n & mtr & ram_ready) && bit_clk_cnt > 20 && bit_clk_cnt < 59);
 	end
 end
 
@@ -127,13 +123,12 @@ reg       byte_in_n;
 reg [8:0] byte_cnt;
 reg       nibble;
 reg       state;
-reg [7:0] data_cks;
+reg [7:0] data_cks; 
 reg [7:0] gcr_byte_out;
 reg [4:0] gcr_nibble_out;
 
 always @(posedge clk) if(ce) begin
 	reg       mode_r2;
-	reg [5:0] old_track;
 	reg       autorise_write;
 	reg       autorise_count;
 	reg [5:0] sync_cnt;
@@ -142,7 +137,6 @@ always @(posedge clk) if(ce) begin
 	reg [3:0] gcr_bit_cnt;
 
 	ram_we <= 0;
-	old_track <= track;
 
 	if (old_track != track) sector <= 0;		//reset sector number on track change
 	else if (bit_clk_en) begin
@@ -186,7 +180,7 @@ always @(posedge clk) if(ce) begin
 				gcr_bit_cnt <= 0;
 				if (nibble) begin
 					nibble <= 0;
-					byte_addr <= byte_cnt[7:0];
+					ram_addr <= byte_cnt[7:0];
 					if (!byte_cnt) data_cks <= 0;
 					else data_cks <= data_cks ^ data;
 

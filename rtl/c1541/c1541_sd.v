@@ -37,6 +37,12 @@ module c1541_sd
 	output        iec_data_o,
 	output        iec_clk_o,
 
+	// parallel bus
+	input   [7:0] par_data_i,
+	input         par_stb_i,
+	output  [7:0] par_data_o,
+	output        par_stb_o,
+
 	//clk_sys ports
 	input         clk_sys,
 
@@ -50,7 +56,7 @@ module c1541_sd
 	input         sd_buff_wr,
 	output        sd_busy,
 
-	input  [13:0] rom_addr,
+	input  [14:0] rom_addr,
 	input   [7:0] rom_data,
 	input         rom_wr,
 	input         stdrom_wr,
@@ -82,7 +88,7 @@ always @(posedge clk_c1541) if(ce_c1541) begin
 		ch_state <= 1;
 	end else ch_state <= 0;
 	if (~prev_change & disk_change) begin
-		ch_timeout <= 30000000;
+		ch_timeout <= 7500000;
 		readonly <= disk_readonly;
 	end
 end
@@ -114,6 +120,12 @@ c1541_logic c1541_logic
 	.c1541stdrom_wr(stdrom_wr),
 	.c1541std(rom_std),
 
+	// parallel bus
+	.par_data_in(par_data_i),
+	.par_stb_in(par_stb_i),
+	.par_data_out(par_data_o),
+	.par_stb_out(par_stb_o),
+
 	// drive-side interface
 	.ds(drive_num),
 	.din(gcr_do),
@@ -129,6 +141,7 @@ c1541_logic c1541_logic
 	.act(act)
 );
 
+wire [7:0] buff_addr;
 wire [7:0] buff_dout;
 wire [7:0] buff_din;
 wire       buff_we;
@@ -137,7 +150,6 @@ wire [7:0] gcr_di;
 wire       sync_n;
 wire       byte_n;
 wire [4:0] sector;
-wire [7:0] byte_addr;
 
 c1541_gcr c1541_gcr
 (
@@ -155,11 +167,10 @@ c1541_gcr c1541_gcr
 	.track(track),
 	.sector(sector),
 
-	.byte_addr(byte_addr),
+	.ram_addr(buff_addr),
 	.ram_do(buff_dout),
 	.ram_di(buff_din),
 	.ram_we(buff_we),
-
 	.ram_ready(~sd_busy)
 );
 
@@ -176,7 +187,7 @@ c1541_track c1541_track
 	.sd_buff_din(sd_buff_din),
 	.sd_buff_wr(sd_buff_wr),
 
-	.buff_addr(byte_addr),
+	.buff_addr(buff_addr),
 	.buff_dout(buff_dout),
 	.buff_din(buff_din),
 	.buff_we(buff_we),
