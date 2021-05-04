@@ -197,7 +197,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X XXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXX XX XXXXX
+// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -242,6 +242,7 @@ localparam CONF_STR = {
 	"P2OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
 	"P2OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
 	"P2O1,Release Keys on Reset,Yes,No;",
+	"P2OO,Clear RAM on Reset,Yes,No;",
 	"P2-;",
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 	"P2-;",
@@ -369,7 +370,7 @@ always @(posedge clk_sys) begin
 	end
 	else begin
 		reset_counter <= reset_counter - 1;
-		if (reset_counter == 100) force_erase <= 1;
+		if (reset_counter == 100 && ~status[24]) force_erase <= 1;
 	end
 end
 
