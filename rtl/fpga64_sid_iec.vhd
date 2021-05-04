@@ -58,6 +58,8 @@ port(
 	io_cycle    : out std_logic;
 	idle        : out std_logic;
 
+	cia_mode    : in std_logic;
+
 	-- VGA/SCART interface
 	ntscMode    : in  std_logic;
 	hsync       : out std_logic;
@@ -215,8 +217,6 @@ signal cia2_pbi     : unsigned(7 downto 0);
 signal cia2_pbo     : unsigned(7 downto 0);
 
 signal todclk       : std_logic;
-signal toddiv       : std_logic_vector(19 downto 0);
-signal toddiv3      : std_logic_vector(1 downto 0);
 
 -- video
 signal vicColorIndex: unsigned(3 downto 0);
@@ -607,6 +607,7 @@ port map (
 cia1: mos6526
 port map (
 	clk => clk32,
+	mode => cia_mode,
 	phi2_p => enableCia_p,
 	phi2_n => enableCia_n,
 	res_n => not reset,
@@ -634,6 +635,7 @@ port map (
 cia2: mos6526
 port map (
 	clk => clk32,
+	mode => cia_mode,
 	phi2_p => enableCia_p,
 	phi2_n => enableCia_n,
 	res_n => not reset,
@@ -662,22 +664,25 @@ port map (
 
 pb_o <= cia2_pbo;
 
--- generate TOD clock from stable 32 MHz
--- Can we simply use vicVSync?
-process(clk32, reset)
+process(clk32)
+variable sum: integer range 0 to 33000000;
 begin
-	if reset = '1' then
-		todclk <= '0';
-		toddiv <= (others => '0');
-	elsif rising_edge(clk32) then
-		toddiv <= toddiv + 1;
-		if (ntscMode = '1' and toddiv = 266665 and toddiv3 = "00") or
-			(ntscMode = '1' and toddiv = 266666 and toddiv3 /= "00") or
-			toddiv = 319999 then
-			toddiv <= (others => '0');
-			todclk <= not todclk;
-			toddiv3 <= toddiv3 + 1;
-			if toddiv3 = "10" then toddiv3 <= "00"; end if;
+	if rising_edge(clk32) then
+		if reset = '1' then
+			todclk <= '0';
+			sum := 0;
+		elsif ntscMode = '1' then
+			sum := sum + 120;
+			if sum >= 32727266 then
+				sum := sum - 32727266;
+				todclk <= not todclk;
+			end if;
+		else
+			sum := sum + 100;
+			if sum >= 31527954 then
+				sum := sum - 31527954;
+				todclk <= not todclk;
+			end if;
 		end if;
 	end if;
 end process;

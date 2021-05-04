@@ -197,7 +197,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXX
+// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -243,6 +243,7 @@ localparam CONF_STR = {
 	"P2OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
 	"P2O1,Release Keys on Reset,Yes,No;",
 	"P2OO,Clear RAM on Reset,Yes,No;",
+	"P2oD,CIA Model,6256,8521;",
 	"P2-;",
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 	"P2-;",
@@ -845,6 +846,8 @@ fpga64_sid_iec fpga64
 	.iof_ext(opl_en),
 	.ioe_ext(1'b0),
 	.io_data(sid2_oe ? data_sid : opl_dout),
+	
+	.cia_mode(status[45]),
 
 	.joya(joyA_c64 | {1'b0, pd12_mode[1] & paddle_2_btn, pd12_mode[1] & paddle_1_btn, 2'b00} | {pd12_mode[0] & mouse_btn[0], 3'b000, pd12_mode[0] & mouse_btn[1]}),
 	.joyb(joyB_c64 | {1'b0, pd34_mode[1] & paddle_4_btn, pd34_mode[1] & paddle_3_btn, 2'b00} | {pd34_mode[0] & mouse_btn[0], 3'b000, pd34_mode[0] & mouse_btn[1]}),
