@@ -234,7 +234,6 @@ localparam CONF_STR = {
 	"P1OIJ,Stereo Mix,None,25%,50%,100%;",
 
 	"P2,Hardware;", 
-	"P2-;",
 	"P2OP,Enable Drive #9,No,Yes;",
 	"P2R6,Reset Disk Drives;",
 	"P2-;",
@@ -248,13 +247,14 @@ localparam CONF_STR = {
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 	"P2-;",
 	"P2FC8,ROM,Load System ROM;",
+	"P2FC5,CRT,Boot Cartridge;",
 
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
 	"-;",
 	"oA,Pause When OSD is Open,No,Yes;",
-	"RH,Reset;",
-	"R0,Reset & Detach Cartridge;",
+	"R0,Reset;",
+	"RH,Reset & Detach Cartridge;",
 	"J,Fire 1,Fire 2,Fire 3,Paddle Btn;",
 	"jn,A,B,Y,X|P;",
 	"jp,A,B,Y,X|P;",
@@ -361,7 +361,7 @@ always @(posedge clk_sys) begin
 		reset_wait <= 1;
 		reset_counter <= 255;
 	end
-	else if (reset_crt | (ioctl_download & (load_cart | load_rom))) begin
+	else if (reset_crt | (ioctl_download & (load_crt | load_rom))) begin
 		do_erase <= 1;
 		reset_counter <= 255;
 	end
@@ -452,6 +452,12 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.ioctl_wait(ioctl_req_wr|reset_wait)
 );
 
+wire load_prg = ioctl_index == 4;
+wire load_crt = ioctl_index == 5;
+wire load_tap = ioctl_index == 6;
+wire load_flt = ioctl_index == 7;
+wire load_rom = ioctl_index == 8;
+
 wire game;
 wire exrom;
 wire IOE_rom;
@@ -462,7 +468,6 @@ wire nmi;
 wire reset_crt;
 
 wire [24:0] cart_addr;
-wire load_cart = (ioctl_index == 5) || (ioctl_index == 'hC0);
 
 cartridge cartridge
 (
@@ -491,7 +496,7 @@ cartridge cartridge
 	.cart_bank_wr(cart_hdr_wr),
 
 	.cart_attached(cart_attached),
-	.cart_loading(ioctl_download && load_cart),
+	.cart_loading(ioctl_download && load_crt),
 
 	.c64_mem_address_in(c64_addr),
 	.c64_data_out(c64_data_out),
@@ -550,7 +555,6 @@ reg        force_erase;
 reg        erasing;
 
 reg        inj_meminit = 0;
-wire       load_prg = ioctl_index == 4;
 
 wire       io_cycle;
 reg        io_cycle_ce;
@@ -601,7 +605,7 @@ always @(posedge clk_sys) begin
 			else begin ioctl_req_wr <= 1; inj_end <= inj_end + 1'b1; end
 		end
 
-		if (load_cart) begin
+		if (load_crt) begin
 			if (ioctl_addr == 0) begin
 				ioctl_load_addr <= 24'h100000;
 				cart_blk_len <= 0;
@@ -650,7 +654,7 @@ always @(posedge clk_sys) begin
 		end
 	end
 	
-	if (old_download != ioctl_download && load_cart) begin
+	if (old_download != ioctl_download && load_crt) begin
 		cart_attached <= old_download;
 		erase_cram <= 1;
 	end 
@@ -700,8 +704,8 @@ always @(posedge clk_sys) begin
 	old_meminit <= inj_meminit;
 	start_strk  <= old_meminit & ~inj_meminit;
 	
-	old_st0 <= status[0];
-	if (~old_st0 & status[0]) cart_attached <= 0;
+	old_st0 <= status[17];
+	if (~old_st0 & status[17]) cart_attached <= 0;
 	
 	if (!erasing && force_erase) begin
 		erasing <= 1;
@@ -804,7 +808,6 @@ wire [17:0] audio_l,audio_r;
 wire  [7:0] r,g,b;
 
 wire        ntsc = status[2];
-wire        load_rom = ioctl_index == 8;
 
 fpga64_sid_iec fpga64
 (
@@ -1184,7 +1187,7 @@ reg [15:0] sid_ld_data = 0;
 reg        sid_ld_wr   = 0;
 always @(posedge clk_sys) begin
 	sid_ld_wr <= 0;
-	if(ioctl_wr && ioctl_index == 7 && ioctl_addr < 6144) begin
+	if(ioctl_wr && load_flt && ioctl_addr < 6144) begin
 		if(ioctl_addr[0]) begin
 			sid_ld_data[15:8] <= ioctl_data;
 			sid_ld_addr <= ioctl_addr[12:1];
@@ -1297,7 +1300,6 @@ wire       tap_loaded = (tap_play_addr < tap_last_addr);
 reg        tap_play;
 wire       tap_play_btn = status[7];
 
-wire       load_tap = (ioctl_index == 6);
 wire       tape_download = ioctl_download & load_tap;
 
 always @(posedge clk_sys) begin
