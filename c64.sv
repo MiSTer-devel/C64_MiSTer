@@ -242,8 +242,10 @@ localparam CONF_STR = {
 	"P2OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
 	"P2OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
 	"P2-;",
-	"P2OEF,Kernal,Loadable C64,Standard C64,C64GS,Japanese;",
-	
+	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
+	"P2-;",
+	"P2FC8,ROM,Load System ROM;",
+
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
 	"-;",
@@ -354,7 +356,7 @@ always @(posedge clk_sys) begin
 		reset_counter <= 255;
 		reset_n <= 0;
 	end
-	else if (reset_crt || (ioctl_download && load_cart)) begin
+	else if (reset_crt | (ioctl_download & (load_cart | load_rom))) begin
 		reset_counter <= 255;
 		reset_n <= 0;
 	end
@@ -797,6 +799,7 @@ wire [17:0] audio_l,audio_r;
 wire  [7:0] r,g,b;
 
 wire        ntsc = status[2];
+wire        load_rom = ioctl_index == 8;
 
 fpga64_sid_iec fpga64
 (
@@ -877,7 +880,7 @@ fpga64_sid_iec fpga64
 
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
-	.c64rom_wr((ioctl_index == 0) && !ioctl_addr[15:14] && ioctl_download && ioctl_wr),
+	.c64rom_wr(load_rom && !ioctl_addr[15:14] && ioctl_download && ioctl_wr),
 
 	.cass_motor(cass_motor),
 	.cass_sense(~tap_play),
@@ -945,7 +948,7 @@ c1541_sd c1541_8
 
 	.rom_addr({~ioctl_addr[14], ioctl_addr[13:0]}),
 	.rom_data(ioctl_data),
-	.rom_wr((ioctl_index == 0) && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
+	.rom_wr(load_rom && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
 
 	.disk_change(sd_change[0]),
@@ -995,7 +998,7 @@ c1541_sd c1541_9
 
 	.rom_addr({~ioctl_addr[14], ioctl_addr[13:0]}),
 	.rom_data(ioctl_data),
-	.rom_wr((ioctl_index == 0) && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
+	.rom_wr(load_rom && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
 
 	.disk_change(sd_change[1]),
