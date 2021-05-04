@@ -123,9 +123,9 @@ T65 cpu
 	.nmi_n(1'b1),
 	.so_n(cpu_so_n),
 	.r_w_n(cpu_rw),
-	.a(cpu_a),
-	.di(cpu_di),
-	.do(cpu_do)
+	.A(cpu_a),
+	.DI(cpu_di),
+	.DO(cpu_do)
 );
 
 reg rom_32k_i = 0;

@@ -65,30 +65,26 @@ module c1541_sd
 
 assign led = act | sd_busy;
 
-// Force reload as disk may have changed
-// Track number (0-34)
-// Sector number (0-20)
-
 reg reset;
 always @(posedge clk_c1541) begin
-	reg reset_r;
-	reset_r <= iec_reset_i;
-	reset <= reset_r;
+	reg reset1, reset2;
+	
+	reset1 <= iec_reset_i;
+	reset2 <= reset1;
+	if(reset2 == reset1) reset <= reset2;
 end
 
-reg readonly = 0;
-reg ch_state;
-always @(posedge clk_c1541) if(ce_c1541) begin
-	integer ch_timeout;
-	reg     prev_change;
+
+reg        readonly = 0;
+reg [23:0] ch_timeout;
+always @(posedge clk_c1541) begin
+	reg prev_change;
+
+	if(ce_c1541 && ch_timeout > 0) ch_timeout <= ch_timeout - 1'd1;
 
 	prev_change <= disk_change;
-	if (ch_timeout > 0) begin
-		ch_timeout <= ch_timeout - 1;
-		ch_state <= 1;
-	end else ch_state <= 0;
 	if (~prev_change & disk_change) begin
-		ch_timeout <= 7500000;
+		ch_timeout <= '1;
 		readonly <= disk_readonly;
 	end
 end
@@ -136,7 +132,7 @@ c1541_logic c1541_logic
 	.freq(freq),
 	.sync_n(sync_n),
 	.byte_n(byte_n),
-	.wps_n(~readonly ^ ch_state),
+	.wps_n(~readonly ^ ch_timeout[22]),
 	.tr00_sense_n(|track),
 	.act(act)
 );
