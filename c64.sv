@@ -241,6 +241,7 @@ localparam CONF_STR = {
 	"P2oBC,User Port,Joysticks,UART,Disk ParPort;",
 	"P2OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
 	"P2OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
+	"P2O1,Release Keys on Reset,Yes,No;",
 	"P2-;",
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 	"P2-;",
@@ -808,7 +809,10 @@ fpga64_sid_iec fpga64
 	.pause(freeze),
 	.pause_out(c64_pause),
 	.bios(status[15:14]),
+
 	.ps2_key(key),
+	.kbd_reset(~reset_n & ~status[1]),
+
 	.ramaddr(c64_addr),
 	.ramdataout(c64_data_out),
 	.ramdatain(sdram_data),

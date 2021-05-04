@@ -45,6 +45,7 @@ port(
 
 	-- keyboard interface (use any ordinairy PS2 keyboard)
 	ps2_key     : in  std_logic_vector(10 downto 0);
+	kbd_reset   : in  std_logic := '0';
 
 	-- external memory
 	ramAddr     : out unsigned(15 downto 0);
@@ -713,6 +714,8 @@ cass_write <= cpuIO(3);
 Keyboard: entity work.fpga64_keyboard
 port map (
 	clk => clk32,
+	
+	reset => kbd_reset,
 	ps2_key => ps2_key,
 
 	joyA => not unsigned(joyA(4 downto 0)),
