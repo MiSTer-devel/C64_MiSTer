@@ -101,7 +101,6 @@ wire  [7:0] cpu_di =
 	 ram_cs    ? ram_do :
 	 uc1_cs    ? uc1_do :
 	 uc3_cs    ? uc3_do :
-	 //extram_cs ? fram_do :
 	 rom_cs    ? (c1541std ? romstd_do : rom_do) :
 	 8'hFF;
 
@@ -129,10 +128,11 @@ T65 cpu
 );
 
 reg rom_32k_i = 0;
-always @(posedge c1541rom_clk) if (c1541rom_wr) rom_32k_i <= c1541rom_addr[14];
+reg rom_16k_i = 0;
+always @(posedge c1541rom_clk) if (c1541rom_wr) {rom_32k_i,rom_16k_i} <= c1541rom_addr[14:13];
 
-reg rom_32k;
-always @(posedge clk) rom_32k <= rom_32k_i;
+reg [1:0] rom_sz;
+always @(posedge clk) rom_sz <= {rom_32k_i,rom_32k_i|rom_16k_i};
 
 wire [7:0] rom_do;
 c1541mem #(8,15,"rtl/c1541/c1541_rom.mif") rom
@@ -143,9 +143,9 @@ c1541mem #(8,15,"rtl/c1541/c1541_rom.mif") rom
 	.wren_a(c1541rom_wr),
 
 	.clock_b(clk),
-	.address_b({cpu_a[14] & rom_32k, cpu_a[13:0]}),
+	.address_b({cpu_a[14:13] & rom_sz, cpu_a[12:0]}), // support for 8K/16K/32K ROM
 	.data_b(cpu_do),
-	.wren_b(~cpu_rw & ce & rom_cs & ~cpu_a[14] & ~cpu_a[13] & rom_32k & ~c1541std), // first 8KB is writtable for Dolphin DOS
+	.wren_b(~cpu_rw & ce & rom_cs & ~cpu_a[14] & ~cpu_a[13] & rom_sz[1] & ~c1541std), // first 8KB is writable for Dolphin DOS
 	.q_b(rom_do)
 );
 
