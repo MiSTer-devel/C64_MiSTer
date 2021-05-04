@@ -13,6 +13,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - 4 joysticks mode.
 - UART connection to Internet.
 - Loadable Kernal/C1541 ROMs.
+- Parallel C1541 port for faster (~20x) loading time using DolphinDOS.
 - Special reduced border mode for 16:9 display.
 
 ## Installation
@@ -22,7 +23,7 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 
 ### Keyboard
 * F2,F4,F6,F8,Left/Up keys automatically activate Shift key.
-* F9 - pound key.
+* F9 - arrow-up key.
 * F10 - = key.
 * F11 - restore key. Also special key in AR/FC carts.
 * Alt - C= key.
@@ -30,7 +31,7 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 ![keyboard-mapping](https://github.com/mister-devel/C64_MiSTer/blob/master/keymap.gif)
 
 ### Loadable ROM
-Alternative ROM can be placed in C64 folder with the name boot.rom.
+Alternative ROM can loaded from OSD: Hardware->Load System ROM.
 Format is simple concatenation of BASIC + Kernal.rom + C1541.rom
 
 To create the ROM in DOS or Windows, gather your files in one place and use the following command from the DOS prompt. 
@@ -43,7 +44,9 @@ To use JiffyDOS or another alternative kernel, replace the filenames with the na
 
 `COPY /B BASIC.bin +JiffyDOS_C64.bin +JiffyDOS_1541-II.bin BOOT.ROM`
 
-To confirm you have the correct image, the BOOT.ROM created must be exactly 32768 bytes long. 
+To confirm you have the correct image, the BOOT.ROM created must be exactly 32768 or 49152(in case of 32KB C1541 ROM) bytes long. 
+
+There are 2 loadable ROM sets are provided: **DolphinDOS v2.0** and **SpeedDOS v2.7**. Both ROMs support parallel Disk Port. DolphinDOS is fastest one.
 
 ### Autoload the cartridge
 Place the desired cartridge with the name boot3.rom in C64 folder to autoload it on start.

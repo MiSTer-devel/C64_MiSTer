@@ -1,6 +1,6 @@
 //============================================================================
 //  C64 Top level for MiSTer
-//  Copyright (C) 2017-2019 Sorgelig
+//  Copyright (C) 2017-2021 Sorgelig
 //
 //  Used DE2-35 Top level by Dar (darfpga@aol.fr)
 //
