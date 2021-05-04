@@ -347,31 +347,33 @@ reg reset_wait = 0;
 always @(posedge clk_sys) begin
 	integer reset_counter;
 	reg old_download;
+	reg do_erase = 1;
 
+	reset_n <= !reset_counter;
 	old_download <= ioctl_download;
 
 	if (RESET | status[0] | status[17] | buttons[1] | !pll_locked) begin
+		if(RESET) do_erase <= 1;
 		reset_counter <= 100000;
-		reset_n <= 0;
 	end
 	else if(~old_download & ioctl_download & load_prg) begin
+		do_erase <= 1;
 		reset_wait <= 1;
 		reset_counter <= 255;
-		reset_n <= 0;
 	end
 	else if (reset_crt | (ioctl_download & (load_cart | load_rom))) begin
+		do_erase <= 1;
 		reset_counter <= 255;
-		reset_n <= 0;
 	end
 	else if ((ioctl_download || inj_meminit) & ~reset_wait);
 	else if (erasing) force_erase <= 0;
 	else if (!reset_counter) begin
-		reset_n <= 1;
+		do_erase <= 0;
 		if(reset_wait && c64_addr == 'hFFCF) reset_wait <= 0;
 	end
 	else begin
 		reset_counter <= reset_counter - 1;
-		if (reset_counter == 100 && ~status[24]) force_erase <= 1;
+		if (reset_counter == 100 && (~status[24] | do_erase)) force_erase <= 1;
 	end
 end
 
