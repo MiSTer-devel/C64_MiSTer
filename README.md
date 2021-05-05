@@ -5,15 +5,16 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 ## Features
 - C64 and C64GS modes.
 - Disk read/write support (*.D64)
+- Parallel C1541 port for faster (~20x) loading time using DolphinDOS.
 - Amost all cartrige formats (*.CRT)
 - Direct file injection (*.PRG)
 - Dual SID with several degree of mixing 6581/8580 from stereo to mono.
 - Similar to 6581 and 8580 SID filters.
 - OPL2 sound expander.
+- Pause option when OSD is opened.
 - 4 joysticks mode.
 - UART connection to Internet.
 - Loadable Kernal/C1541 ROMs.
-- Parallel C1541 port for faster (~20x) loading time using DolphinDOS.
 - Special reduced border mode for 16:9 display.
 
 ## Installation
@@ -50,3 +51,9 @@ There are 2 loadable ROM sets are provided: **DolphinDOS v2.0** and **SpeedDOS v
 
 ### Autoload the cartridge
 In OSD->Hardware page you can choose Boot Cartridge, so everytime core loaded, this cartridge will be loaded too.
+
+### Parallel port for disks.
+Are you tired from long loading times and fast loaders aren't really fast when comparing to other systems? 
+
+Here is the solution:
+In OSD->Hardware page choose **User Port: Disk ParPort**. Then load [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom). You will get about **20x times faster** loading from disks!
