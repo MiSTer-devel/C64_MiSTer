@@ -38,11 +38,11 @@ To create the ROM in DOS or Windows, gather your files in one place and use the 
 The easiest place to acquire the ROM files is from the VICE distribution. BASIC and KERNAL are in the C64 directory,
 and dos1541 is in the Drives directory.
 
-`COPY BASIC + KERNAL + dos1541 BOOT.ROM /B`
+`COPY BASIC + KERNAL + dos1541 MYOWN.ROM /B`
 
 To use JiffyDOS or another alternative kernel, replace the filenames with the name of your ROM or BIN file.  (Note, you muse use the 1541-II ROM. The ROM for the original 1541 only covers half the drive ROM and does not work with emulators.)
 
-`COPY /B BASIC.bin +JiffyDOS_C64.bin +JiffyDOS_1541-II.bin BOOT.ROM`
+`COPY /B BASIC.bin +JiffyDOS_C64.bin +JiffyDOS_1541-II.bin MYOWN.ROM`
 
 To confirm you have the correct image, the BOOT.ROM created must be exactly 32768 or 49152(in case of 32KB C1541 ROM) bytes long. 
 
