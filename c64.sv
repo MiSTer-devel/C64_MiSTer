@@ -1029,7 +1029,21 @@ c1541 c1541_9
 );
 
 reg c1541_ce;
-always @(posedge clk_sys) c1541_ce <= ~c1541_ce;
+always @(posedge clk_sys) begin
+	int sum = 0;
+	int msum;
+	
+	msum <= ntsc ? 32727264 : 31527954;
+
+	c1541_ce <= 0;
+	sum = sum + 16000000;
+	if(sum >= msum) begin
+		sum = sum - msum;
+		c1541_ce <= 1;
+	end
+end
+
+
 
 wire hsync;
 wire vsync;
