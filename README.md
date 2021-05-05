@@ -49,4 +49,4 @@ To confirm you have the correct image, the BOOT.ROM created must be exactly 3276
 There are 2 loadable ROM sets are provided: **DolphinDOS v2.0** and **SpeedDOS v2.7**. Both ROMs support parallel Disk Port. DolphinDOS is fastest one.
 
 ### Autoload the cartridge
-Place the desired cartridge with the name boot3.rom in C64 folder to autoload it on start.
+In OSD->Hardware page you can choose Boot Cartridge, so everytime core loaded, this cartridge will be loaded too.
