@@ -60,8 +60,6 @@ reg [7:0] cra;
 reg [7:0] crb;
 
 // Internal Signals
-reg        flag_n_prev;
-
 reg [15:0] timer_a;
 reg [15:0] timer_b;
 
@@ -148,14 +146,24 @@ end
 
 // FLAG Input
 always @(posedge clk) begin
-  if (!res_n) icr[4] <= 1'b0;
-  else begin
-    if (phi2_p) begin
-      if (int_reset) icr[4] <= 1'b0;
-    flag_n_prev <= flag_n;
-      if (!flag_n && flag_n_prev) icr[4] <= 1'b1;
-    end
-  end
+	reg old_flag, flag;
+
+	old_flag <= flag_n;
+	if(old_flag & ~flag_n) flag <= 1'b1;
+  
+	if (!res_n) begin
+		icr[4] <= 1'b0;
+		flag <= 1'b0;
+	end
+	else begin
+		if (phi2_p) begin
+			if (int_reset) icr[4] <= 1'b0;
+			if ((old_flag & ~flag_n) | flag) begin
+				icr[4] <= 1'b1;
+				flag <= 1'b0;
+			end
+		end
+	end
 end
 
 // Port Control Output
