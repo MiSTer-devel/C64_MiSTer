@@ -178,14 +178,16 @@ c1541mem #(8,11) ram
 // UC1 (VIA6522) signals
 wire [7:0] uc1_do;
 wire       uc1_irq;
-wire [7:0] uc1_pb_o;
-wire [7:0] uc1_pb_oe;
-wire       uc1_cb2_o;
-wire       uc1_cb2_oe;
-wire       uc1_ca2_o;
-wire       uc1_ca2_oe;
 wire [7:0] uc1_pa_o;
 wire [7:0] uc1_pa_oe;
+wire       uc1_ca2_o;
+wire       uc1_ca2_oe;
+wire [7:0] uc1_pb_o;
+wire [7:0] uc1_pb_oe;
+wire       uc1_cb1_o;
+wire       uc1_cb1_oe;
+wire       uc1_cb2_o;
+wire       uc1_cb2_oe;
 
 assign     sb_data_out  = ~(uc1_pb_o[1] | ~uc1_pb_oe[1]) & ~((uc1_pb_o[4] | ~uc1_pb_oe[4]) ^ ~iec_atn);
 assign     sb_clk_out   = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
@@ -206,24 +208,27 @@ c1541_via6522 uc1
 	.data_in(cpu_do),
 	.data_out(uc1_do),
 
-	.port_a_i(par_data_in & par_data_out),
 	.port_a_o(uc1_pa_o),
 	.port_a_t(uc1_pa_oe),
+	.port_a_i(par_data_in & (uc1_pa_o  | ~uc1_pa_oe)),
 
 	.port_b_o(uc1_pb_o),
 	.port_b_t(uc1_pb_oe),
-	.port_b_i({~iec_atn, ds, 2'b11, ~(iec_clk & sb_clk_out), 1'b1, ~(iec_data & sb_data_out)}),
+	.port_b_i({~iec_atn, ds, 2'b11, ~(iec_clk & sb_clk_out), 1'b1, ~(iec_data & sb_data_out)} & (uc1_pb_o | ~uc1_pb_oe)),
 
 	.ca1_i(~iec_atn),
-	.ca2_i(par_stb_out),
+
 	.ca2_o(uc1_ca2_o),
 	.ca2_t(uc1_ca2_oe),
+	.ca2_i(uc1_ca2_o | ~uc1_ca2_oe),
 
-	.cb1_i(par_stb_in),
+	.cb1_o(uc1_cb1_o),
+	.cb1_t(uc1_cb1_oe),
+	.cb1_i(par_stb_in & (uc1_cb1_o | ~uc1_cb1_oe)),
 
 	.cb2_o(uc1_cb2_o),
-	.cb2_i(uc1_cb2_o | ~uc1_cb2_oe),
 	.cb2_t(uc1_cb2_oe),
+	.cb2_i(uc1_cb2_o | ~uc1_cb2_oe),
 
 	.irq(uc1_irq)
 );
@@ -232,16 +237,16 @@ c1541_via6522 uc1
 // UC3 (VIA6522) signals
 wire [7:0] uc3_do;
 wire       uc3_irq;
+wire [7:0] uc3_pa_o;
+wire [7:0] uc3_pa_oe;
 wire       uc3_ca2_o;
 wire       uc3_ca2_oe;
-wire [7:0] uc3_pa_o;
+wire [7:0] uc3_pb_o;
+wire [7:0] uc3_pb_oe;
 wire       uc3_cb1_o;
 wire       uc3_cb1_oe;
 wire       uc3_cb2_o;
 wire       uc3_cb2_oe;
-wire [7:0] uc3_pa_oe;
-wire [7:0] uc3_pb_o;
-wire [7:0] uc3_pb_oe;
 
 wire       soe    = uc3_ca2_o | ~uc3_ca2_oe;
 assign     dout   = uc3_pa_o  | ~uc3_pa_oe;
@@ -269,25 +274,25 @@ c1541_via6522 uc3
 
 	.port_a_o(uc3_pa_o),
 	.port_a_t(uc3_pa_oe),
-	.port_a_i(din),
+	.port_a_i(din & (uc3_pa_o | ~uc3_pa_oe)),
 
 	.port_b_o(uc3_pb_o),
 	.port_b_t(uc3_pb_oe),
-	.port_b_i({sync_n, 2'b11, wps_n, 4'b1111}),
+	.port_b_i({sync_n, 2'b11, wps_n, 4'b1111} & (uc3_pb_o | ~uc3_pb_oe)),
 
 	.ca1_i(cpu_so_n),
 
 	.ca2_o(uc3_ca2_o),
-	.ca2_i(soe),
 	.ca2_t(uc3_ca2_oe),
+	.ca2_i(uc3_ca2_o | ~uc3_ca2_oe),
 
 	.cb1_o(uc3_cb1_o),
-	.cb1_i(uc3_cb1_o | ~uc3_cb1_oe),
 	.cb1_t(uc3_cb1_oe),
+	.cb1_i(uc3_cb1_o | ~uc3_cb1_oe),
 
 	.cb2_o(uc3_cb2_o),
-	.cb2_i(mode),
 	.cb2_t(uc3_cb2_oe),
+	.cb2_i(uc3_cb2_o | ~uc3_cb2_oe),
 
 	.irq(uc3_irq)
 );
