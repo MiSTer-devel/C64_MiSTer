@@ -166,7 +166,7 @@ begin
 	);
 
 	kernel_c64: entity work.dprom
-	generic map ("rtl/roms/std_C64.mif", 14)
+	generic map ("rtl/roms/dol_C64.mif", 14)
 	port map
 	(
 		wrclock => clk,

@@ -934,7 +934,7 @@ wire c1541_1_led;
 wire [7:0] c1541_1_par_o;
 wire       c1541_1_stb_o;
 
-c1541 c1541_8
+c1541 #(1) c1541_8
 (
 	// C1541 signals
 	.clk_c1541(clk_sys),
@@ -985,7 +985,7 @@ wire c1541_2_led;
 wire [7:0] c1541_2_par_o;
 wire       c1541_2_stb_o;
 
-c1541 c1541_9
+c1541 #(1) c1541_9
 (
 	// C1541 signals
 	.clk_c1541(clk_sys),

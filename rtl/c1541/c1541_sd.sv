@@ -17,7 +17,7 @@
 //
 //-------------------------------------------------------------------------------
 
-module c1541_sd
+module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 (
 	//clk_c1541 ports
 	input         clk_c1541,
@@ -59,7 +59,6 @@ module c1541_sd
 	input  [14:0] rom_addr,
 	input   [7:0] rom_data,
 	input         rom_wr,
-	input         stdrom_wr,
 	input         rom_std
 );
 
@@ -95,7 +94,7 @@ wire       mtr;
 wire       act;
 wire [1:0] freq;
 
-c1541_logic c1541_logic
+c1541_logic #(PARPORT,DUALROM) c1541_logic
 (
 	.clk(clk_c1541),
 	.ce(ce_c1541),
@@ -113,7 +112,6 @@ c1541_logic c1541_logic
 	.c1541rom_addr(rom_addr),
 	.c1541rom_data(rom_data),
 	.c1541rom_wr(rom_wr),
-	.c1541stdrom_wr(stdrom_wr),
 	.c1541std(rom_std),
 
 	// parallel bus

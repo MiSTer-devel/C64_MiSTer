@@ -9,6 +9,11 @@ use IEEE.std_logic_1164.all;
 --
 
 entity C1541 is
+generic
+(
+	PARPORT        : integer range 0 to 1 := 0;
+	DUALROM        : integer range 0 to 1 := 1
+);
 port
 (
 	-- clk_c1541 ports
@@ -55,6 +60,11 @@ end;
 
 architecture rtl of C1541 is
 	component c1541_sd
+	generic
+	(
+		PARPORT        : integer range 0 to 1 := 0;
+		DUALROM        : integer range 0 to 1 := 1
+	);
 	port
 	(
 		clk_c1541      : in  std_logic;
@@ -98,6 +108,7 @@ architecture rtl of C1541 is
 begin
 
 	c1541_inst : c1541_sd
+	generic map(PARPORT,DUALROM)
 	port map
 	(
 		clk_c1541     => clk_c1541     ,

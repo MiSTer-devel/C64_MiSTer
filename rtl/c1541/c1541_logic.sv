@@ -7,7 +7,7 @@
 //
 // Model 1541B
 //
-module c1541_logic
+module c1541_logic #(parameter PARPORT, DUALROM)
 (
 	input        clk,
 	input        ce,
@@ -26,7 +26,6 @@ module c1541_logic
 	input [14:0] c1541rom_addr,
 	input  [7:0] c1541rom_data,
 	input        c1541rom_wr,
-	input        c1541stdrom_wr,
 	input        c1541std,
 
 	// parallel bus
@@ -88,6 +87,7 @@ always @(posedge clk) begin
 	end
 end
 
+wire stdrom = (DUALROM || PARPORT) ? c1541std : 1'b1;
 
 //same decoder as on real HW
 wire [3:0] ls42 = {cpu_a[15],cpu_a[12:10]};
@@ -101,7 +101,7 @@ wire  [7:0] cpu_di =
 	 ram_cs    ? ram_do :
 	 uc1_cs    ? uc1_do :
 	 uc3_cs    ? uc3_do :
-	 rom_cs    ? (c1541std ? romstd_do : rom_do) :
+	 rom_cs    ? (stdrom ? romstd_do : rom_do) :
 	 8'hFF;
 
 wire [23:0] cpu_a;
@@ -128,7 +128,7 @@ T65 cpu
 );
 
 initial begin
-	rom_32k_i = 0;
+	rom_32k_i = 1;
 	rom_16k_i = 1;
 end
 
@@ -141,31 +141,54 @@ always @(posedge clk) rom_sz <= {rom_32k_i,rom_32k_i|rom_16k_i}; // support for 
 
 reg [14:0] mem_a;
 reg        ram_wr;
-reg        ram_ext_wr;
 always @(posedge clk) begin
 	ram_wr <= 0;
-	ram_ext_wr <= 0;
 	if(p2_h_r) begin
-		mem_a <= {cpu_a[14] & rom_sz[1], cpu_a[13] & (rom_sz[0] | c1541std), cpu_a[12:0]};
+		mem_a <= {cpu_a[14] & rom_sz[1], cpu_a[13] & (rom_sz[0] | stdrom), cpu_a[12:0]};
 		ram_wr <= ~cpu_rw & ram_cs;
-		ram_ext_wr <= ~cpu_rw & rom_cs & ~cpu_a[14] & ~cpu_a[13] & rom_sz[1] & ~c1541std;
 	end
 end
 
 wire [7:0] rom_do;
-c1541mem #(8,15,"rtl/c1541/c1541_rom.mif") rom
-(
-	.clock_a(c1541rom_clk),
-	.address_a(c1541rom_addr),
-	.data_a(c1541rom_data),
-	.wren_a(c1541rom_wr),
+generate
+	if(PARPORT) begin
+		reg ram_ext_wr;
+		always @(posedge clk) begin
+			ram_ext_wr <= 0;
+			if(p2_h_r) ram_ext_wr <= ~cpu_rw & rom_cs & ~cpu_a[14] & ~cpu_a[13] & rom_sz[1] & ~stdrom;
+		end
+	
+		c1541mem #(8,15,"rtl/c1541/c1541_dolphin.mif") rom
+		(
+			.clock_a(c1541rom_clk),
+			.address_a(c1541rom_addr),
+			.data_a(c1541rom_data),
+			.wren_a(c1541rom_wr),
 
-	.clock_b(clk),
-	.address_b(mem_a),
-	.data_b(cpu_do),
-	.wren_b(ram_ext_wr), // first 8KB is writable for Dolphin DOS
-	.q_b(rom_do)
-);
+			.clock_b(clk),
+			.address_b(mem_a),
+			.data_b(cpu_do),
+			.wren_b(ram_ext_wr), // first 8KB is writable for Dolphin DOS
+			.q_b(rom_do)
+		);
+	end
+	else if(DUALROM) begin
+		c1541mem #(8,14,"rtl/c1541/c1541_rom.mif") rom
+		(
+			.clock_a(c1541rom_clk),
+			.address_a(c1541rom_addr[13:0]),
+			.data_a(c1541rom_data),
+			.wren_a(c1541rom_wr),
+
+			.clock_b(clk),
+			.address_b(mem_a[13:0]),
+			.q_b(rom_do)
+		);
+	end
+	else begin
+		assign rom_do = 0;
+	end
+endgenerate
 
 wire [7:0] romstd_do;
 c1541mem #(8,14,"rtl/c1541/c1541_rom.mif") romstd
@@ -173,7 +196,7 @@ c1541mem #(8,14,"rtl/c1541/c1541_rom.mif") romstd
 	.clock_a(c1541rom_clk),
 	.address_a(c1541rom_addr[13:0]),
 	.data_a(c1541rom_data),
-	.wren_a(c1541stdrom_wr),
+	.wren_a((DUALROM || PARPORT) ? 1'b0 : c1541rom_wr),
 
 	.clock_b(clk),
 	.address_b(mem_a[13:0]),
@@ -228,7 +251,7 @@ c1541_via6522 uc1
 
 	.port_a_o(uc1_pa_o),
 	.port_a_t(uc1_pa_oe),
-	.port_a_i(par_data_in & (uc1_pa_o  | ~uc1_pa_oe)),
+	.port_a_i((PARPORT ? par_data_in : {7'h7F,tr00_sense_n}) & (uc1_pa_o  | ~uc1_pa_oe)),
 
 	.port_b_o(uc1_pb_o),
 	.port_b_t(uc1_pb_oe),
@@ -242,7 +265,7 @@ c1541_via6522 uc1
 
 	.cb1_o(uc1_cb1_o),
 	.cb1_t(uc1_cb1_oe),
-	.cb1_i(par_stb_in & (uc1_cb1_o | ~uc1_cb1_oe)),
+	.cb1_i((PARPORT ? par_stb_in : 1'b1) & (uc1_cb1_o | ~uc1_cb1_oe)),
 
 	.cb2_o(uc1_cb2_o),
 	.cb2_t(uc1_cb2_oe),
