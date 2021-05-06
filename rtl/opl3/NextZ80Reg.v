@@ -43,6 +43,7 @@
 `timescale 1ns / 1ps
 
 module Z80Reg(
+	input wire RESET,
 	input wire [7:0]rstatus,	// 0=af-af', 1=exx, 2=hl-de, 3=hl'-de',4=hl-ixy, 5=ix-iy, 6=IFF1, 7=IFF2
 	input wire M1,
 	input wire [5:0]WE,			// 5 = flags, 4 = PC, 3 = SP, 2 = tmpHI, 1 = hi, 0 = lo
@@ -77,34 +78,24 @@ module Z80Reg(
 	reg [7:0]th;					// temp high
 
 // internal wires	
-	wire [15:0]rdor;		// R out from RAM
-	wire [15:0]rdow;		// W out from RAM
 	wire [3:0]SELW;		// RAM W port sel
 	wire [3:0]SELR;		// RAM R port sel
-	reg  [15:0]DIN;		// RAM W in data
+	reg [15:0]DIN;		// RAM W in data
 	reg [15:0]mux_rdor;	// (3)A reversed mixed with TL, (4)I mixed with R (5)SP
 	
 //------------------------------------ RAM block registers ----------------------------------
 // 0:BC, 1:DE, 2:HL, 3:A-x, 4:I-x, 5:IX, 6:IY, 7:x-x, 8:BC', 9:DE', 10:HL', 11:A'-x, 12: tmpSP, 13:zero
-   RAM16X8D_regs regs_lo (
-      .DPO(rdor[7:0]),   // Read-only data output
-      .SPO(rdow[7:0]),   // R/W data output
-      .A(SELW),       	 // R/W address
-      .D(DIN[7:0]),      // Write data input
-      .DPRA(SELR), 		 // Read-only address
-      .WCLK(CLK),   		 // Write clock input
-      .WE(WE[0] & !WAIT) // Write enable input
-   );
 
-   RAM16X8D_regs regs_hi (
-      .DPO(rdor[15:8]),  // Read-only data output
-      .SPO(rdow[15:8]),  // R/W data output
-      .A(SELW),       	 // R/W address
-      .D(DIN[15:8]),     // Write data input
-      .DPRA(SELR), 		 // Read-only address
-      .WCLK(CLK),   		 // Write clock input
-      .WE(WE[1] & !WAIT) // Write enable input
-   );
+	reg [15:0] regs[14];
+	always @(posedge CLK) begin
+		reg [3:0] i;
+		if(WE[0] & !WAIT) regs[SELW][7:0]  <= DIN[7:0];
+		if(WE[1] & !WAIT) regs[SELW][15:8] <= DIN[15:8];
+		if(RESET) for(i=0; i<14; i=i+1'd1) regs[i] <= 0; // not really needed but added to prevent warning
+	end
+
+	wire [15:0] rdor = regs[SELR];
+	wire [15:0] rdow = regs[SELW];
 
 	wire [15:0]ADDR1 = ADDR + !ALU16OP[2]; // address post increment
 	wire [7:0]flgmux = {ALU8FLAGS[7:3], SELR[3:0] == 4'b0100 ? rstatus[7] : ALU8FLAGS[2], ALU8FLAGS[1:0]}; // LD A, I/R IFF2 flag on parity
@@ -180,23 +171,4 @@ module RegSelect(
 			7: RAMSEL = 7;	// temp reg for BIT/SET/RES
 		endcase
 	end
-endmodule	
-
-module RAM16X8D_regs(
-      output [7:0]DPO,     // Read-only data output
-      output [7:0]SPO,     // R/W data output
-      input [3:0]A,       	// R/W address 
-      input [7:0]D,        // Write data input
-      input [3:0]DPRA, 		// Read-only address
-      input WCLK,   			// Write clock
-      input WE        		// Write enable
-   );
-	
-	reg [7:0]data[15:0];
-	assign DPO = data[DPRA];
-	assign SPO = data[A];
-	
-	always @(posedge WCLK)
-		if(WE) data[A] <= D;		
-
 endmodule

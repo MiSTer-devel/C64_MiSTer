@@ -120,7 +120,8 @@ module NextZ80
 	reg 	xmask;
 
 	Z80Reg CPU_REGS (
-		 .rstatus(CPUStatus[7:0]), 
+		 .RESET(RESET),
+		 .rstatus(CPUStatus[7:0]),
 		 .M1(M1), 
 		 .WE(WE), 
 		 .CLK(CLK), 
