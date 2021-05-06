@@ -127,8 +127,13 @@ T65 cpu
 	.DO(cpu_do)
 );
 
-reg rom_32k_i = 0;
-reg rom_16k_i = 0;
+initial begin
+	rom_32k_i = 0;
+	rom_16k_i = 1;
+end
+
+reg rom_32k_i;
+reg rom_16k_i;
 always @(posedge c1541rom_clk) if (c1541rom_wr) {rom_32k_i,rom_16k_i} <= c1541rom_addr[14:13];
 
 reg [1:0] rom_sz;
