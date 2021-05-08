@@ -47,8 +47,7 @@ module video_mixer
 	// Freeze engine
 	// HDMI: displays last frame 
 	// VGA:  black screen with HSync and VSync
-	output           HDMI_FREEZE,
-	input            freeze,
+	input            HDMI_FREEZE,
 	output           freeze_sync,
 
 	// video output signals
@@ -69,7 +68,7 @@ wire frz_hbl, frz_vbl;
 video_freezer freezer
 (
 	.clk(CLK_VIDEO),
-	.freeze(freeze),
+	.freeze(HDMI_FREEZE),
 	.hs_in(HSync),
 	.vs_in(VSync),
 	.hbl_in(HBlank),
@@ -81,13 +80,11 @@ video_freezer freezer
 	.vbl_out(frz_vbl)
 );
 
-assign HDMI_FREEZE = freeze;
-
 reg frz;
 always @(posedge CLK_VIDEO) begin
 	reg frz1;
 	
-	frz1 <= freeze;
+	frz1 <= HDMI_FREEZE;
 	frz  <= frz1;
 end
 
