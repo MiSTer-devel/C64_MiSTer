@@ -197,7 +197,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXX
+// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -233,16 +233,18 @@ localparam CONF_STR = {
 	"P1o89,DigiMax,Disabled,DE00,DF00;",
 	"P1OIJ,Stereo Mix,None,25%,50%,100%;",
 
-	"P2,Hardware;", 
+	"P2,System;", 
 	"P2OP,Enable Drive #9,No,Yes;",
 	"P2R6,Reset Disk Drives;",
 	"P2-;",
-	"P2oBC,User Port,Joysticks,UART,Disk ParPort;",
-	"P2OQR,Pot 1&2,Joy 1 Fire 2/3,Mouse,Paddles 1&2;",
-	"P2OST,Pot 3&4,Joy 2 Fire 2/3,Mouse,Paddles 3&4;",
+	"P2oBC,Expansion,Joysticks,UART,Fast Disks;",
+	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
+	"P2OST,Pot 3/4,Joy 2 Fire 2/3,Mouse,Paddles 3/4;",
+	"P2oD,CIA Model,6256,8521;",
+	"P2-;",
 	"P2O1,Release Keys on Reset,Yes,No;",
 	"P2OO,Clear RAM on Reset,Yes,No;",
-	"P2oD,CIA Model,6256,8521;",
+	"P2oI,Reset & Run PRG,Yes,No;",
 	"P2-;",
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 	"P2-;",
@@ -359,7 +361,7 @@ always @(posedge clk_sys) begin
 		if(RESET) do_erase <= 1;
 		reset_counter <= 100000;
 	end
-	else if(~old_download & ioctl_download & load_prg) begin
+	else if(~old_download & ioctl_download & load_prg & ~status[50]) begin
 		do_erase <= 1;
 		reset_wait <= 1;
 		reset_counter <= 255;
@@ -757,7 +759,7 @@ always @(posedge clk_sys) begin
 		to <= 0;
 		key <= ps2_key;
 	end
-	if(start_strk) begin
+	if(start_strk & ~status[50]) begin
 		act <= 1;
 		key <= 0;
 	end

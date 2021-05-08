@@ -6,7 +6,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - C64 and C64GS modes.
 - Disk read/write support (*.D64)
 - Parallel C1541 port for faster (~20x) loading time using DolphinDOS.
-- Amost all cartrige formats (*.CRT)
+- Amost all cartridge formats (*.CRT)
 - Direct file injection (*.PRG)
 - Dual SID with several degree of mixing 6581/8580 from stereo to mono.
 - Similar to 6581 and 8580 SID filters.
@@ -56,4 +56,4 @@ In OSD->Hardware page you can choose Boot Cartridge, so everytime core loaded, t
 Are you tired from long loading times and fast loaders aren't really fast when comparing to other systems? 
 
 Here is the solution:
-In OSD->Hardware page choose **User Port: Disk ParPort**. Then load [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom). You will get about **20x times faster** loading from disks!
+In OSD->System page choose **Expansion: Fast Disks**. Then load [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom). You will get about **20x times faster** loading from disks!
