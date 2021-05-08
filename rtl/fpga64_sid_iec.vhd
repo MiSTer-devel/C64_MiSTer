@@ -32,9 +32,6 @@ use IEEE.numeric_std.all;
 -- -----------------------------------------------------------------------
 
 entity fpga64_sid_iec is
-generic (
-	resetCycles : integer := 4095
-);
 port(
 	clk32       : in  std_logic;
 	reset_n     : in  std_logic;
@@ -49,16 +46,19 @@ port(
 
 	-- external memory
 	ramAddr     : out unsigned(15 downto 0);
-	ramDataIn   : in  unsigned(7 downto 0);
-	ramDataOut  : out unsigned(7 downto 0);
+	ramDin      : in  unsigned(7 downto 0);
+	ramDout     : out unsigned(7 downto 0);
 
 	ramCE       : out std_logic;
-	ramWe       : out std_logic;
+	ramWE       : out std_logic;
 
 	io_cycle    : out std_logic;
-	idle        : out std_logic;
+	refresh     : out std_logic;
 
-	cia_mode    : in std_logic;
+	cia_mode    : in  std_logic;
+	turbo_mode  : in  std_logic_vector(1 downto 0);
+	turbo_speed : in  std_logic_vector(1 downto 0);
+	turbo_reset : in  std_logic;
 
 	-- VGA/SCART interface
 	ntscMode    : in  std_logic;
@@ -67,7 +67,7 @@ port(
 	r           : out unsigned(7 downto 0);
 	g           : out unsigned(7 downto 0);
 	b           : out unsigned(7 downto 0);
-	
+
 	-- cartridge port
 	game        : in  std_logic;
 	exrom       : in  std_logic;
@@ -77,14 +77,11 @@ port(
 	irq_n       : in  std_logic;
 	nmi_n       : in  std_logic;
 	nmi_ack     : out std_logic;
-	dma_n       : in  std_logic;
-	ba          : out std_logic;
-	romL			: out std_logic;	-- cart signals LCA
-	romH			: out std_logic;	-- cart signals LCA
-	UMAXromH 	: out std_logic;	-- cart signals LCA
-	IOE			: out std_logic;	-- cart signals LCA
-	IOF			: out std_logic;	-- cart signals LCA
-	CPU_hasbus  : out std_logic;	-- CPU has the bus STROBE
+	romL        : out std_logic;
+	romH        : out std_logic;
+	UMAXromH 	: out std_logic;
+	IOE			: out std_logic;
+	IOF			: out std_logic;
 	freeze_key  : out std_logic;
 	mod_key     : out std_logic;
 
@@ -163,8 +160,6 @@ signal phi0_cpu     : std_logic;
 signal cpuHasBus    : std_logic;
 
 signal baLoc        : std_logic;
-signal irqLoc       : std_logic;
-signal nmiLoc       : std_logic;
 signal aec          : std_logic;
 
 signal enableCpu    : std_logic;
@@ -180,7 +175,6 @@ signal systemWe     : std_logic;
 signal pulseWrRam   : std_logic;
 signal colorWe      : std_logic;
 signal systemAddr   : unsigned(15 downto 0);
-signal ramDataReg   : unsigned(7 downto 0);
 
 signal cs_vic       : std_logic;
 signal cs_sid       : std_logic;
@@ -188,19 +182,20 @@ signal cs_color     : std_logic;
 signal cs_cia1      : std_logic;
 signal cs_cia2      : std_logic;
 signal cs_ram       : std_logic;
-signal cs_ioE       : std_logic;
-signal cs_ioF       : std_logic;
-signal cs_romL      : std_logic;
-signal cs_romH      : std_logic;
-signal cs_UMAXromH  : std_logic;							-- romH VIC II read flag
 signal cpuWe        : std_logic;
 signal cpuAddr      : unsigned(15 downto 0);
 signal cpuDi        : unsigned(7 downto 0);
 signal cpuDo        : unsigned(7 downto 0);
 signal cpuIO        : unsigned(7 downto 0);
 
+signal io_allow     : std_logic;
+signal turbo_allow  : std_logic;
+signal cpu_cyc      : std_logic;
+signal cpu_cyc_s    : std_logic_vector(1 downto 0);
+signal turbo_m      : std_logic_vector(2 downto 0);
+signal turbo_cnt    : integer range 0 to 9999;
+
 signal reset        : std_logic := '1';
-signal reset_cnt    : integer range 0 to resetCycles := 0;
 
 -- CIA signals
 signal enableCia_p  : std_logic;
@@ -211,7 +206,6 @@ signal cia1_pai     : unsigned(7 downto 0);
 signal cia1_pao     : unsigned(7 downto 0);
 signal cia1_pbi     : unsigned(7 downto 0);
 signal cia1_pbo     : unsigned(7 downto 0);
-signal cia2_pai     : unsigned(7 downto 0);
 signal cia2_pao     : unsigned(7 downto 0);
 signal cia2_pbi     : unsigned(7 downto 0);
 signal cia2_pbo     : unsigned(7 downto 0);
@@ -220,8 +214,6 @@ signal todclk       : std_logic;
 
 -- video
 signal vicColorIndex: unsigned(3 downto 0);
-signal vicHSync     : std_logic;
-signal vicVSync     : std_logic;
 signal vicBus       : unsigned(7 downto 0);
 signal vicDi        : unsigned(7 downto 0);
 signal vicDiAec     : unsigned(7 downto 0);
@@ -232,6 +224,8 @@ signal vicAddr1514  : unsigned(1 downto 0);
 signal colorQ       : unsigned(3 downto 0);
 signal colorData    : unsigned(3 downto 0);
 signal colorDataAec : unsigned(3 downto 0);
+signal turbo_en     : std_logic;
+signal turbo_state  : std_logic;
 
 -- SID signals
 signal sid_do       : unsigned(7 downto 0);
@@ -298,17 +292,12 @@ begin
 -- -----------------------------------------------------------------------
 -- Local signal to outside world
 -- -----------------------------------------------------------------------
-ba <= baLoc;
 
 io_cycle <= '1' when
-	(sysCycle = CYCLE_IDLE0) or (sysCycle = CYCLE_IDLE1) or
-	(sysCycle = CYCLE_IDLE2) or (sysCycle = CYCLE_IDLE3) or
-	(sysCycle = CYCLE_IEC0)  or (sysCycle = CYCLE_IEC1)  or 
-	(sysCycle = CYCLE_IEC2)  or (sysCycle = CYCLE_IEC3)  else '0';
+	(sysCycle >= CYCLE_IDLE0 and sysCycle <= CYCLE_IDLE3) or
+	(sysCycle >= CYCLE_IEC0  and sysCycle <= CYCLE_IEC3)  else '0';
 
-idle <= '1' when
-	(preCycle = CYCLE_IDLE4) or (preCycle = CYCLE_IDLE5) or
-	(preCycle = CYCLE_IDLE6) or (preCycle = CYCLE_IDLE7) else '0';
+refresh <= '1' when preCycle = CYCLE_IDLE4 else '0';
 
 -- -----------------------------------------------------------------------
 -- System state machine, controls bus accesses
@@ -329,6 +318,15 @@ begin
 		
 		if preCycle = CYCLE_IDLE4 then
 			sysEnable <= not pause;
+		end if;
+	end if;
+end process;
+
+process(clk32)
+begin
+	if rising_edge(clk32) then
+		if preCycle = sysCycleDef'high then
+			reset <= not reset_n;
 		end if;
 	end if;
 end process;
@@ -356,7 +354,6 @@ begin
 		enableVic <= '0';
 		enableCia_n <= '0';
 		enableCia_p <= '0';
-		enableCpu <= '0';
 		enableSid <= '0';
 
 		case sysCycle is
@@ -364,7 +361,6 @@ begin
 			enableVic <= '1';
 		when CYCLE_CPUE =>
 			enableVic <= '1';
-			enableCpu <= '1';
 		when CYCLE_CPUC =>
 			enableCia_n <= '1';
 		when CYCLE_CPUF =>
@@ -375,17 +371,6 @@ begin
 		end case;
 	end if;
 end process;
-
-hSync <= vicHSync;
-vSync <= vicVSync;
-
-c64colors: entity work.fpga64_rgbcolor
-port map (
-	index => vicColorIndex,
-	r => r,
-	g => g,
-	b => b
-);
 
 -- -----------------------------------------------------------------------
 -- Color RAM
@@ -431,7 +416,9 @@ port map (
 	ioF_rom => ioF_rom,
 	max_ram => max_ram,
 
-	ramData => ramDataReg,
+	ramData => ramDin,
+	turbo_allow => turbo_allow,
+	io_allow => io_allow,
 
 	ioF_ext => ioF_ext,
 	ioE_ext => ioE_ext,
@@ -459,11 +446,11 @@ port map (
 	cs_cia1 => cs_cia1,
 	cs_cia2 => cs_cia2,
 	cs_ram => cs_ram,
-	cs_ioE => cs_ioE,
-	cs_ioF => cs_ioF,
-	cs_romL => cs_romL,
-	cs_romH => cs_romH,
-	cs_UMAXromH => cs_UMAXromH,
+	cs_ioE => IOE,
+	cs_ioF => IOF,
+	cs_romL => romL,
+	cs_romH => romH,
+	cs_UMAXromH => UMAXromH,
 
 	c64rom_addr => c64rom_addr,
 	c64rom_data => c64rom_data,
@@ -526,6 +513,9 @@ port map (
 	mode6567R8 => ntscMode,
 	mode6572 => '0',
 	
+	turbo_en => turbo_en,
+	turbo_state => turbo_state,
+	
 	cs => cs_vic,
 	we => cpuWe,
 	lp_n => cia1_pbi(4),
@@ -539,12 +529,49 @@ port map (
 	vicAddr => vicAddr(13 downto 0),
 	addrValid => aec,
 
-	hsync => vicHSync,
-	vsync => vicVSync,
+	hsync => hSync,
+	vsync => vSync,
 	colorIndex => vicColorIndex,
 
 	irq_n => irq_vic
 );
+
+c64colors: entity work.fpga64_rgbcolor
+port map (
+	index => vicColorIndex,
+	r => r,
+	g => g,
+	b => b
+);
+
+process(clk32)
+begin
+	if rising_edge(clk32) then
+		if sysCycle = CYCLE_VIC3 then
+			lastVicDi <= vicDi;
+		end if;
+	end if;
+end process;
+
+-- VIC bank to address lines
+-- 
+-- The glue logic on a C64C will generate a glitch during 10 <-> 01
+-- generating 00 (in other words, bank 3) for one cycle.
+--
+-- When using the data direction register to change a single bit 0->1
+-- (in other words, decreasing the video bank number by 1 or 2),
+-- the bank change is delayed by one cycle. This effect is unstable.
+process(clk32)
+begin
+	if rising_edge(clk32) then
+		if phi0_cpu = '0' and enableVic = '1' then
+			vicAddr1514 <= not cia2_pao(1 downto 0);
+		end if;
+	end if;
+end process;
+
+-- emulate only the first glitch (enough for Undead from Emulamer)
+vicAddr(15 downto 14) <= "11" when ((vicAddr1514 xor not cia2_pao(1 downto 0)) = "11") and (cia2_pao(0) /= cia2_pao(1)) else not unsigned(cia2_pao(1 downto 0));
 
 -- Pixel timing
 process(clk32)
@@ -627,7 +654,7 @@ port map (
 	sp_in => '1',
 	cnt_in => '1',
 
-	tod => todclk, --vicVSync,
+	tod => todclk,
 
 	irq_n => irq_cia1
 );
@@ -646,7 +673,7 @@ port map (
 	db_in => cpuDo,
 	db_out => cia2Do,
 
-	pa_in => cia2_pai,
+	pa_in => ((iec_data_i and not cia2_pao(5)) & (iec_clk_i and not cia2_pao(4)) & "111" & pa2_i & "11") and cia2_pao,
 	pa_out => cia2_pao,
 	pb_in => pb_i and cia2_pbo,
 	pb_out => cia2_pbo,
@@ -657,12 +684,17 @@ port map (
 	sp_in => sp2_i,
 	cnt_in => '1',
 
-	tod => todclk, --vicVSync,
+	tod => todclk,
 
 	irq_n => irq_cia2
 );
 
-pb_o <= cia2_pbo;
+iec_data_o <= not cia2_pao(5);
+iec_clk_o  <= not cia2_pao(4);
+iec_atn_o  <= not cia2_pao(3);
+
+pb_o    <= cia2_pbo;
+pa2_o   <= cia2_pao(2);
 
 process(clk32)
 variable sum: integer range 0 to 33000000;
@@ -686,7 +718,6 @@ begin
 		end if;
 	end if;
 end process;
-	
 
 -- -----------------------------------------------------------------------
 -- 6510 CPU
@@ -696,9 +727,9 @@ port map (
 	clk => clk32,
 	reset => reset,
 	enable => enableCpu,
-	nmi_n => nmiLoc,
+	nmi_n => irq_cia2 and nmi_n,
 	nmi_ack => nmi_ack,
-	irq_n => irqLoc,
+	irq_n => irq_cia1 and irq_vic and irq_n,
 	rdy => baLoc,
 
 	di => cpuDi,
@@ -712,6 +743,49 @@ port map (
 
 cass_motor <= cpuIO(5);
 cass_write <= cpuIO(3);
+
+ramDout <= cpuDo;
+ramAddr <= systemAddr;
+ramWE   <= systemWe when sysCycle >= CYCLE_CPU0 else '0';
+ramCE   <= cs_ram when sysCycle = CYCLE_VIC0 or cpu_cyc = '1' else '0';
+cpu_cyc <= '1' when 
+				(sysCycle = CYCLE_CPU0 and turbo_m(0) = '1' and turbo_allow = '1' ) or
+				(sysCycle = CYCLE_CPU4 and turbo_m(1) = '1' and turbo_allow = '1' ) or
+				(sysCycle = CYCLE_CPU8 and turbo_m(2) = '1' and turbo_allow = '1' ) or
+				(sysCycle = CYCLE_CPUC and  (io_allow = '1'  or turbo_allow = '1')) else '0';
+				
+process(clk32)
+begin
+	if rising_edge(clk32) then
+		cpu_cyc_s <= cpu_cyc_s(0) & cpu_cyc;
+		enableCpu <= cpu_cyc_s(1);
+		io_allow <= io_allow and not enableCpu;
+
+		if sysCycle = CYCLE_IDLE0 then
+
+			io_allow <= '1';
+
+			if turbo_cnt /= 0 then
+				turbo_cnt <= turbo_cnt - 1;
+			end if;
+
+			turbo_en <= turbo_mode(0);
+			turbo_m <= "000";
+			if (turbo_mode(0) and turbo_state) = '1' or (turbo_mode(1) = '1' and turbo_cnt = 0) then
+				case turbo_speed is
+					when "00" => turbo_m <= "010";
+					when "01" => turbo_m <= "110";
+					when "10" => turbo_m <= "111";
+					when "11" => turbo_m <= "111"; -- unused
+				end case;
+			end if;
+		end if;
+
+		if turbo_reset = '1' then
+			turbo_cnt <= 9999;
+		end if;
+	end if;
+end process;
 
 -- -----------------------------------------------------------------------
 -- Keyboard
@@ -734,101 +808,5 @@ port map (
 	mod_key => mod_key,
 	backwardsReadingEnabled => '1'
 );
-
--- -----------------------------------------------------------------------
--- Reset button
--- -----------------------------------------------------------------------
-calcReset: process(clk32)
-begin
-	if rising_edge(clk32) then
-		if sysCycle = sysCycleDef'high then
-			if reset_cnt = resetCycles then
-				reset <= '0';
-			else
-				reset <= '1';
-				reset_cnt <= reset_cnt + 1;
-			end if;
-		end if;
-		if reset_n = '0' or dma_n = '0' then -- temp reset fix
-			reset_cnt <= 0;
-		end if;
-	end if;
-end process;
-
-iec_data_o <= not cia2_pao(5);
-iec_clk_o <= not cia2_pao(4);
-iec_atn_o <= not cia2_pao(3);
-ramDataOut <= "00" & cia2_pao(5 downto 3) & "000" when sysCycle >= CYCLE_IEC0 and sysCycle <= CYCLE_IEC3 else cpuDo;
-ramAddr <= systemAddr;
-ramWe <= '0' when sysCycle = CYCLE_IEC2 or sysCycle = CYCLE_IEC3 else not systemWe;
-ramCE <= '0' when sysCycle /= CYCLE_IDLE0 and sysCycle /= CYCLE_IDLE1 and sysCycle /= CYCLE_IDLE2 and sysCycle /= CYCLE_IDLE3 and
-						sysCycle /= CYCLE_IDLE4 and sysCycle /= CYCLE_IDLE5 and sysCycle /= CYCLE_IDLE6 and sysCycle /= CYCLE_IDLE7 and
-						sysCycle /= CYCLE_IEC0  and sysCycle /= CYCLE_IEC1  and sysCycle /= CYCLE_IEC2  and sysCycle /= CYCLE_IEC3  and
-						sysCycle /= CYCLE_CPU0  and sysCycle /= CYCLE_CPU1  and sysCycle /= CYCLE_CPUF  and
-						cs_ram = '1' else '1';
-
-process(clk32)
-begin
-	if rising_edge(clk32) then
-		if sysCycle = CYCLE_CPUD
-		or sysCycle = CYCLE_VIC2 then
-			ramDataReg <= unsigned(ramDataIn);
-		end if;
-		if sysCycle = CYCLE_VIC3 then
-			lastVicDi <= vicDi;
-		end if;
-	end if;
-end process;
-
---serialBus
-serialBus: process(clk32)
-begin
-	if rising_edge(clk32) then
-		if sysCycle = CYCLE_IEC1 then
-			cia2_pai(7) <= iec_data_i and not cia2_pao(5);
-			cia2_pai(6) <= iec_clk_i and not cia2_pao(4);
-		end if;
-	end if;
-end process;
-
-cia2_pai(5 downto 0) <= cia2_pao(5 downto 3) & pa2_i & cia2_pao(1 downto 0);
-pa2_o <= cia2_pao(2);
-
--- -----------------------------------------------------------------------
--- VIC bank to address lines
--- -----------------------------------------------------------------------
--- The glue logic on a C64C will generate a glitch during 10 <-> 01
--- generating 00 (in other words, bank 3) for one cycle.
---
--- When using the data direction register to change a single bit 0->1
--- (in other words, decreasing the video bank number by 1 or 2),
--- the bank change is delayed by one cycle. This effect is unstable.
-process(clk32)
-begin
-	if rising_edge(clk32) then
-		if phi0_cpu = '0' and enableVic = '1' then
-			vicAddr1514 <= not cia2_pao(1 downto 0);
-		end if;
-	end if;
-end process;
-
--- emulate only the first glitch (enough for Undead from Emulamer)
-vicAddr(15 downto 14) <= "11" when ((vicAddr1514 xor not cia2_pao(1 downto 0)) = "11") and (cia2_pao(0) /= cia2_pao(1)) else not unsigned(cia2_pao(1 downto 0));
-
--- -----------------------------------------------------------------------
--- Interrupt lines
--- -----------------------------------------------------------------------
-irqLoc <= irq_cia1 and irq_vic and irq_n; 
-nmiLoc <= irq_cia2 and nmi_n;
-
--- -----------------------------------------------------------------------
--- Cartridge port lines LCA
--- -----------------------------------------------------------------------
-romL <= cs_romL;
-romH <= cs_romH;
-IOE <= cs_ioE;
-IOF <= cs_ioF;
-UMAXromH <= cs_UMAXromH;
-CPU_hasbus <= cpuHasBus;
 
 end architecture;

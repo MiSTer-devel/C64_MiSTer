@@ -197,7 +197,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXX
+// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -252,7 +252,10 @@ localparam CONF_STR = {
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
 	"-;",
+	"oEF,Turbo mode,Off,C128,Smart;",
+	"d6oGH,Turbo speed,2x,3x,4x;",
 	"oA,Pause When OSD is Open,No,Yes;",
+	"-;",
 	"R0,Reset;",
 	"RH,Reset & Detach Cartridge;",
 	"J,Fire 1,Fire 2,Fire 3,Paddle Btn;",
@@ -424,7 +427,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.conf_str(CONF_STR),
 
 	.status(status),
-	.status_menumask({status[16],status[13],tap_loaded, en1080p, |vcrop, ~status[25]}),
+	.status_menumask({|status[47:46],status[16],status[13],tap_loaded, en1080p, |vcrop, ~status[25]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -476,8 +479,8 @@ cartridge cartridge
 	.UMAXromH(UMAXromH),
 	.IOE(IOE),
 	.IOF(IOF),
-	.mem_write(~ram_we),
-	.mem_ce(~ram_ce),
+	.mem_write(ram_we),
+	.mem_ce(ram_ce),
 	.mem_ce_out(mem_ce),
 
 	.clk32(clk_sys),
@@ -778,10 +781,10 @@ sdram sdram
 
 	.clk(clk64),
 	.init(~pll_locked),
-	.refresh(idle),
+	.refresh(refresh),
 	.addr( io_cycle ? io_cycle_addr : cart_addr    ),
 	.ce  ( io_cycle ? io_cycle_ce   : mem_ce       ),
-	.we  ( io_cycle ? io_cycle_we   : ~ram_we      ),
+	.we  ( io_cycle ? io_cycle_we   : ram_we       ),
 	.din ( io_cycle ? io_cycle_data : c64_data_out ),
 	.dout( sdram_data )
 );
@@ -789,7 +792,7 @@ sdram sdram
 wire  [7:0] c64_data_out;
 wire [15:0] c64_addr;
 wire        c64_pause;
-wire        idle;
+wire        refresh;
 wire        ram_ce;
 wire        ram_we;
 wire        nmi_ack;
@@ -816,34 +819,38 @@ fpga64_sid_iec fpga64
 	.pause(freeze),
 	.pause_out(c64_pause),
 	.bios(status[15:14]),
+	
+	.turbo_mode(status[47:46]),
+	.turbo_speed(status[49:48]),
+	.turbo_reset(disk_access),
 
 	.ps2_key(key),
 	.kbd_reset(~reset_n & ~status[1]),
 
-	.ramaddr(c64_addr),
-	.ramdataout(c64_data_out),
-	.ramdatain(sdram_data),
-	.ramce(ram_ce),
-	.ramwe(ram_we),
+	.ramAddr(c64_addr),
+	.ramDout(c64_data_out),
+	.ramDin(sdram_data),
+	.ramCE(ram_ce),
+	.ramWE(ram_we),
+
 	.ntscmode(ntsc),
 	.hsync(hsync),
 	.vsync(vsync),
 	.r(r),
 	.g(g),
 	.b(b),
+
 	.game(game),
 	.exrom(exrom),
 	.ioe_rom(IOE_rom),
 	.iof_rom(IOF_rom),
 	.max_ram(max_ram),
 	.umaxromh(UMAXromH),
-	.cpu_hasbus(),
 	.irq_n(1),
 	.nmi_n(~nmi),
 	.nmi_ack(nmi_ack),
 	.freeze_key(freeze_key),
 	.mod_key(mod_key),
-	.dma_n(1'b1),
 	.roml(romL),
 	.romh(romH),
 	.ioe(IOE),
@@ -863,7 +870,7 @@ fpga64_sid_iec fpga64
 	.pot4(pd34_mode[1] ? paddle_4 : pd34_mode[0] ? mouse_y : {8{joyB_c64[6]}}),
 
 	.io_cycle(io_cycle),
-	.idle(idle),
+	.refresh(refresh),
 	.sid_we_ext(sid_we),
 	.sid_mode({status[22:21]==1,status[20]}),
 	.sid_cfg(status[35:34]),
@@ -880,9 +887,9 @@ fpga64_sid_iec fpga64
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
 	.iec_clk_o(c64_iec_clk),
-	.iec_data_i(c1541_1_iec_data & (~drive9 | c1541_2_iec_data)),
-	.iec_clk_i(c1541_1_iec_clk & (~drive9 | c1541_2_iec_clk)),
-	
+	.iec_data_i(c1541_iec_data),
+	.iec_clk_i(c1541_iec_clk),
+
 	.pb_i(pb_i),
 	.pb_o(pb_o),
 	.pa2_i(pa2_i),
@@ -926,6 +933,10 @@ wire c1541_reset = ~reset_n | status[6];
 
 wire [7:0] c1541_par_i;
 wire       c1541_stb_i;
+wire [7:0] c1541_par_o    = c1541_1_par_o & c1541_2_par_o;
+wire       c1541_stb_o    = c1541_1_stb_o & c1541_2_stb_o;
+wire       c1541_iec_clk  = c1541_1_iec_clk & (~drive9 | c1541_2_iec_clk);
+wire       c1541_iec_data = c1541_1_iec_data & (~drive9 | c1541_2_iec_data);
 
 wire c1541_1_iec_clk;
 wire c1541_1_iec_data;
@@ -1043,6 +1054,19 @@ always @(posedge clk_sys) begin
 	end
 end
 
+reg disk_access;
+always @(posedge clk_sys) begin
+	reg c64_iec_clk_old, c1541_iec_clk_old, c1541_stb_i_old, c1541_stb_o_old;
+
+	c64_iec_clk_old <= c64_iec_clk;
+	c1541_iec_clk_old <= c1541_iec_clk;
+	c1541_stb_i_old <= c1541_stb_i;
+	c1541_stb_o_old <= c1541_stb_o;
+	
+	disk_access <= 0;
+	if((c64_iec_clk_old != c64_iec_clk) || (c1541_iec_clk_old != c1541_iec_clk)) disk_access <= 1;
+	if(disk_parport && ((c1541_stb_i_old != c1541_stb_i) || (c1541_stb_o_old != c1541_stb_o))) disk_access <= 1;
+end
 
 
 wire hsync;
@@ -1135,6 +1159,8 @@ always @(posedge clk_sys) begin
 	if(old_sync ^ freeze_sync) freeze <= OSD_STATUS & status[42];
 end
 
+assign HDMI_FREEZE = freeze;
+
 video_mixer #(.GAMMA(1)) video_mixer
 (
 	.CLK_VIDEO(CLK_VIDEO),
@@ -1153,7 +1179,6 @@ video_mixer #(.GAMMA(1)) video_mixer
 	.VBlank(vblank),
 
 	.HDMI_FREEZE(HDMI_FREEZE),
-	.freeze(freeze),
 	.freeze_sync(freeze_sync),
 
 	.CE_PIXEL(CE_PIXEL),
@@ -1379,15 +1404,17 @@ wire       pa2_i, pa2_o;
 wire       pc2_n_o;
 wire       flag2_n_i;
 wire       sp2_i;
+wire       disk_parport;
 
 always_comb begin
-	pa2_i       = pa2_o;
+	pa2_i       = 1;
 	flag2_n_i   = 1;
 	sp2_i       = 1;
 	pb_i        = 8'hFF;
 	UART_TXD    = 1;
 	c1541_par_i = 8'hFF;
 	c1541_stb_i = 1;
+	disk_parport= 0;
 
 	case(status[44:43])
 		1: begin
@@ -1401,8 +1428,9 @@ always_comb begin
 		2: begin
 				c1541_par_i = pb_o;
 				c1541_stb_i = pc2_n_o;
-				pb_i        = c1541_1_par_o & c1541_2_par_o;
-				flag2_n_i   = c1541_1_stb_o & c1541_2_stb_o;
+				pb_i        = c1541_par_o;
+				flag2_n_i   = c1541_stb_o;
+				disk_parport= 1;
 			end
 		default: pb_i = {pb_o[7:6], !joyD_c64[3:0], !joyC_c64[3:0], pb_o[7] ? ~joyC_c64[3:0] : ~joyD_c64[3:0]};
 	endcase

@@ -42,6 +42,9 @@ entity video_vicii_656x is
 		mode6567R8 : in std_logic; -- new NTSC 65 cycles and 263 line
 		mode6572 : in std_logic; -- PAL-N 65 cycles and 312 lines
 
+		turbo_en   : in  std_logic;
+		turbo_state: out std_logic;
+
 		reset : in std_logic;
 		cs : in std_logic;
 		we : in std_logic;
@@ -255,6 +258,8 @@ architecture rtl of video_vicii_656x is
 	signal myWr_b : std_logic;
 	signal myWr_c : std_logic;
 	signal myRd : std_logic;
+	
+	signal turbo_reg : std_logic;
 
 begin
 -- -----------------------------------------------------------------------
@@ -265,6 +270,7 @@ begin
 	hSync <= hBlanking;
 	vSync <= vBlanking;
 	irq_n <= not IRQ;
+	turbo_state <= turbo_reg;
 
 -- -----------------------------------------------------------------------
 -- chip-select signals and data/address bus latch
@@ -1519,6 +1525,7 @@ writeRegisters: process(clk)
 				spriteColors(5) <= (others => '0');
 				spriteColors(6) <= (others => '0');
 				spriteColors(7) <= (others => '0');
+				turbo_reg <= '0';
 			else
 
 				if (myWr_a = '1') then
@@ -1539,6 +1546,7 @@ writeRegisters: process(clk)
 					when "101100" => spriteColors(5) <= diRegisters(3 downto 0);
 					when "101101" => spriteColors(6) <= diRegisters(3 downto 0);
 					when "101110" => spriteColors(7) <= diRegisters(3 downto 0);
+					when "110000" => turbo_reg <= diRegisters(0);
 					when others => null;
 					end case;
 				end if;
@@ -1673,6 +1681,7 @@ readRegisters: process(clk)
 			when "101100" => do <= "1111" & spriteColors(5);
 			when "101101" => do <= "1111" & spriteColors(6);
 			when "101110" => do <= "1111" & spriteColors(7);
+			when "110000" => do <= "1111111" & (turbo_reg or not turbo_en);
 			when others => do <= (others => '1');
 			end case;
 			end if;
