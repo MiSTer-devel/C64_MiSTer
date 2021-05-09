@@ -16,6 +16,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - UART connection to Internet.
 - Loadable Kernal/C1541 ROMs.
 - Special reduced border mode for 16:9 display.
+- C128/Smart Turbo mode up to 4x.
 
 ## Installation
 Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
@@ -57,3 +58,9 @@ Are you tired from long loading times and fast loaders aren't really fast when c
 
 Here is the solution:
 In OSD->System page choose **Expansion: Fast Disks**. Then load [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom). You will get about **20x times faster** loading from disks!
+
+### Turbo modes
+
+**C128 mode:** this is C128 compatible turbo mode available in C64 mode on Commodore 128 and can be controlled from software, so games written with this turbo mode support will take advantage of this.
+
+**Smart mode:** In this mode any access to disk will disable turbo mode for short time enough to finish disk operations, thus you will have turbo mode without loosing disk operations.
