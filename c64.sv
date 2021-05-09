@@ -237,7 +237,7 @@ localparam CONF_STR = {
 	"P2OP,Enable Drive #9,No,Yes;",
 	"P2R6,Reset Disk Drives;",
 	"P2-;",
-	"P2oBC,Expansion,Joysticks,UART,Fast Disks;",
+	"P2oBC,Expansion,Fast Disks,Joysticks,UART;",
 	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
 	"P2OST,Pot 3/4,Joy 2 Fire 2/3,Mouse,Paddles 3/4;",
 	"P2oD,CIA Model,6256,8521;",
@@ -1419,7 +1419,14 @@ always_comb begin
 	disk_parport= 0;
 
 	case(status[44:43])
-		1: begin
+		0: begin
+				c1541_par_i = pb_o;
+				c1541_stb_i = pc2_n_o;
+				pb_i        = c1541_par_o;
+				flag2_n_i   = c1541_stb_o;
+				disk_parport= 1;
+			end
+		2: begin
 				pb_i[0]   = UART_RXD;
 				flag2_n_i = UART_RXD;
 				sp2_i     = UART_RXD;
@@ -1427,14 +1434,7 @@ always_comb begin
 				//UART_RTS  = pb_o[1];
 				//UART_DTR  = pb_o[2];
 			end
-		2: begin
-				c1541_par_i = pb_o;
-				c1541_stb_i = pc2_n_o;
-				pb_i        = c1541_par_o;
-				flag2_n_i   = c1541_stb_o;
-				disk_parport= 1;
-			end
-		default: pb_i = {pb_o[7:6], !joyD_c64[3:0], !joyC_c64[3:0], pb_o[7] ? ~joyC_c64[3:0] : ~joyD_c64[3:0]};
+		default: pb_i[5:0] = {!joyD_c64[6:4], !joyC_c64[6:4], pb_o[7] ? ~joyC_c64[3:0] : ~joyD_c64[3:0]};
 	endcase
 end
 
