@@ -1203,7 +1203,7 @@ opl3 #(.OPLCLK(47291931)) opl_inst
 
 	.addr(c64_addr[4]),
 	.dout(opl_dout),
-	.we(~ram_we & IOF & opl_en & c64_addr[6] & ~c64_addr[5]),
+	.we(ram_we & IOF & opl_en & c64_addr[6] & ~c64_addr[5]),
 	.din(c64_data_out),
 
 	.sample_l(opl_out)
@@ -1214,10 +1214,10 @@ always @(posedge clk_sys) begin
 	reg old_ioe, old_iof;
 
 	old_ioe <= IOE;
-	ioe_we <= ~old_ioe & IOE & ~ram_we;
+	ioe_we <= ~old_ioe & IOE & ram_we;
 
 	old_iof <= IOF;
-	iof_we <= ~old_iof & IOF & ~ram_we;
+	iof_we <= ~old_iof & IOF & ram_we;
 end
 
 wire sid2_we = (status[22:20]==1) ? ioe_we : (status[22:20]==4) ? iof_we : sid_we;
