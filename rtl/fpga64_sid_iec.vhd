@@ -187,8 +187,7 @@ signal cpuDi        : unsigned(7 downto 0);
 signal cpuDo        : unsigned(7 downto 0);
 signal cpuIO        : unsigned(7 downto 0);
 
-signal io_allow     : std_logic;
-signal turbo_allow  : std_logic;
+signal io_enable    : std_logic;
 signal cpu_cyc      : std_logic;
 signal cpu_cyc_s    : std_logic_vector(1 downto 0);
 signal turbo_m      : std_logic_vector(2 downto 0);
@@ -408,8 +407,6 @@ port map (
 	max_ram => max_ram,
 
 	ramData => ramDin,
-	turbo_allow => turbo_allow,
-	io_allow => io_allow,
 
 	ioF_ext => ioF_ext,
 	ioE_ext => ioE_ext,
@@ -430,6 +427,8 @@ port map (
 	systemAddr => systemAddr,
 	dataToCpu => cpuDi,
 	dataToVic => vicDi,
+
+	io_enable => io_enable,
 
 	cs_vic => cs_vic,
 	cs_sid => cs_sid,
@@ -752,21 +751,21 @@ ramAddr <= systemAddr;
 ramWE   <= systemWe when sysCycle >= CYCLE_CPU0 else '0';
 ramCE   <= cs_ram when sysCycle = CYCLE_VIC0 or cpu_cyc = '1' else '0';
 cpu_cyc <= '1' when 
-				(sysCycle = CYCLE_CPU0 and turbo_m(0) = '1' and turbo_allow = '1' ) or
-				(sysCycle = CYCLE_CPU4 and turbo_m(1) = '1' and turbo_allow = '1' ) or
-				(sysCycle = CYCLE_CPU8 and turbo_m(2) = '1' and turbo_allow = '1' ) or
-				(sysCycle = CYCLE_CPUC and  (io_allow = '1'  or turbo_allow = '1')) else '0';
+				(sysCycle = CYCLE_CPU0 and turbo_m(0) = '1' and cs_ram = '1' ) or
+				(sysCycle = CYCLE_CPU4 and turbo_m(1) = '1' and cs_ram = '1' ) or
+				(sysCycle = CYCLE_CPU8 and turbo_m(2) = '1' and cs_ram = '1' ) or
+				(sysCycle = CYCLE_CPUC and (io_enable = '1'  or cs_ram = '1')) else '0';
 				
 process(clk32)
 begin
 	if rising_edge(clk32) then
 		cpu_cyc_s <= cpu_cyc_s(0) & cpu_cyc;
 		enableCpu <= cpu_cyc_s(1);
-		io_allow <= io_allow and not enableCpu;
+		io_enable <= io_enable and not enableCpu;
 
 		if sysCycle = CYCLE_IDLE0 then
 
-			io_allow <= '1';
+			io_enable <= '1';
 
 			if turbo_cnt /= 0 then
 				turbo_cnt <= turbo_cnt - 1;

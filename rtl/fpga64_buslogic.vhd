@@ -24,65 +24,65 @@ USE ieee.numeric_std.ALL;
 
 entity fpga64_buslogic is
 	port (
-		clk : in std_logic;
-		reset : in std_logic;
-		bios  : in std_logic_vector(1 downto 0);
+		clk         : in std_logic;
+		reset       : in std_logic;
+		bios        : in std_logic_vector(1 downto 0);
 
-		cpuHasBus : in std_logic;
-		aec : in std_logic;
+		cpuHasBus   : in std_logic;
+		aec         : in std_logic;
 
 		ramData     : in unsigned(7 downto 0);
-		turbo_allow : out std_logic;
-		io_allow    : in std_logic;
 
 		-- 2 CHAREN
 		-- 1 HIRAM
 		-- 0 LORAM
-		bankSwitch: in unsigned(2 downto 0);
+		bankSwitch  : in unsigned(2 downto 0);
 
 		-- From cartridge port
-		game    : in std_logic;
-		exrom   : in std_logic;
-		ioE_rom : in std_logic;
-		ioF_rom : in std_logic;
-		max_ram : in std_logic;
+		game        : in std_logic;
+		exrom       : in std_logic;
+		ioE_rom     : in std_logic;
+		ioF_rom     : in std_logic;
+		max_ram     : in std_logic;
 
-		ioF_ext : in std_logic;
-		ioE_ext : in std_logic;
-		io_data : in unsigned(7 downto 0);
+		ioF_ext     : in std_logic;
+		ioE_ext     : in std_logic;
+		io_data     : in unsigned(7 downto 0);
 
-		c64rom_addr: in std_logic_vector(13 downto 0);
-		c64rom_data: in std_logic_vector(7 downto 0);
-		c64rom_wr:   in std_logic;
+		c64rom_addr : in std_logic_vector(13 downto 0);
+		c64rom_data : in std_logic_vector(7 downto 0);
+		c64rom_wr   : in std_logic;
 
-		cpuWe: in std_logic;
-		cpuAddr: in unsigned(15 downto 0);
-		cpuData: in unsigned(7 downto 0);
-		vicAddr: in unsigned(15 downto 0);
-		vicData: in unsigned(7 downto 0);
-		sidData: in unsigned(7 downto 0);
-		colorData: in unsigned(3 downto 0);
-		cia1Data: in unsigned(7 downto 0);
-		cia2Data: in unsigned(7 downto 0);
+		cpuWe       : in std_logic;
+		cpuAddr     : in unsigned(15 downto 0);
+		cpuData     : in unsigned(7 downto 0);
+		vicAddr     : in unsigned(15 downto 0);
+		vicData     : in unsigned(7 downto 0);
+		sidData     : in unsigned(7 downto 0);
+		colorData   : in unsigned(3 downto 0);
+		cia1Data    : in unsigned(7 downto 0);
+		cia2Data    : in unsigned(7 downto 0);
 		lastVicData : in unsigned(7 downto 0);
 
-		systemWe: out std_logic;
-		systemAddr: out unsigned(15 downto 0);
-		dataToCpu : out unsigned(7 downto 0);
-		dataToVic : out unsigned(7 downto 0);
+		io_enable   : in std_logic;
 
-		cs_vic: out std_logic;
-		cs_sid: out std_logic;
-		cs_color : out std_logic;
-		cs_cia1: out std_logic;
-		cs_cia2: out std_logic;
-		cs_ram: out std_logic;
+		systemWe    : out std_logic;
+		systemAddr  : out unsigned(15 downto 0);
+		dataToCpu   : out unsigned(7 downto 0);
+		dataToVic   : out unsigned(7 downto 0);
+
+		cs_vic      : out std_logic;
+		cs_sid      : out std_logic;
+		cs_color    : out std_logic;
+		cs_cia1     : out std_logic;
+		cs_cia2     : out std_logic;
+		cs_ram      : out std_logic;
 
 		-- To catridge port
-		cs_ioE: out std_logic;
-		cs_ioF: out std_logic;
-		cs_romL : out std_logic;
-		cs_romH : out std_logic;
+		cs_ioE      : out std_logic;
+		cs_ioF      : out std_logic;
+		cs_romL     : out std_logic;
+		cs_romH     : out std_logic;
 		cs_UMAXromH : out std_logic
 	);
 end fpga64_buslogic;
@@ -90,36 +90,36 @@ end fpga64_buslogic;
 -- -----------------------------------------------------------------------
 
 architecture rtl of fpga64_buslogic is
-	signal charData: std_logic_vector(7 downto 0);
-	signal charData_std: std_logic_vector(7 downto 0);
-	signal charData_jap: std_logic_vector(7 downto 0);
-	signal romData: std_logic_vector(7 downto 0);
-	signal romData_c64: std_logic_vector(7 downto 0);
-	signal romData_c64std: std_logic_vector(7 downto 0);
-	signal romData_c64gs: std_logic_vector(7 downto 0);
-	signal romData_c64jap: std_logic_vector(7 downto 0);
-	signal c64gs_ena : std_logic := '0';
-	signal c64std_ena : std_logic := '0';
-	signal c64jap_ena : std_logic := '0';
+	signal charData       : std_logic_vector(7 downto 0);
+	signal charData_std   : std_logic_vector(7 downto 0);
+	signal charData_jap   : std_logic_vector(7 downto 0);
+	signal romData        : std_logic_vector(7 downto 0);
+	signal romData_c64    : std_logic_vector(7 downto 0);
+	signal romData_c64std : std_logic_vector(7 downto 0);
+	signal romData_c64gs  : std_logic_vector(7 downto 0);
+	signal romData_c64jap : std_logic_vector(7 downto 0);
+	signal c64gs_ena      : std_logic := '0';
+	signal c64std_ena     : std_logic := '0';
+	signal c64jap_ena     : std_logic := '0';
 
-	signal cs_CharReg : std_logic;
-	signal cs_romReg : std_logic;
-	signal vicCharReg : std_logic;
+	signal cs_CharReg     : std_logic;
+	signal cs_romReg      : std_logic;
+	signal vicCharReg     : std_logic;
 
-	signal cs_ramReg : std_logic;
-	signal cs_vicReg : std_logic;
-	signal cs_sidReg : std_logic;
-	signal cs_colorReg : std_logic;
-	signal cs_cia1Reg : std_logic;
-	signal cs_cia2Reg : std_logic;
-	signal cs_ioEReg : std_logic;
-	signal cs_ioFReg : std_logic;
-	signal cs_romLReg : std_logic;
-	signal cs_romHReg : std_logic;
+	signal cs_ramReg      : std_logic;
+	signal cs_vicReg      : std_logic;
+	signal cs_sidReg      : std_logic;
+	signal cs_colorReg    : std_logic;
+	signal cs_cia1Reg     : std_logic;
+	signal cs_cia2Reg     : std_logic;
+	signal cs_ioEReg      : std_logic;
+	signal cs_ioFReg      : std_logic;
+	signal cs_romLReg     : std_logic;
+	signal cs_romHReg     : std_logic;
 	signal cs_UMAXromHReg : std_logic;
-	signal ultimax : std_logic;
+	signal ultimax        : std_logic;
 
-	signal currentAddr: unsigned(15 downto 0);
+	signal currentAddr    : unsigned(15 downto 0);
 	
 begin
 	chargen: entity work.dprom
@@ -372,19 +372,17 @@ begin
 		end if;
 	end process;
 
-	cs_ram <= cs_ramReg or cs_romLReg or cs_romHReg or cs_UMAXromHReg;  -- need to keep ram active for cartridges LCA
-	cs_vic <= cs_vicReg and io_allow;
-	cs_sid <= cs_sidReg and io_allow;
-	cs_color <= cs_colorReg and io_allow;
-	cs_cia1 <= cs_cia1Reg and io_allow;
-	cs_cia2 <= cs_cia2Reg and io_allow;
-	cs_ioE <= cs_ioEReg and io_allow;
-	cs_ioF <= cs_ioFReg and io_allow;
+	cs_ram <= cs_ramReg or cs_romLReg or cs_romHReg or cs_UMAXromHReg or cs_CharReg or cs_romReg;
+	cs_vic <= cs_vicReg and io_enable;
+	cs_sid <= cs_sidReg and io_enable;
+	cs_color <= cs_colorReg and io_enable;
+	cs_cia1 <= cs_cia1Reg and io_enable;
+	cs_cia2 <= cs_cia2Reg and io_enable;
+	cs_ioE <= cs_ioEReg and io_enable;
+	cs_ioF <= cs_ioFReg and io_enable;
 	cs_romL <= cs_romLReg;
 	cs_romH <= cs_romHReg;
 	cs_UMAXromH <= cs_UMAXromHReg;
-
-	turbo_allow <= cs_ramReg or cs_romLReg or cs_romHReg or cs_UMAXromHReg or cs_CharReg or cs_romReg;
 
 	dataToVic  <= unsigned(charData) when vicCharReg = '1' else ramData;
 	systemAddr <= currentAddr;
