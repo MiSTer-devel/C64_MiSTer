@@ -102,21 +102,21 @@ architecture rtl of fpga64_buslogic is
 	signal c64std_ena     : std_logic := '0';
 	signal c64jap_ena     : std_logic := '0';
 
-	signal cs_CharReg     : std_logic;
-	signal cs_romReg      : std_logic;
-	signal vicCharReg     : std_logic;
+	signal cs_CharLoc     : std_logic;
+	signal cs_romLoc      : std_logic;
+	signal vicCharLoc     : std_logic;
 
-	signal cs_ramReg      : std_logic;
-	signal cs_vicReg      : std_logic;
-	signal cs_sidReg      : std_logic;
-	signal cs_colorReg    : std_logic;
-	signal cs_cia1Reg     : std_logic;
-	signal cs_cia2Reg     : std_logic;
-	signal cs_ioEReg      : std_logic;
-	signal cs_ioFReg      : std_logic;
-	signal cs_romLReg     : std_logic;
-	signal cs_romHReg     : std_logic;
-	signal cs_UMAXromHReg : std_logic;
+	signal cs_ramLoc      : std_logic;
+	signal cs_vicLoc      : std_logic;
+	signal cs_sidLoc      : std_logic;
+	signal cs_colorLoc    : std_logic;
+	signal cs_cia1Loc     : std_logic;
+	signal cs_cia2Loc     : std_logic;
+	signal cs_ioELoc      : std_logic;
+	signal cs_ioFLoc      : std_logic;
+	signal cs_romLLoc     : std_logic;
+	signal cs_romHLoc     : std_logic;
+	signal cs_UMAXromHLoc : std_logic;
 	signal ultimax        : std_logic;
 
 	signal currentAddr    : unsigned(15 downto 0);
@@ -214,42 +214,42 @@ begin
 	--begin
 	process(ramData, vicData, sidData, colorData,
            cia1Data, cia2Data, charData, romData,
-			  cs_romHReg, cs_romLReg, cs_romReg, cs_CharReg,
-			  cs_ramReg, cs_vicReg, cs_sidReg, cs_colorReg,
-			  cs_cia1Reg, cs_cia2Reg, lastVicData,
-			  cs_ioEReg, cs_ioFReg, ioE_rom, ioF_rom,
+			  cs_romHLoc, cs_romLLoc, cs_romLoc, cs_CharLoc,
+			  cs_ramLoc, cs_vicLoc, cs_sidLoc, cs_colorLoc,
+			  cs_cia1Loc, cs_cia2Loc, lastVicData,
+			  cs_ioELoc, cs_ioFLoc, ioE_rom, ioF_rom,
 			  ioE_ext, ioF_ext, io_data)
 	begin
 		-- If no hardware is addressed the bus is floating.
 		-- It will contain the last data read by the VIC. (if a C64 is shielded correctly)
 		dataToCpu <= lastVicData;
-		if cs_CharReg = '1' then	
+		if cs_CharLoc = '1' then	
 			dataToCpu <= unsigned(charData);
-		elsif cs_romReg = '1' then	
+		elsif cs_romLoc = '1' then	
 			dataToCpu <= unsigned(romData);
-		elsif cs_ramReg = '1' then
+		elsif cs_ramLoc = '1' then
 			dataToCpu <= ramData;
-		elsif cs_vicReg = '1' then
+		elsif cs_vicLoc = '1' then
 			dataToCpu <= vicData;
-		elsif cs_sidReg = '1' then
+		elsif cs_sidLoc = '1' then
 			dataToCpu <= sidData;
-		elsif cs_colorReg = '1' then
+		elsif cs_colorLoc = '1' then
 			dataToCpu(3 downto 0) <= colorData;
-		elsif cs_cia1Reg = '1' then
+		elsif cs_cia1Loc = '1' then
 			dataToCpu <= cia1Data;
-		elsif cs_cia2Reg = '1' then
+		elsif cs_cia2Loc = '1' then
 			dataToCpu <= cia2Data;
-		elsif cs_romLReg = '1' then
+		elsif cs_romLLoc = '1' then
 			dataToCpu <= ramData;
-		elsif cs_romHReg = '1' then
+		elsif cs_romHLoc = '1' then
 			dataToCpu <= ramData;
-		elsif cs_ioEReg = '1' and ioE_rom = '1' then
+		elsif cs_ioELoc = '1' and ioE_rom = '1' then
 			dataToCpu <= ramData;
-		elsif cs_ioFReg = '1' and ioF_rom = '1' then
+		elsif cs_ioFLoc = '1' and ioF_rom = '1' then
 			dataToCpu <= ramData;
-		elsif cs_ioEReg = '1' and ioE_ext = '1' then
+		elsif cs_ioELoc = '1' and ioE_ext = '1' then
 			dataToCpu <= io_data;
-		elsif cs_ioFReg = '1' and ioF_ext = '1' then
+		elsif cs_ioFLoc = '1' and ioF_ext = '1' then
 			dataToCpu <= io_data;
 		end if;
 	end process;
@@ -260,20 +260,20 @@ begin
 	begin
 		currentAddr <= (others => '1');
 		systemWe <= '0';
-		vicCharReg <= '0';
-		cs_CharReg <= '0';
-		cs_romReg <= '0';
-		cs_ramReg <= '0';
-		cs_vicReg <= '0';
-		cs_sidReg <= '0';
-		cs_colorReg <= '0';
-		cs_cia1Reg <= '0';
-		cs_cia2Reg <= '0';
-		cs_ioEReg <= '0';
-		cs_ioFReg <= '0';
-		cs_romLReg <= '0';
-		cs_romHReg <= '0';
-		cs_UMAXromHReg <= '0';		-- Ultimax flag for the VIC access - LCA
+		vicCharLoc <= '0';
+		cs_CharLoc <= '0';
+		cs_romLoc <= '0';
+		cs_ramLoc <= '0';
+		cs_vicLoc <= '0';
+		cs_sidLoc <= '0';
+		cs_colorLoc <= '0';
+		cs_cia1Loc <= '0';
+		cs_cia2Loc <= '0';
+		cs_ioELoc <= '0';
+		cs_ioFLoc <= '0';
+		cs_romLLoc <= '0';
+		cs_romHLoc <= '0';
+		cs_UMAXromHLoc <= '0';		-- Ultimax flag for the VIC access - LCA
 
 		if (cpuHasBus = '1') then
 			-- The 6502 CPU has the bus.					
@@ -282,73 +282,73 @@ begin
 			when X"E" | X"F" =>
 				if ultimax = '1' and cpuWe = '0' then
 					-- ULTIMAX MODE - drop out the kernal - LCA
-					cs_romHReg <= '1';
+					cs_romHLoc <= '1';
 				elsif cpuWe = '0' and bankSwitch(1) = '1' then
 					-- Read kernal
-					cs_romReg <= '1';
+					cs_romLoc <= '1';
 				else
 					-- 64Kbyte RAM layout
-					cs_ramReg <= '1';
+					cs_ramLoc <= '1';
 				end if;
 			when X"D" =>
 				if (ultimax = '0' or max_ram = '1') and bankSwitch(1) = '0' and bankSwitch(0) = '0' then
 					-- 64Kbyte RAM layout
-					cs_ramReg <= '1';
+					cs_ramLoc <= '1';
 				elsif ultimax = '1' or bankSwitch(2) = '1' then
 					case cpuAddr(11 downto 8) is
 						when X"0" | X"1" | X"2" | X"3" =>
-							cs_vicReg <= '1';
+							cs_vicLoc <= '1';
 						when X"4" | X"5" | X"6" | X"7" =>
-							cs_sidReg <= '1';
+							cs_sidLoc <= '1';
 						when X"8" | X"9" | X"A" | X"B" =>
-							cs_colorReg <= '1';
+							cs_colorLoc <= '1';
 						when X"C" =>
-							cs_cia1Reg <= '1';
+							cs_cia1Loc <= '1';
 						when X"D" =>
-							cs_cia2Reg <= '1';
+							cs_cia2Loc <= '1';
 						when X"E" =>
-							cs_ioEReg <= '1';
+							cs_ioELoc <= '1';
 						when X"F" =>
-							cs_ioFReg <= '1';
+							cs_ioFLoc <= '1';
 						when others =>
 							null;
 					end case;
 				else
 					-- I/O space turned off. Read from charrom or write to RAM.
 					if cpuWe = '0' then
-						  cs_CharReg <= '1';
+						  cs_CharLoc <= '1';
 					else
-						  cs_ramReg <= '1';
+						  cs_ramLoc <= '1';
 					end if;
 				end if;
 			when X"A" | X"B" =>
 				if exrom = '0' and game = '0' and cpuWe = '0' and bankSwitch(1) = '1' then
 					-- Access cartridge with romH
-					cs_romHReg <= '1';
+					cs_romHLoc <= '1';
 				elsif ultimax = '0' and cpuWe = '0' and bankSwitch(1) = '1' and bankSwitch(0) = '1' then
 					-- Access basic rom
 					-- May need turning off if kernal banked out LCA
-					cs_romReg <= '1';
+					cs_romLoc <= '1';
 				elsif ultimax = '0' or max_ram = '1' then
 					-- If not in Ultimax mode access ram
-					cs_ramReg <= '1';
+					cs_ramLoc <= '1';
 				end if;
 			when X"8" | X"9" =>
 				if ultimax = '1' then
 					-- Ultimax access with romL
-					cs_romLReg <= '1';
+					cs_romLLoc <= '1';
 				elsif exrom = '0' and bankSwitch(1) = '1' and bankSwitch(0) = '1' then
 					-- Access cartridge with romL
-					cs_romLReg <= '1';
+					cs_romLLoc <= '1';
 				else
-					cs_ramReg <= '1';
+					cs_ramLoc <= '1';
 				end if;
 			when X"0" =>
-				cs_ramReg <= '1';
+				cs_ramLoc <= '1';
 			when others =>
 				-- If not in Ultimax mode access ram
 				if ultimax = '0' or max_ram = '1' then
-					cs_ramReg <= '1';
+					cs_ramLoc <= '1';
 				end if;
 			end case;
 
@@ -362,28 +362,28 @@ begin
 			end if;
 
 			if ultimax = '0' and vicAddr(14 downto 12)="001" then
-				vicCharReg <= '1';
+				vicCharLoc <= '1';
 			elsif ultimax = '1' and vicAddr(13 downto 12)="11" then
 				-- ultimax mode changes vic addressing - LCA 
-				cs_UMAXromHReg <= '1';
+				cs_UMAXromHLoc <= '1';
 			else
-				cs_ramReg <= '1';
+				cs_ramLoc <= '1';
 			end if;
 		end if;
 	end process;
 
-	cs_ram <= cs_ramReg or cs_romLReg or cs_romHReg or cs_UMAXromHReg or cs_CharReg or cs_romReg;
-	cs_vic <= cs_vicReg and io_enable;
-	cs_sid <= cs_sidReg and io_enable;
-	cs_color <= cs_colorReg and io_enable;
-	cs_cia1 <= cs_cia1Reg and io_enable;
-	cs_cia2 <= cs_cia2Reg and io_enable;
-	cs_ioE <= cs_ioEReg and io_enable;
-	cs_ioF <= cs_ioFReg and io_enable;
-	cs_romL <= cs_romLReg;
-	cs_romH <= cs_romHReg;
-	cs_UMAXromH <= cs_UMAXromHReg;
+	cs_ram <= cs_ramLoc or cs_romLLoc or cs_romHLoc or cs_UMAXromHLoc or cs_CharLoc or cs_romLoc;
+	cs_vic <= cs_vicLoc and io_enable;
+	cs_sid <= cs_sidLoc and io_enable;
+	cs_color <= cs_colorLoc and io_enable;
+	cs_cia1 <= cs_cia1Loc and io_enable;
+	cs_cia2 <= cs_cia2Loc and io_enable;
+	cs_ioE <= cs_ioELoc and io_enable;
+	cs_ioF <= cs_ioFLoc and io_enable;
+	cs_romL <= cs_romLLoc;
+	cs_romH <= cs_romHLoc;
+	cs_UMAXromH <= cs_UMAXromHLoc;
 
-	dataToVic  <= unsigned(charData) when vicCharReg = '1' else ramData;
+	dataToVic  <= unsigned(charData) when vicCharLoc = '1' else ramData;
 	systemAddr <= currentAddr;
 end architecture;
