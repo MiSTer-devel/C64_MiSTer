@@ -172,8 +172,7 @@ signal irq_cia2     : std_logic;
 signal irq_vic      : std_logic;
 
 signal systemWe     : std_logic;
-signal pulseWrRam   : std_logic;
-signal colorWe      : std_logic;
+signal pulseWr_io   : std_logic;
 signal systemAddr   : unsigned(15 downto 0);
 
 signal cs_vic       : std_logic;
@@ -206,6 +205,7 @@ signal cia1_pai     : unsigned(7 downto 0);
 signal cia1_pao     : unsigned(7 downto 0);
 signal cia1_pbi     : unsigned(7 downto 0);
 signal cia1_pbo     : unsigned(7 downto 0);
+signal cia2_pai     : unsigned(7 downto 0);
 signal cia2_pao     : unsigned(7 downto 0);
 signal cia2_pbi     : unsigned(7 downto 0);
 signal cia2_pbo     : unsigned(7 downto 0);
@@ -221,7 +221,6 @@ signal vicAddr      : unsigned(15 downto 0);
 signal vicData      : unsigned(7 downto 0);
 signal lastVicDi    : unsigned(7 downto 0);
 signal vicAddr1514  : unsigned(1 downto 0);
-signal colorQ       : unsigned(3 downto 0);
 signal colorData    : unsigned(3 downto 0);
 signal colorDataAec : unsigned(3 downto 0);
 signal turbo_en     : std_logic;
@@ -382,19 +381,11 @@ generic map (
 )
 port map (
 	clk => clk32,
-	we => colorWe,
+	we => cs_color and pulseWr_io,
 	addr => systemAddr(9 downto 0),
 	data => cpuDo(3 downto 0),
-	q => colorQ
+	q => colorData
 );
-
-process(clk32)
-begin
-	if rising_edge(clk32) then
-		colorWe <= (cs_color and pulseWrRam);
-		colorData <= colorQ;
-	end if;
-end process;
 
 -- -----------------------------------------------------------------------
 -- PLA and bus-switches
@@ -460,10 +451,10 @@ port map (
 process(clk32)
 begin
 	if rising_edge(clk32) then
-		pulseWrRam <= '0';
+		pulseWr_io <= '0';
 		if cpuWe = '1' then
 			if sysCycle = CYCLE_CPUC then
-				pulseWrRam <= '1';
+				pulseWr_io <= '1';
 			end if;
 		end if;
 	end if;
@@ -528,7 +519,7 @@ port map (
 
 	vicAddr => vicAddr(13 downto 0),
 	addrValid => aec,
-
+	
 	hsync => hSync,
 	vsync => vSync,
 	colorIndex => vicColorIndex,
@@ -595,7 +586,7 @@ end process;
 -- SID
 -- -----------------------------------------------------------------------
 
-sid_we      <= pulseWrRam and phi0_cpu and cs_sid;
+sid_we      <= pulseWr_io and cs_sid;
 sid_sel_int <= not sid_mode(1) or (not sid_mode(0) and not cpuAddr(5)) or (sid_mode(0) and not cpuAddr(8));
 sid_we_ext  <= sid_we and (not sid_mode(1) or not sid_sel_int);
 sid_do      <= io_data when sid_sel_int = '0' else sid_do_int;
@@ -673,7 +664,7 @@ port map (
 	db_in => cpuDo,
 	db_out => cia2Do,
 
-	pa_in => ((iec_data_i and not cia2_pao(5)) & (iec_clk_i and not cia2_pao(4)) & "111" & pa2_i & "11") and cia2_pao,
+	pa_in => cia2_pai and cia2_pao,
 	pa_out => cia2_pao,
 	pb_in => pb_i and cia2_pbo,
 	pb_out => cia2_pbo,
@@ -689,12 +680,24 @@ port map (
 	irq_n => irq_cia2
 );
 
+serialBus: process(clk32)
+begin
+	if rising_edge(clk32) then
+		if sysCycle = CYCLE_IEC1 then
+			cia2_pai(7) <= iec_data_i and not cia2_pao(5);
+			cia2_pai(6) <= iec_clk_i and not cia2_pao(4);
+		end if;
+	end if;
+end process;
+
+cia2_pai(5 downto 0) <= "111" & pa2_i & "11";
+
 iec_data_o <= not cia2_pao(5);
 iec_clk_o  <= not cia2_pao(4);
 iec_atn_o  <= not cia2_pao(3);
 
-pb_o    <= cia2_pbo;
-pa2_o   <= cia2_pao(2);
+pb_o  <= cia2_pbo;
+pa2_o <= cia2_pao(2);
 
 process(clk32)
 variable sum: integer range 0 to 33000000;
