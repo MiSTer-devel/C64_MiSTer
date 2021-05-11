@@ -179,12 +179,10 @@ module emu
 
 assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
-assign UART_RTS = UART_CTS;
-assign UART_DTR = UART_DSR;
 
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-//assign {UART_RTS, UART_TXD, UART_DTR} = 0;
+assign {UART_RTS, UART_DTR} = 0;
 
 assign LED_DISK = 0;
 assign LED_POWER = 0;
