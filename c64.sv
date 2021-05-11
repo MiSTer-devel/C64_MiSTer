@@ -238,7 +238,7 @@ localparam CONF_STR = {
 	"P2oBC,Expansion,Fast Disks,Joysticks,UART;",
 	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
 	"P2OST,Pot 3/4,Joy 2 Fire 2/3,Mouse,Paddles 3/4;",
-	"P2oD,CIA Model,6256,8521;",
+	"P2oD,CIA Model,6526,8521;",
 	"P2-;",
 	"P2O1,Release Keys on Reset,Yes,No;",
 	"P2OO,Clear RAM on Reset,Yes,No;",
