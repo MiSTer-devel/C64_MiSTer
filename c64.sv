@@ -182,7 +182,6 @@ assign USER_OUT = '1;
 
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {UART_RTS, UART_DTR} = 0;
 
 assign LED_DISK = 0;
 assign LED_POWER = 0;
@@ -195,11 +194,11 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXX
+// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
-	"C64;UART2400;",
+	"C64;UART9600:2400;",
 	"S0,D64T64,Mount Drive #8;",
 	"H0S1,D64T64,Mount Drive #9;",
 	"-;",
@@ -233,12 +232,15 @@ localparam CONF_STR = {
 
 	"P2,System;", 
 	"P2OP,Enable Drive #9,No,Yes;",
+	"P2oC,Parallel port,Enabled,Disabled;",
 	"P2R6,Reset Disk Drives;",
 	"P2-;",
-	"P2oBC,Expansion,Fast Disks,Joysticks,UART;",
+	"P2oB,Expansion,Joysticks,RS232;",
+	"P2oJ,RS232 mode,UP9600,VIC-1011;",
+	"P2oD,CIA Model,6526,8521;",
+	"P2-;",
 	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
 	"P2OST,Pot 3/4,Joy 2 Fire 2/3,Mouse,Paddles 3/4;",
-	"P2oD,CIA Model,6526,8521;",
 	"P2-;",
 	"P2O1,Release Keys on Reset,Yes,No;",
 	"P2OO,Clear RAM on Reset,Yes,No;",
@@ -897,6 +899,13 @@ fpga64_sid_iec fpga64
 	.pc2_n_o(pc2_n_o),
 	.flag2_n_i(flag2_n_i),
 	.sp2_i(sp2_i),
+	.sp2_o(sp2_o),
+	.sp1_i(sp1_i),
+	.sp1_o(sp1_o),
+	.cnt2_i(cnt2_i),
+	.cnt2_o(cnt2_o),
+	.cnt1_i(cnt1_i),
+	.cnt1_o(cnt1_o),
 
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
@@ -1067,7 +1076,6 @@ always @(posedge clk_sys) begin
 	if((c64_iec_clk_old != c64_iec_clk) || (c1541_iec_clk_old != c1541_iec_clk)) disk_access <= 1;
 	if(disk_parport && ((c1541_stb_i_old != c1541_stb_i) || (c1541_stb_o_old != c1541_stb_o))) disk_access <= 1;
 end
-
 
 wire hsync;
 wire vsync;
@@ -1403,37 +1411,61 @@ wire [7:0] pb_i, pb_o;
 wire       pa2_i, pa2_o;
 wire       pc2_n_o;
 wire       flag2_n_i;
-wire       sp2_i;
+wire       sp2_i, sp2_o, sp1_o, sp1_i;
+wire       cnt2_i, cnt2_o, cnt1_o, cnt1_i;
 wire       disk_parport;
 
 always_comb begin
 	pa2_i       = 1;
 	flag2_n_i   = 1;
+	sp1_i       = 1;
 	sp2_i       = 1;
+	cnt1_i      = 1;
+	cnt2_i      = 1;
 	pb_i        = 8'hFF;
 	UART_TXD    = 1;
+	UART_RTS    = 0;
+	UART_DTR    = 0;
 	c1541_par_i = 8'hFF;
 	c1541_stb_i = 1;
 	disk_parport= 0;
 
-	case(status[44:43])
-		0: begin
-				c1541_par_i = pb_o;
-				c1541_stb_i = pc2_n_o;
-				pb_i        = c1541_par_o;
-				flag2_n_i   = c1541_stb_o;
-				disk_parport= 1;
-			end
-		2: begin
-				pb_i[0]   = UART_RXD;
-				flag2_n_i = UART_RXD;
-				sp2_i     = UART_RXD;
-				UART_TXD  = pa2_o;
-				//UART_RTS  = pb_o[1];
-				//UART_DTR  = pb_o[2];
-			end
-		default: pb_i[5:0] = {!joyD_c64[6:4], !joyC_c64[6:4], pb_o[7] ? ~joyC_c64[3:0] : ~joyD_c64[3:0]};
-	endcase
+	if(~status[44] & (c1541_1_led | c1541_2_led)) begin
+		c1541_par_i = pb_o;
+		c1541_stb_i = pc2_n_o;
+		pb_i        = c1541_par_o;
+		flag2_n_i   = c1541_stb_o;
+		disk_parport= 1;
+	end
+	else if(status[43]) begin
+		UART_TXD  = pa2_o;
+		flag2_n_i = uart_rxd;
+		sp2_i     = uart_rxd;
+		pb_i[0]   = uart_rxd;
+		UART_RTS  = ~pb_o[1];
+		UART_DTR  = ~pb_o[2];
+		pb_i[4]   = ~uart_dsr;
+		pb_i[6]   = ~uart_cts;
+		pb_i[7]   = ~uart_dsr;
+
+		if(~status[51]) begin
+			UART_TXD = pa2_o & sp1_o;
+			pb_i[7]  = cnt2_o;
+			cnt2_i   = pb_o[7];
+		end
+	end
+	else begin
+		pb_i[5:0] = {!joyD_c64[6:4], !joyC_c64[6:4], pb_o[7] ? ~joyC_c64[3:0] : ~joyD_c64[3:0]};
+	end
+end
+
+reg uart_rxd, uart_dsr, uart_cts;
+always @(posedge clk_sys) begin
+	reg rxd1, rxd2, dsr1, dsr2, cts1, cts2;
+
+	rxd1 <= UART_RXD; rxd2 <= rxd1; if(rxd1 == rxd2) uart_rxd <= rxd2;
+	cts1 <= UART_CTS; cts2 <= cts1; if(cts1 == cts2) uart_cts <= cts2;
+	dsr1 <= UART_DSR; dsr2 <= dsr1; if(dsr1 == dsr2) uart_dsr <= dsr2;
 end
 
 endmodule
