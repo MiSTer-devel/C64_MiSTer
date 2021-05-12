@@ -118,6 +118,13 @@ port(
 	pc2_n_o     : out std_logic;
 	flag2_n_i   : in  std_logic;
 	sp2_i       : in  std_logic;
+	sp2_o       : out std_logic;
+	sp1_i       : in  std_logic;
+	sp1_o       : out std_logic;
+	cnt2_i      : in  std_logic;
+	cnt2_o      : out std_logic;
+	cnt1_i      : in  std_logic;
+	cnt1_o      : out std_logic;
 
 	-- IEC
 	iec_data_o	: out std_logic;
@@ -641,8 +648,10 @@ port map (
 	pb_out => cia1_pbo,
 
 	flag_n => cass_in,
-	sp_in => '1',
-	cnt_in => '1',
+	sp_in => sp1_i,
+	sp_out => sp1_o,
+	cnt_in => cnt1_i,
+	cnt_out => cnt1_o,
 
 	tod => todclk,
 
@@ -672,7 +681,9 @@ port map (
 	pc_n => pc2_n_o,
 
 	sp_in => sp2_i,
-	cnt_in => '1',
+	sp_out => sp2_o,
+	cnt_in => cnt2_i,
+	cnt_out => cnt2_o,
 
 	tod => todclk,
 
