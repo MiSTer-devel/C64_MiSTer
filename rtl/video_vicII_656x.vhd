@@ -66,8 +66,8 @@ entity video_vicii_656x is
 		colorIndex : out unsigned(3 downto 0);
 
 		-- Debug outputs
-		debugX : out unsigned(9 downto 0);
-		debugY : out unsigned(8 downto 0);
+		debugX  : out unsigned(9 downto 0);
+		debugY  : out unsigned(8 downto 0);
 		vicRefresh : out std_logic;
 		addrValid : out std_logic
 	);
@@ -161,6 +161,7 @@ architecture rtl of video_vicii_656x is
 	signal vBlanking : std_logic;
 	signal hBlanking : std_logic;
 	signal xscroll: unsigned(2 downto 0);
+	signal xscroll_r: unsigned(2 downto 0);
 	signal yscroll: unsigned(2 downto 0);
 	signal rasterCmp : unsigned(8 downto 0);
 
@@ -366,7 +367,7 @@ vicStateMachine: process(clk)
 						if ((mode6567old or mode6567R8) = '1') then
 							vicCycle <= cycleIdle1;
 						end if;
-					when cycleIdle1 => vicCycle <= cycleRefresh2;
+					when cycleIdle1    => vicCycle <= cycleRefresh2;
 					when cycleRefresh2 => vicCycle <= cycleRefresh3;
 					when cycleRefresh3 => vicCycle <= cycleRefresh4;  -- X=0..7 on this cycle
 					when cycleRefresh4 => vicCycle <= cycleRefresh5;
@@ -379,8 +380,8 @@ vicStateMachine: process(clk)
 							vicCycle <= cycleCalcSprites;
 						end if;
 					when cycleCalcSprites => vicCycle <= cycleSpriteBa1;
-					when cycleSpriteBa1 => vicCycle <= cycleSpriteBa2;
-					when cycleSpriteBa2 => vicCycle <= cycleSpriteBa3;
+					when cycleSpriteBa1   => vicCycle <= cycleSpriteBa2;
+					when cycleSpriteBa2   => vicCycle <= cycleSpriteBa3;
 					when others =>
 						null;
 					end case;
@@ -977,11 +978,13 @@ calcBitmap: process(clk)
 					waitingChar_r <= waitingChar;
 					waitingPixels_r <= waitingPixels;
 				end if;
+				
+				xscroll_r <= xscroll;
 
 				--
 				-- Reload shift register when xscroll=rasterX
 				-- otherwise shift pixels
-				if shiftLoadEna and xscroll = rasterXDelay(2 downto 0) then
+				if shiftLoadEna and xscroll_r = rasterXDelay(2 downto 0) then
 					shifting_ff <= '0';
 					shiftingChar <= waitingChar_r;
 					shiftingPixels <= waitingPixels_r;
