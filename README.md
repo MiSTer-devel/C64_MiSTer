@@ -13,7 +13,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - OPL2 sound expander.
 - Pause option when OSD is opened.
 - 4 joysticks mode.
-- UART connection to Internet.
+- RS232 with VIC-1011 and UP9600 modes.
 - Loadable Kernal/C1541 ROMs.
 - Special reduced border mode for 16:9 display.
 - C128/Smart Turbo mode up to 4x.
@@ -64,3 +64,9 @@ In OSD->System page choose **Expansion: Fast Disks**. Then load [DolphinDOS_2.0.
 **C128 mode:** this is C128 compatible turbo mode available in C64 mode on Commodore 128 and can be controlled from software, so games written with this turbo mode support will take advantage of this.
 
 **Smart mode:** In this mode any access to disk will disable turbo mode for short time enough to finish disk operations, thus you will have turbo mode without loosing disk operations.
+
+### RS232
+
+Primary function of RS232 is emulated dial-up connection to old-fashioned BBS. **CCGMS Ultimate** is recommended (Don't use CCGMS 2021 - it's buggy version). It supports both standard 2400 VIC-1011 and more advanced UP9600 modes.
+
+**Note:** DolphinDOS and SpeedDOS kernals have no RS232 routines so most RS232 software don't work with these kernals!
