@@ -73,12 +73,12 @@ reg [23:0] tod_latch;
 reg        tod_latched;
 
 reg        sp_pending;
-reg        sp_received;
 reg        sp_transmit;
 reg [ 7:0] sp_shiftreg;
+reg        icr3;
 
 reg        cnt_in_prev;
-reg        cnt_out_prev;
+reg        cnt_out_r;
 reg [ 2:0] cnt_pulsecnt;
 
 reg        int_reset;
@@ -416,12 +416,12 @@ end
 always @(posedge clk) begin
   if (!res_n) begin
     sdr         <= 8'h00;
-    sp_out      <= 1'b0;
+    sp_out      <= 1'b1;
     sp_pending  <= 1'b0;
-    sp_received <= 1'b0;
     sp_transmit <= 1'b0;
     sp_shiftreg <= 8'h00;
     icr[3]      <= 1'b0;
+    icr3        <= 1'b0;
   end
   else begin
     if (wr)
@@ -433,36 +433,34 @@ always @(posedge clk) begin
           end
       endcase
 
-    if (phi2_p) begin
-      if (int_reset) icr[3] <= 1'b0;
+    if (!cra[6]) begin // input
+      sp_out <= 1'b1;
+      if (cnt_in && !cnt_in_prev) sp_shiftreg <= {sp_shiftreg[6:0], sp_in};
+		if (!cnt_in && cnt_in_prev && cnt_pulsecnt == 3'h7) begin
+        sdr  <= sp_shiftreg;
+        icr3 <= 1'b1;
+      end
+    end
+    else begin // output
+      if (sp_pending && !sp_transmit) begin
+        sp_pending  <= 1'b0;
+        sp_transmit <= 1'b1;
+        sp_shiftreg <= sdr;
+      end
+      else if (!cnt_out_r && cnt_out) begin
+        if (cnt_pulsecnt == 3'h7) begin
+          icr3        <= 1'b1;
+          sp_transmit <= 1'b0;
+        end
+        sp_out      <= sp_shiftreg[7];
+        sp_shiftreg <= {sp_shiftreg[6:0], sp_shiftreg[0]};
+      end
+    end
 
-      if (!cra[6]) begin // input
-        if (sp_received) begin
-          sdr         <= sp_shiftreg;
-          icr[3]      <= 1'b1;
-          sp_received <= 1'b0;
-          sp_shiftreg <= 8'h00;
-        end
-        else if (cnt_in && !cnt_in_prev) begin
-          sp_shiftreg <= {sp_shiftreg[6:0], sp_in};
-          sp_received <= (cnt_pulsecnt == 3'h7) ? 1'b1 : sp_received;
-        end
-      end
-      else if (cra[6]) begin // output
-        if (sp_pending && !sp_transmit) begin
-          sp_pending  <= 1'b0;
-          sp_transmit <= 1'b1;
-          sp_shiftreg <= sdr;
-        end
-        else if (!cnt_out && cnt_out_prev) begin
-          if (cnt_pulsecnt == 3'h7) begin
-            icr[3]      <= 1'b1;
-            sp_transmit <= 1'b0;
-          end
-          sp_out      <= sp_shiftreg[7];
-          sp_shiftreg <= {sp_shiftreg[6:0], 1'b0};
-        end
-      end
+    if (phi2_p) begin
+		if(icr3) icr[3] <= 1'b1;
+		icr3 <= 1'b0;
+		if(int_reset) icr[3] <= 1'b0;
     end
   end
 end
@@ -470,21 +468,19 @@ end
 // CNT Input/Output
 always @(posedge clk) begin
   if (!res_n) begin
+    cnt_out_r    <= 1'b1;
     cnt_out      <= 1'b1;
-    cnt_out_prev <= 1'b1;
     cnt_pulsecnt <= 3'h0;
   end
-  else if (phi2_p) begin
-    cnt_in_prev  <= cnt_in;
-    cnt_out_prev <= cnt_out;
+  else begin
+    cnt_in_prev <= cnt_in;
+    cnt_out <= cnt_out_r;
 
-    if (!cra[6] && cnt_in && !cnt_in_prev) cnt_pulsecnt <= cnt_pulsecnt + 1'b1;
-    else if (cra[6]) begin
-      if (sp_transmit) begin
-        cnt_out <= timerAoverflow ? ~cnt_out : cnt_out;
-        if (!cnt_out && cnt_out_prev) cnt_pulsecnt <= cnt_pulsecnt + 1'b1;
-      end
-      else cnt_out <= timerAoverflow ? 1'b1 : cnt_out;
+    if (cra[6] ? (!cnt_out_r && cnt_out) : (!cnt_in && cnt_in_prev)) cnt_pulsecnt <= cnt_pulsecnt + 1'b1;
+
+    if (phi2_p) begin
+  	   if (!cra[6]) cnt_out_r <= 1'b1;
+      else if (sp_transmit & timerAoverflow) cnt_out_r <= ~cnt_out_r;
     end
   end
 end
