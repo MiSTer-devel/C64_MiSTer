@@ -59,7 +59,6 @@ localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, B
 // ------------------------ cycle state machine ------------------------
 // ---------------------------------------------------------------------
 
-localparam STATE_IDLE      = 3'd0;   // first state in cycle
 localparam STATE_CMD_START = 3'd0;   // state in which a new command can be started
 localparam STATE_CMD_CONT  = STATE_CMD_START  + RASCAS_DELAY; // 2 command can be continued
 localparam STATE_READ      = STATE_CMD_CONT + CAS_LATENCY + 1'd1;
@@ -113,28 +112,39 @@ assign sd_cas = sd_cmd[1];
 assign sd_we  = sd_cmd[0];
 
 always @(posedge clk) begin
+	reg [8:0] caddr;
+
 	sd_cmd  <= CMD_NOP;
-	sd_ba   <= addr[22:21];
 	sd_data <= 16'bZ;
-	sd_addr <= 	(reset == 13)          ? 13'b0010000000000 :
-					(reset)                ? MODE              :
-					(q == STATE_CMD_START) ? addr[20:8]        :
-					                         {4'b0010, addr[23], addr[7:0]};
 
 	if(q == STATE_READ) dout <= sd_data[7:0];
 
 	if(reset) begin
-		if(q == STATE_IDLE) begin
-			if(reset == 13)  sd_cmd <= CMD_PRECHARGE;
-			if(reset ==  2)  sd_cmd <= CMD_LOAD_MODE;
+		sd_ba <= 0;
+		if(q == STATE_CMD_START) begin
+			if(reset == 13) begin
+				sd_cmd <= CMD_PRECHARGE;
+				sd_addr <= 13'b0010000000000;
+			end
+			if(reset == 2) begin
+				sd_cmd <= CMD_LOAD_MODE;
+				sd_addr <= MODE;
+			end
 		end
 	end
 	else begin
-		if(ce && !last_ce)           sd_cmd <= CMD_ACTIVE;
 		if(refresh && !last_refresh) sd_cmd <= CMD_AUTO_REFRESH;
+
+		if(ce && !last_ce) begin
+			sd_cmd  <= CMD_ACTIVE;
+			sd_ba   <= addr[22:21];
+			sd_addr <= addr[20:8];
+			caddr   <= {addr[23], addr[7:0]};
+		end
 		if(q == STATE_CMD_CONT) begin
-			sd_cmd <= we ? CMD_WRITE : CMD_READ;
 			if(we) sd_data <= {din, din};
+			sd_cmd  <= we ? CMD_WRITE : CMD_READ;
+			sd_addr <= {4'b0010, caddr};
 		end
 	end
 end
