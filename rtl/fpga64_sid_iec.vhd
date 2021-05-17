@@ -48,7 +48,6 @@ port(
 	ramAddr     : out unsigned(15 downto 0);
 	ramDin      : in  unsigned(7 downto 0);
 	ramDout     : out unsigned(7 downto 0);
-
 	ramCE       : out std_logic;
 	ramWE       : out std_logic;
 
@@ -71,9 +70,9 @@ port(
 	-- cartridge port
 	game        : in  std_logic;
 	exrom       : in  std_logic;
-	ioE_rom     : in  std_logic;
-	ioF_rom     : in  std_logic;
-	max_ram     : in  std_logic;
+	io_rom      : in  std_logic;
+	io_ext      : in  std_logic;
+	io_data     : in  unsigned(7 downto 0);
 	irq_n       : in  std_logic;
 	nmi_n       : in  std_logic;
 	nmi_ack     : out std_logic;
@@ -84,10 +83,6 @@ port(
 	IOF			: out std_logic;
 	freeze_key  : out std_logic;
 	mod_key     : out std_logic;
-
-	ioF_ext     : in  std_logic;
-	ioE_ext     : in  std_logic;
-	io_data     : in  unsigned(7 downto 0);
 
 	-- joystick interface
 	joyA        : in  std_logic_vector(6 downto 0);
@@ -409,15 +404,11 @@ port map (
 
 	game => game,
 	exrom => exrom,
-	ioE_rom => ioE_rom,
-	ioF_rom => ioF_rom,
-	max_ram => max_ram,
+	io_rom => io_rom,
+	io_ext => io_ext,
+	io_data => io_data,
 
 	ramData => ramDin,
-
-	ioF_ext => ioF_ext,
-	ioE_ext => ioE_ext,
-	io_data => io_data,
 
 	cpuWe => cpuWe,
 	cpuAddr => cpuAddr,

@@ -41,12 +41,8 @@ entity fpga64_buslogic is
 		-- From cartridge port
 		game        : in std_logic;
 		exrom       : in std_logic;
-		ioE_rom     : in std_logic;
-		ioF_rom     : in std_logic;
-		max_ram     : in std_logic;
-
-		ioF_ext     : in std_logic;
-		ioE_ext     : in std_logic;
+		io_rom      : in std_logic;
+		io_ext      : in std_logic;
 		io_data     : in unsigned(7 downto 0);
 
 		c64rom_addr : in std_logic_vector(13 downto 0);
@@ -117,6 +113,7 @@ architecture rtl of fpga64_buslogic is
 	signal cs_romLLoc     : std_logic;
 	signal cs_romHLoc     : std_logic;
 	signal cs_UMAXromHLoc : std_logic;
+	signal cs_UMAXnomapLoc: std_logic;
 	signal ultimax        : std_logic;
 
 	signal currentAddr    : unsigned(15 downto 0);
@@ -217,8 +214,8 @@ begin
 			  cs_romHLoc, cs_romLLoc, cs_romLoc, cs_CharLoc,
 			  cs_ramLoc, cs_vicLoc, cs_sidLoc, cs_colorLoc,
 			  cs_cia1Loc, cs_cia2Loc, lastVicData,
-			  cs_ioELoc, cs_ioFLoc, ioE_rom, ioF_rom,
-			  ioE_ext, ioF_ext, io_data)
+			  cs_ioELoc, cs_ioFLoc,
+			  io_rom, io_ext, io_data)
 	begin
 		-- If no hardware is addressed the bus is floating.
 		-- It will contain the last data read by the VIC. (if a C64 is shielded correctly)
@@ -243,20 +240,20 @@ begin
 			dataToCpu <= ramData;
 		elsif cs_romHLoc = '1' then
 			dataToCpu <= ramData;
-		elsif cs_ioELoc = '1' and ioE_rom = '1' then
+		elsif cs_ioELoc = '1' and io_rom = '1' then
 			dataToCpu <= ramData;
-		elsif cs_ioFLoc = '1' and ioF_rom = '1' then
+		elsif cs_ioFLoc = '1' and io_rom = '1' then
 			dataToCpu <= ramData;
-		elsif cs_ioELoc = '1' and ioE_ext = '1' then
+		elsif cs_ioELoc = '1' and io_ext = '1' then
 			dataToCpu <= io_data;
-		elsif cs_ioFLoc = '1' and ioF_ext = '1' then
+		elsif cs_ioFLoc = '1' and io_ext = '1' then
 			dataToCpu <= io_data;
 		end if;
 	end process;
 
 	ultimax <= exrom and (not game);
 
-	process(cpuHasBus, cpuAddr, ultimax, cpuWe, bankSwitch, max_ram, exrom, game, aec, vicAddr)
+	process(cpuHasBus, cpuAddr, ultimax, cpuWe, bankSwitch, exrom, game, aec, vicAddr)
 	begin
 		currentAddr <= (others => '1');
 		systemWe <= '0';
@@ -274,6 +271,7 @@ begin
 		cs_romLLoc <= '0';
 		cs_romHLoc <= '0';
 		cs_UMAXromHLoc <= '0';		-- Ultimax flag for the VIC access - LCA
+		cs_UMAXnomapLoc <= '0';
 
 		if (cpuHasBus = '1') then
 			-- The 6502 CPU has the bus.					
@@ -283,6 +281,8 @@ begin
 				if ultimax = '1' and cpuWe = '0' then
 					-- ULTIMAX MODE - drop out the kernal - LCA
 					cs_romHLoc <= '1';
+				elsif ultimax = '1' then
+					cs_UMAXnomapLoc <= '1';
 				elsif cpuWe = '0' and bankSwitch(1) = '1' then
 					-- Read kernal
 					cs_romLoc <= '1';
@@ -291,7 +291,7 @@ begin
 					cs_ramLoc <= '1';
 				end if;
 			when X"D" =>
-				if (ultimax = '0' or max_ram = '1') and bankSwitch(1) = '0' and bankSwitch(0) = '0' then
+				if ultimax = '0' and bankSwitch(1) = '0' and bankSwitch(0) = '0' then
 					-- 64Kbyte RAM layout
 					cs_ramLoc <= '1';
 				elsif ultimax = '1' or bankSwitch(2) = '1' then
@@ -322,23 +322,24 @@ begin
 					end if;
 				end if;
 			when X"A" | X"B" =>
-				if exrom = '0' and game = '0' and cpuWe = '0' and bankSwitch(1) = '1' then
-					-- Access cartridge with romH
+				if ultimax = '1' then
+					cs_UMAXnomapLoc <= '1';
+				elsif exrom = '0' and game = '0' and bankSwitch(1) = '1' then
+				  -- this case should write to both C64 RAM and Cart RAM (if RAM is connected)
 					cs_romHLoc <= '1';
 				elsif ultimax = '0' and cpuWe = '0' and bankSwitch(1) = '1' and bankSwitch(0) = '1' then
 					-- Access basic rom
 					-- May need turning off if kernal banked out LCA
 					cs_romLoc <= '1';
-				elsif ultimax = '0' or max_ram = '1' then
-					-- If not in Ultimax mode access ram
+				else
 					cs_ramLoc <= '1';
 				end if;
 			when X"8" | X"9" =>
 				if ultimax = '1' then
-					-- Ultimax access with romL
+					-- pass cpuWe to cartridge. Cartridge must block writes if no RAM connected.
 					cs_romLLoc <= '1';
 				elsif exrom = '0' and bankSwitch(1) = '1' and bankSwitch(0) = '1' then
-					-- Access cartridge with romL
+				  -- this case should write to both C64 RAM and Cart RAM (if RAM is connected)
 					cs_romLLoc <= '1';
 				else
 					cs_ramLoc <= '1';
@@ -347,8 +348,10 @@ begin
 				cs_ramLoc <= '1';
 			when others =>
 				-- If not in Ultimax mode access ram
-				if ultimax = '0' or max_ram = '1' then
+				if ultimax = '0' then
 					cs_ramLoc <= '1';
+				else
+					cs_UMAXnomapLoc <= '1';
 				end if;
 			end case;
 
@@ -372,7 +375,7 @@ begin
 		end if;
 	end process;
 
-	cs_ram <= cs_ramLoc or cs_romLLoc or cs_romHLoc or cs_UMAXromHLoc or cs_CharLoc or cs_romLoc;
+	cs_ram <= cs_ramLoc or cs_romLLoc or cs_romHLoc or cs_UMAXromHLoc or cs_UMAXnomapLoc or cs_CharLoc or cs_romLoc;
 	cs_vic <= cs_vicLoc and io_enable;
 	cs_sid <= cs_sidLoc and io_enable;
 	cs_color <= cs_colorLoc and io_enable;

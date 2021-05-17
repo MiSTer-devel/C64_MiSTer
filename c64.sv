@@ -366,7 +366,7 @@ always @(posedge clk_sys) begin
 		reset_wait <= 1;
 		reset_counter <= 255;
 	end
-	else if (reset_crt | (ioctl_download & (load_crt | load_rom))) begin
+	else if (ioctl_download & (load_crt | load_rom)) begin
 		do_erase <= 1;
 		reset_counter <= 255;
 	end
@@ -465,34 +465,24 @@ wire load_rom = ioctl_index == 8;
 
 wire game;
 wire exrom;
-wire IOE_rom;
-wire IOF_rom;
-wire max_ram;
-wire mem_ce;
+wire io_rom;
+wire cart_ce;
+wire cart_we;
 wire nmi;
-wire reset_crt;
-
+wire cart_oe;
+wire IOF_rd;
+wire  [7:0] cart_data;
 wire [24:0] cart_addr;
 
 cartridge cartridge
 (
-	.romL(romL),
-	.romH(romH),
-	.UMAXromH(UMAXromH),
-	.IOE(IOE),
-	.IOF(IOF),
-	.mem_write(ram_we),
-	.mem_ce(ram_ce),
-	.mem_ce_out(mem_ce),
-
 	.clk32(clk_sys),
-	.reset(reset_n),
-	.reset_out(reset_crt),
+	.reset_n(reset_n & cart_attached),
 
+	.cart_loading(ioctl_download && load_crt),
 	.cart_id(cart_id),
 	.cart_exrom(cart_exrom),
 	.cart_game(cart_game),
-
 	.cart_bank_laddr(cart_bank_laddr),
 	.cart_bank_size(cart_bank_size),
 	.cart_bank_num(cart_bank_num),
@@ -500,18 +490,25 @@ cartridge cartridge
 	.cart_bank_raddr(ioctl_load_addr),
 	.cart_bank_wr(cart_hdr_wr),
 
-	.cart_attached(cart_attached),
-	.cart_loading(ioctl_download && load_crt),
-
-	.c64_mem_address_in(c64_addr),
-	.c64_data_out(c64_data_out),
-
-	.sdram_address_out(cart_addr),
 	.exrom(exrom),
 	.game(game),
-	.IOE_ena(IOE_rom),
-	.IOF_ena(IOF_rom),
-	.max_ram(max_ram),
+
+	.romL(romL),
+	.romH(romH),
+	.UMAXromH(UMAXromH),
+	.IOE(IOE),
+	.IOF(IOF),
+	.mem_write(ram_we),
+	.mem_ce(ram_ce),
+	.mem_ce_out(cart_ce),
+	.mem_write_out(cart_we),
+	.IO_rom(io_rom),
+	.IO_rd(cart_oe),
+	.IO_data(cart_data),
+	.addr_in(c64_addr),
+	.data_in(c64_data_out),
+	.addr_out(cart_addr),
+
 	.freeze_key(freeze_key),
 	.mod_key(mod_key),
 	.nmi(nmi),
@@ -785,8 +782,8 @@ sdram sdram
 	.init(~pll_locked),
 	.refresh(refresh),
 	.addr( io_cycle ? io_cycle_addr : cart_addr    ),
-	.ce  ( io_cycle ? io_cycle_ce   : mem_ce       ),
-	.we  ( io_cycle ? io_cycle_we   : ram_we       ),
+	.ce  ( io_cycle ? io_cycle_ce   : cart_ce      ),
+	.we  ( io_cycle ? io_cycle_we   : cart_we      ),
 	.din ( io_cycle ? io_cycle_data : c64_data_out ),
 	.dout( sdram_data )
 );
@@ -844,10 +841,7 @@ fpga64_sid_iec fpga64
 
 	.game(game),
 	.exrom(exrom),
-	.ioe_rom(IOE_rom),
-	.iof_rom(IOF_rom),
-	.max_ram(max_ram),
-	.umaxromh(UMAXromH),
+	.UMAXromH(UMAXromH),
 	.irq_n(1),
 	.nmi_n(~nmi),
 	.nmi_ack(nmi_ack),
@@ -857,9 +851,9 @@ fpga64_sid_iec fpga64
 	.romh(romH),
 	.ioe(IOE),
 	.iof(IOF),
-	.iof_ext(opl_en),
-	.ioe_ext(1'b0),
-	.io_data(sid2_oe ? data_sid : opl_dout),
+	.io_rom(io_rom),
+	.io_ext(cart_oe | opl_en),
+	.io_data(cart_oe ? cart_data : sid2_oe ? data_sid : opl_dout),
 	
 	.cia_mode(status[45]),
 
