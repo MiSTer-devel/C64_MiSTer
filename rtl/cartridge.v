@@ -49,6 +49,7 @@ reg  [6:0] bank_lo;
 reg  [6:0] bank_hi;
 reg [12:0] mask_lo;
 
+reg [13:0] geo_bank;
 reg  [6:0] IOE_bank;
 reg  [6:0] IOF_bank;
 reg        IOE_wr_ena;
@@ -128,6 +129,7 @@ always @(posedge clk32) begin
 	reg        saved_d6 = 0;
 	reg [15:0] count;
 	reg        count_ena;
+	reg [15:0] old_id;
 
 	old_freeze <= freeze_key;
 	if(freeze_req & (allow_freeze | mod_key)) nmi <= 1;
@@ -136,8 +138,9 @@ always @(posedge clk32) begin
 	if(freeze_ack) nmi <= 0;
 
 	init_n <= 1;
+	old_id <= cart_id;
 
-	if(~reset_n) begin
+	if(~reset_n || (old_id != cart_id)) begin
 		cart_disable <= 0;
 		bank_lo <= 0;
 		bank_hi <= 0;
@@ -155,6 +158,7 @@ always @(posedge clk32) begin
 		exrom_overide <= 1;
 		game_overide <= 1;
 		rom_kbb <= 0;
+		geo_bank <= 0;
 	end
 	else
 	case(cart_id)
@@ -657,6 +661,16 @@ always @(posedge clk32) begin
 					end
 				end
 			end
+
+		// GeoRAM
+		99: begin
+				IOE_ena    <= 1;
+				IOE_wr_ena <= 1;
+				if(iof_wr && &addr_in[7:1]) begin
+					if(addr_in[0]) geo_bank[13:6] <= data_in;
+					else           geo_bank[5:0]  <= data_in[5:0];
+				end
+			end
 	endcase
 end
 
@@ -699,14 +713,17 @@ always begin
 		if(UMAXromH) addr_out[24:12] = {get_bank(bank_hi, 0), 1'b1}; // ULTIMAX CharROM
 
 		case(cart_id)
-		  36: if(IOE && !(addr_in[7:0] & (clock_port ? 8'hF0 : 8'hFE)) && ~cart_disable) begin
+			36: if(IOE && !(addr_in[7:0] & (clock_port ? 8'hF0 : 8'hFE)) && ~cart_disable) begin
 					mem_write_out = 0;
 					IOE_rd = 1;
 					IO_data = (!addr_in[7:1]) ? {bank_hi[2], reu_map, 1'b0, bank_hi[1:0], 1'b0, allow_bank, 1'b0} : 8'h00;
 				end
-		  54: if(rom_kbb && addr_in[15:13] == 3'b111 && !mem_write) begin
+			54: if(rom_kbb && addr_in[15:13] == 3'b111 && !mem_write) begin
 					force_ultimax = 1;
 					addr_out[24:13] = get_bank(2, 0);
+				end
+			99: if(IOE) begin
+					addr_out[24:8] <= {3'b111, geo_bank}; // last 4MB of SDRAM
 				end
 		default:;
 		endcase

@@ -194,7 +194,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXX
+// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -246,6 +246,7 @@ localparam CONF_STR = {
 	"P2OO,Clear RAM on Reset,Yes,No;",
 	"P2oI,Reset & Run PRG,Yes,No;",
 	"P2-;",
+	"P2oK,GeoRAM,Disabled,4096KB;",
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 	"P2-;",
 	"P2FC8,ROM,Load System ROM;",
@@ -477,10 +478,10 @@ wire [24:0] cart_addr;
 cartridge cartridge
 (
 	.clk32(clk_sys),
-	.reset_n(reset_n & cart_attached),
+	.reset_n(reset_n & (cart_attached | status[52])),
 
 	.cart_loading(ioctl_download && load_crt),
-	.cart_id(cart_id),
+	.cart_id(cart_attached ? cart_id : status[52] ? 8'd99 : 8'd255),
 	.cart_exrom(cart_exrom),
 	.cart_game(cart_game),
 	.cart_bank_laddr(cart_bank_laddr),
@@ -763,8 +764,6 @@ always @(posedge clk_sys) begin
 end
 
 assign SDRAM_CKE  = 1;
-assign SDRAM_DQML = 0;
-assign SDRAM_DQMH = 0;
 
 wire [7:0] sdram_data;
 sdram sdram
@@ -777,6 +776,7 @@ sdram sdram
 	.sd_ras(SDRAM_nRAS),
 	.sd_cas(SDRAM_nCAS),
 	.sd_clk(SDRAM_CLK),
+	.sd_dqm({SDRAM_DQMH,SDRAM_DQML}),
 
 	.clk(clk64),
 	.init(~pll_locked),
