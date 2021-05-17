@@ -31,6 +31,7 @@ module sdram (
 	output 				sd_ras,     // row address select
 	output 				sd_cas,     // columns address select
 	output 				sd_clk,
+	output 		[1:0]	sd_dqm,
 
 	// cpu/chipset interface
 	input 		 		init,			// init signal after FPGA config to initialize RAM
@@ -38,7 +39,7 @@ module sdram (
 	
 	input      [24:0] addr,       // 25 bit byte address
 	input      [ 7:0] din,
-	output reg [ 7:0]	dout,
+	output     [ 7:0]	dout,
 
 	input 		 		refresh,    // refresh cycle
 	input 		 		ce,         // cpu/chipset access
@@ -110,6 +111,12 @@ assign sd_cs  = 0;
 assign sd_ras = sd_cmd[2];
 assign sd_cas = sd_cmd[1];
 assign sd_we  = sd_cmd[0];
+assign sd_dqm = sd_addr[12:11];
+
+reg bt;
+reg [15:0] dout_r;
+
+assign dout = bt ? dout_r[15:8] : dout_r[7:0];
 
 always @(posedge clk) begin
 	reg [8:0] caddr;
@@ -117,7 +124,7 @@ always @(posedge clk) begin
 	sd_cmd  <= CMD_NOP;
 	sd_data <= 16'bZ;
 
-	if(q == STATE_READ) dout <= sd_data[7:0];
+	if(q == STATE_READ) dout_r <= sd_data;
 
 	if(reset) begin
 		sd_ba <= 0;
@@ -140,11 +147,12 @@ always @(posedge clk) begin
 			sd_ba   <= addr[22:21];
 			sd_addr <= addr[20:8];
 			caddr   <= {addr[23], addr[7:0]};
+			bt      <= addr[24];
 		end
 		if(q == STATE_CMD_CONT) begin
 			if(we) sd_data <= {din, din};
 			sd_cmd  <= we ? CMD_WRITE : CMD_READ;
-			sd_addr <= {4'b0010, caddr};
+			sd_addr <= {~bt & we, bt & we, 2'b10, caddr};
 		end
 	end
 end
