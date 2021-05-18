@@ -145,7 +145,7 @@ architecture rtl of fpga64_sid_iec is
 -- System state machine
 type sysCycleDef is (
 	CYCLE_IDLE0, CYCLE_IDLE1, CYCLE_IDLE2, CYCLE_IDLE3,
-	CYCLE_IDLE4, CYCLE_IDLE5, CYCLE_IDLE6, CYCLE_IDLE7,
+	CYCLE_DMA0,  CYCLE_DMA1,  CYCLE_DMA2,  CYCLE_DMA3,
 	CYCLE_IEC0,  CYCLE_IEC1,  CYCLE_IEC2,  CYCLE_IEC3,
 	CYCLE_VIC0,  CYCLE_VIC1,  CYCLE_VIC2,  CYCLE_VIC3,
 	CYCLE_CPU0,  CYCLE_CPU1,  CYCLE_CPU2,  CYCLE_CPU3,
@@ -157,6 +157,7 @@ type sysCycleDef is (
 signal sysCycle     : sysCycleDef := sysCycleDef'low;
 signal preCycle     : sysCycleDef := sysCycleDef'low;
 signal sysEnable    : std_logic;
+signal rfsh_cycle   : unsigned(1 downto 0);
 
 signal phi0_cpu     : std_logic;
 signal cpuHasBus    : std_logic;
@@ -295,29 +296,31 @@ begin
 
 io_cycle <= '1' when
 	(sysCycle >= CYCLE_IDLE0 and sysCycle <= CYCLE_IDLE3) or
-	(sysCycle >= CYCLE_IEC0  and sysCycle <= CYCLE_IEC3)  else '0';
-
-refresh <= '1' when preCycle = CYCLE_IDLE4 else '0';
+	(sysCycle >= CYCLE_IEC0  and sysCycle <= CYCLE_IEC3 and rfsh_cycle /= "00")  else '0';
 
 -- -----------------------------------------------------------------------
 -- System state machine, controls bus accesses
 -- and triggers enables of other components
 -- -----------------------------------------------------------------------
 
-sysCycle <= preCycle when sysEnable = '1' else CYCLE_IDLE4;
+sysCycle <= preCycle when sysEnable = '1' else CYCLE_IEC0;
 pause_out <= not sysEnable;
 
 process(clk32)
 begin
 	if rising_edge(clk32) then
+		preCycle <= sysCycleDef'succ(preCycle);
 		if preCycle = sysCycleDef'high then
 			preCycle <= sysCycleDef'low;
-		else
-			preCycle <= sysCycleDef'succ(preCycle);
+			if sysEnable = '1' then
+				rfsh_cycle <= rfsh_cycle + 1;
+			end if;
 		end if;
 		
-		if preCycle = CYCLE_IDLE4 then
+		refresh <= '0';
+		if preCycle = sysCycleDef'pred(CYCLE_IEC0) and rfsh_cycle = "00" then
 			sysEnable <= not pause;
+			refresh <= '1';
 		end if;
 	end if;
 end process;
@@ -568,7 +571,7 @@ begin
 		enablePixel <= '0';
 		if sysCycle = CYCLE_VIC2
 		or sysCycle = CYCLE_IDLE2
-		or sysCycle = CYCLE_IDLE6
+		or sysCycle = CYCLE_DMA2
 		or sysCycle = CYCLE_IEC2
 		or sysCycle = CYCLE_CPU2
 		or sysCycle = CYCLE_CPU6
