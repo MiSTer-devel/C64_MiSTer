@@ -84,7 +84,7 @@ end
 reg IOE_ena,IOF_ena;
 reg IOE_rd,IOF_rd;
 
-assign IO_rom = (IOE_ena & ~IOE_rd) | (IOF_ena & ~IOF_rd);
+assign IO_rom = (IOE & IOE_ena & ~IOE_rd) | (IOF & IOF_ena & ~IOF_rd);
 assign IO_rd  = IOE_rd | IOF_rd;
 
 reg romL_we = 0;
