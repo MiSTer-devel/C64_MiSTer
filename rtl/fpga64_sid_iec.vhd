@@ -83,6 +83,17 @@ port(
 	IOF			: out std_logic;
 	freeze_key  : out std_logic;
 	mod_key     : out std_logic;
+	
+	-- dma access
+	dma_req     : in  std_logic := '0';
+	dma_grant   : out std_logic;
+	dma_cpu_cyc : out std_logic;
+	dma_ext_cyc : out std_logic;
+	dma_addr    : in  unsigned(15 downto 0) := (others => '0');
+	dma_dout    : in  unsigned(7 downto 0) := (others => '0');
+	dma_din     : out unsigned(7 downto 0);
+	dma_we      : in  std_logic := '0';
+	irq_ext_n   : in  std_logic := '1';
 
 	-- joystick interface
 	joyA        : in  std_logic_vector(6 downto 0);
@@ -159,6 +170,8 @@ signal preCycle     : sysCycleDef := sysCycleDef'low;
 signal sysEnable    : std_logic;
 signal rfsh_cycle   : unsigned(1 downto 0);
 
+signal dma_active   : std_logic;
+
 signal phi0_cpu     : std_logic;
 signal cpuHasBus    : std_logic;
 
@@ -185,9 +198,12 @@ signal cs_cia1      : std_logic;
 signal cs_cia2      : std_logic;
 signal cs_ram       : std_logic;
 signal cpuWe        : std_logic;
+signal cpuWe_pre    : std_logic;
 signal cpuAddr      : unsigned(15 downto 0);
+signal cpuAddr_pre  : unsigned(15 downto 0);
 signal cpuDi        : unsigned(7 downto 0);
 signal cpuDo        : unsigned(7 downto 0);
+signal cpuDo_pre    : unsigned(7 downto 0);
 signal cpuIO        : unsigned(7 downto 0);
 
 signal io_enable    : std_logic;
@@ -340,7 +356,7 @@ begin
 	if rising_edge(clk32) then
 		if sysCycle = sysCycleDef'pred(CYCLE_CPU0) then
 			phi0_cpu <= '1';
-			if baLoc = '1' or cpuWe = '1' then
+			if baLoc = '1' or (cpuWe = '1' and dma_active = '0') then
 				cpuHasBus <= '1';
 			end if;
 		end if;
@@ -727,22 +743,22 @@ begin
 end process;
 
 -- -----------------------------------------------------------------------
--- 6510 CPU
+-- 6510 CPU / DMA
 -- -----------------------------------------------------------------------
 cpu: entity work.cpu_6510
 port map (
 	clk => clk32,
 	reset => reset,
-	enable => enableCpu,
+	enable => enableCpu and not dma_active,
 	nmi_n => irq_cia2 and nmi_n,
 	nmi_ack => nmi_ack,
-	irq_n => irq_cia1 and irq_vic and irq_n,
+	irq_n => irq_cia1 and irq_vic and irq_n and irq_ext_n,
 	rdy => baLoc,
 
 	di => cpuDi,
-	addr => cpuAddr,
-	do => cpuDo,
-	we => cpuWe,
+	addr => cpuAddr_pre,
+	do => cpuDo_pre,
+	we => cpuWe_pre,
 
 	diIO => cpuIO(7) & cpuIO(6) & cpuIO(5) & cass_sense & cpuIO(3) & "111",
 	doIO => cpuIO
@@ -769,16 +785,18 @@ begin
 		io_enable <= io_enable and not enableCpu;
 
 		if sysCycle = CYCLE_IDLE0 then
-
-			io_enable <= '1';
-
 			if turbo_cnt /= 0 then
 				turbo_cnt <= turbo_cnt - 1;
 			end if;
+			io_enable <= '1';
+		end if;
 
+		-- 2 points to register DMA request before CPU cycles.
+		if sysCycle = CYCLE_IDLE1 or sysCycle = CYCLE_IEC1 then
+			dma_active <= dma_req;
 			turbo_en <= turbo_mode(0);
 			turbo_m <= "000";
-			if (turbo_mode(0) and turbo_state) = '1' or (turbo_mode(1) = '1' and turbo_cnt = 0) then
+			if dma_req = '0' and ((turbo_mode(0) and turbo_state) = '1' or (turbo_mode(1) = '1' and turbo_cnt = 0)) then
 				case turbo_speed is
 					when "00" => turbo_m <= "010";
 					when "01" => turbo_m <= "110";
@@ -793,6 +811,15 @@ begin
 		end if;
 	end if;
 end process;
+
+cpuAddr <= cpuAddr_pre when dma_active = '0' else dma_addr;
+cpuDo   <= cpuDo_pre   when dma_active = '0' else dma_dout;
+cpuWe   <= cpuWe_pre   when dma_active = '0' else dma_we;
+
+dma_ext_cyc <= '1' when (sysCycle >= CYCLE_DMA0 and sysCycle <= CYCLE_DMA3) else '0';
+dma_cpu_cyc <= '1' when (sysCycle >= CYCLE_CPU0 and sysCycle <= CYCLE_CPUF) and cpuHasBus = '1' else '0';
+dma_grant   <= dma_active;
+dma_din     <= cpuDi;
 
 -- -----------------------------------------------------------------------
 -- Keyboard
