@@ -194,7 +194,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXXX
+// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXXXXM
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -202,9 +202,9 @@ localparam CONF_STR = {
 	"S0,D64T64,Mount Drive #8;",
 	"H0S1,D64T64,Mount Drive #9;",
 	"-;",
-	"F4,PRG,Load File;",
+	"F4,PRG,Load Program;",
 	"F5,CRT,Load Cartridge;",
-	"-;",
+	"d7F3,REU,Load REU;",
 	"F6,TAP,Load Tape;",
 	"h3R7,Tape Play/Pause;",
 	"h3RN,Tape Unload;",
@@ -245,19 +245,19 @@ localparam CONF_STR = {
 	"P2O1,Release Keys on Reset,Yes,No;",
 	"P2OO,Clear RAM on Reset,Yes,No;",
 	"P2oI,Reset & Run PRG,Yes,No;",
+	"P2oA,Pause When OSD is Open,No,Yes;",
 	"P2-;",
-	"P2oK,GeoRAM,Disabled,4096KB;",
+	"P2oK,GeoRAM,Disabled,4MB;",
+	"P2oLM,REU,Disabled,512KB,2MB (512KB wrap),16MB;",
+	"P2-;",
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
-	"P2-;",
 	"P2FC8,ROM,Load System ROM;",
 	"P2FC5,CRT,Boot Cartridge;",
 
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
-	"-;",
 	"oEF,Turbo mode,Off,C128,Smart;",
 	"d6oGH,Turbo speed,2x,3x,4x;",
-	"oA,Pause When OSD is Open,No,Yes;",
 	"-;",
 	"R0,Reset;",
 	"RH,Reset & Detach Cartridge;",
@@ -430,7 +430,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.conf_str(CONF_STR),
 
 	.status(status),
-	.status_menumask({|status[47:46],status[16],status[13],tap_loaded, en1080p, |vcrop, ~status[25]}),
+	.status_menumask({|reu_cfg,|status[47:46],status[16],status[13],tap_loaded, en1080p, |vcrop, ~status[25]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -458,6 +458,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.ioctl_wait(ioctl_req_wr|reset_wait)
 );
 
+wire load_reu = ioctl_index == 3;
 wire load_prg = ioctl_index == 4;
 wire load_crt = ioctl_index == 5;
 wire load_tap = ioctl_index == 6;
@@ -516,6 +517,57 @@ cartridge cartridge
 	.nmi_ack(nmi_ack)
 );
 
+wire        dma_req;
+wire        dma_grant;
+wire        dma_cpu_cyc;
+wire        dma_ext_cyc;
+wire [15:0] dma_addr;
+wire  [7:0] dma_dout;
+wire  [7:0] dma_din;
+wire        dma_we;
+
+wire [24:0] reu_ram_addr;
+wire  [7:0] reu_ram_dout;
+wire        reu_ram_ce;
+wire        reu_ram_we;
+
+wire  [7:0] reu_dout;
+wire        reu_irq;
+
+wire        reu_oe  = IOF && reu_cfg;
+wire  [1:0] reu_cfg = status[54:53];
+
+reu reu
+(
+	.clk(clk_sys),
+	.reset(~reset_n),
+	.cfg(reu_cfg),
+
+	.dma_req(dma_req),
+	.dma_grant(dma_grant),
+	.dma_cpu_cyc(dma_cpu_cyc),
+	.dma_ext_cyc(dma_ext_cyc),
+	.dma_addr(dma_addr),
+	.dma_dout(dma_dout),
+	.dma_din(dma_din),
+	.dma_we(dma_we),
+
+	.ram_addr(reu_ram_addr),
+	.ram_dout(reu_ram_dout),
+	.ram_din(sdram_data),
+	.ram_ce(reu_ram_ce),
+	.ram_we(reu_ram_we),
+	
+	.cpu_addr(c64_addr),
+	.cpu_dout(c64_data_out),
+	.cpu_din(reu_dout),
+	.cpu_ce(IOF),
+	.cpu_we(ram_we),
+	
+	.irq(reu_irq)
+);
+
+
 // rearrange joystick contacts for c64
 wire [6:0] joyA_int = {joyA[6:4], joyA[0], joyA[1], joyA[2], joyA[3]};
 wire [6:0] joyB_int = {joyB[6:4], joyB[0], joyB[1], joyB[2], joyB[3]};
@@ -565,7 +617,8 @@ reg        io_cycle_we;
 reg [24:0] io_cycle_addr;
 reg  [7:0] io_cycle_data;
 
-localparam TAP_ADDR = 25'h200000;
+localparam TAP_ADDR = 25'h0200000;
+localparam REU_ADDR = 25'h1000000;
 
 always @(posedge clk_sys) begin
 	reg  [4:0] erase_to;
@@ -653,6 +706,11 @@ always @(posedge clk_sys) begin
 		
 		if (load_tap) begin
 			if (ioctl_addr == 0) ioctl_load_addr <= TAP_ADDR;
+			ioctl_req_wr <= 1;
+		end
+
+		if (load_reu) begin
+			if (ioctl_addr == 0) ioctl_load_addr <= REU_ADDR;
 			ioctl_req_wr <= 1;
 		end
 	end
@@ -781,10 +839,10 @@ sdram sdram
 	.clk(clk64),
 	.init(~pll_locked),
 	.refresh(refresh),
-	.addr( io_cycle ? io_cycle_addr : cart_addr    ),
-	.ce  ( io_cycle ? io_cycle_ce   : cart_ce      ),
-	.we  ( io_cycle ? io_cycle_we   : cart_we      ),
-	.din ( io_cycle ? io_cycle_data : c64_data_out ),
+	.addr( io_cycle ? io_cycle_addr : dma_ext_cyc ? reu_ram_addr : cart_addr    ),
+	.ce  ( io_cycle ? io_cycle_ce   : dma_ext_cyc ? reu_ram_ce   : cart_ce      ),
+	.we  ( io_cycle ? io_cycle_we   : dma_ext_cyc ? reu_ram_we   : cart_we      ),
+	.din ( io_cycle ? io_cycle_data : dma_ext_cyc ? reu_ram_dout : c64_data_out ),
 	.dout( sdram_data )
 );
 
@@ -852,9 +910,19 @@ fpga64_sid_iec fpga64
 	.ioe(IOE),
 	.iof(IOF),
 	.io_rom(io_rom),
-	.io_ext(cart_oe | opl_en),
-	.io_data(cart_oe ? cart_data : sid2_oe ? data_sid : opl_dout),
+	.io_ext(cart_oe | reu_oe | opl_en),
+	.io_data(cart_oe ? cart_data : reu_oe ? reu_dout : sid2_oe ? data_sid : opl_dout),
 	
+	.dma_req(dma_req),
+	.dma_grant(dma_grant),
+	.dma_cpu_cyc(dma_cpu_cyc),
+	.dma_ext_cyc(dma_ext_cyc),
+	.dma_addr(dma_addr),
+	.dma_dout(dma_dout),
+	.dma_din(dma_din),
+	.dma_we(dma_we),
+	.irq_ext_n(~reu_irq),
+
 	.cia_mode(status[45]),
 
 	.joya(joyA_c64 | {1'b0, pd12_mode[1] & paddle_2_btn, pd12_mode[1] & paddle_1_btn, 2'b00} | {pd12_mode[0] & mouse_btn[0], 3'b000, pd12_mode[0] & mouse_btn[1]}),

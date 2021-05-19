@@ -8,6 +8,7 @@ set_global_assignment -name VERILOG_FILE rtl/sdram.v
 set_global_assignment -name VHDL_FILE rtl/dprom.vhd
 set_global_assignment -name VHDL_FILE rtl/spram.vhd
 set_global_assignment -name VERILOG_FILE rtl/cartridge.v
+set_global_assignment -name VERILOG_FILE rtl/reu.v
 set_global_assignment -name VHDL_FILE rtl/c1530.vhd
 set_global_assignment -name VERILOG_FILE rtl/c1351.v
 set_global_assignment -name VHDL_FILE rtl/video_sync.vhd
