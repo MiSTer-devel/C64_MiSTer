@@ -10,6 +10,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - Direct file injection (*.PRG)
 - Dual SID with several degree of mixing 6581/8580 from stereo to mono.
 - Similar to 6581 and 8580 SID filters.
+- REU 16MB and GeoRAM 4MB memory expanders.
 - OPL2 sound expander.
 - Pause option when OSD is opened.
 - 4 joysticks mode.
@@ -70,3 +71,12 @@ In OSD->System page choose **Expansion: Fast Disks**. Then load [DolphinDOS_2.0.
 Primary function of RS232 is emulated dial-up connection to old-fashioned BBS. **CCGMS Ultimate** is recommended (Don't use CCGMS 2021 - it's buggy version). It supports both standard 2400 VIC-1011 and more advanced UP9600 modes.
 
 **Note:** DolphinDOS and SpeedDOS kernals have no RS232 routines so most RS232 software don't work with these kernals!
+
+### GeoRAM
+Supported up to 4MB of memory. GeoRAM is connected if no other cart is loaded. It's automatically disabled when cart is loaded, then enabled when cart unloaded.
+
+### REU
+Supported standard 512KB, expanded 2MB with wrapping inside 512KB blocks (for compatibility) and linear 16MB size with full 16MB counter wrap.
+Support for REU files.
+
+GeoRAM and REU don't conflict each other and can be both enabled.
