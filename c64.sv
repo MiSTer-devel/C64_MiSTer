@@ -194,7 +194,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// X1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXXXXM
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX X XX XX XXXXXXXXXXXXXXM
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -213,8 +213,7 @@ localparam CONF_STR = {
 	"P1O2,Video Standard,PAL,NTSC;",
 	"P1O45,Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O8A,Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
-	"H2d1P1o0,Vertical Crop,No,Yes;",
-	"h2d1P1o01,Vertical Crop,No,270,216;",
+	"d1P1o0,Vertical Crop,No,Yes;",
 	"P1OUV,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"P1-;",
 	"P1OD,Left SID,6581,8580;",
@@ -430,7 +429,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.conf_str(CONF_STR),
 
 	.status(status),
-	.status_menumask({|reu_cfg,|status[47:46],status[16],status[13],tap_loaded, en1080p, |vcrop, ~status[25]}),
+	.status_menumask({|reu_cfg,|status[47:46],status[16],status[13],tap_loaded, 1'b0, |vcrop, ~status[25]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -1197,17 +1196,14 @@ always @(posedge CLK_VIDEO) begin
 		if(HDMI_HEIGHT == 720)  vcrop <= 240;
 		if(HDMI_HEIGHT == 768)  vcrop <= 256; // NTSC mode has 250 visible lines only!
 		if(HDMI_HEIGHT == 800)  begin vcrop <= 200; wide <= vcrop_en; end
-		if(HDMI_HEIGHT == 1080) vcrop <= (ntsc | status[33]) ? 10'd216 : 10'd270;
+		if(HDMI_HEIGHT == 1080) vcrop <= 10'd216;
 		if(HDMI_HEIGHT == 1200) vcrop <= 240;
 	end
 end
 
-reg en1080p;
-always @(posedge CLK_VIDEO) en1080p <= (HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080);
-
 
 wire [1:0] ar = status[5:4];
-wire vcrop_en = en1080p ? |status[33:32] : status[32];
+wire vcrop_en = status[32];
 wire vga_de;
 video_freak video_freak
 (
