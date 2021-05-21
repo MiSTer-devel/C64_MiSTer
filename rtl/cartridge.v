@@ -723,7 +723,7 @@ always begin
 					addr_out[24:13] = get_bank(2, 0);
 				end
 			99: if(IOE) begin
-					addr_out[24:8] <= {3'b111, geo_bank}; // last 4MB of SDRAM
+					addr_out[24:8] <= {3'b011, geo_bank};
 				end
 		default:;
 		endcase
