@@ -36,6 +36,7 @@ entity video_vicii_656x is
 
 		baSync : in std_logic;
 		ba: out std_logic;
+		ba_dma : out std_logic;
 
 		mode6569 : in std_logic; -- PAL 63 cycles and 312 lines
 		mode6567old : in std_logic; -- old NTSC 64 cycles and 262 line
@@ -114,6 +115,7 @@ architecture rtl of video_vicii_656x is
 	signal baSprite15 : std_logic;
 	signal baSprite26 : std_logic;
 	signal baSprite37 : std_logic;
+	signal baSpriteLast : std_logic;
 
 -- Memory refresh cycles
 	signal refreshCounter : unsigned(7 downto 0);
@@ -637,8 +639,13 @@ vicStateMachine: process(clk)
 				end if;
 				if vicCycle = cycleRefresh1 then
 					baSprite37 <= '1';
+					baSpriteLast <= baSpriteLast and baSprite37;
 				end if;
-				
+				if vicCycle = cycleRefresh3 then
+					baSprite37 <= '1';
+					baSpriteLast <= '1';
+				end if;
+
 				if MDMA_next(0) and (vicCycle = cycleCalcSprites) then
 					baSprite04 <= '0';
 				end if;
@@ -667,6 +674,7 @@ vicStateMachine: process(clk)
 		end if;
 	end process;
 	baLoc <= baChars and baSprite04 and baSprite15 and baSprite26 and baSprite37;
+	ba_dma <= '1' when (baSpriteLast = '0' or vicCycle = cycleRefresh3) and badLine else '0';
 
 -- -----------------------------------------------------------------------
 -- Address valid?
