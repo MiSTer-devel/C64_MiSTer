@@ -202,10 +202,8 @@ localparam CONF_STR = {
 	"S0,D64T64,Mount Drive #8;",
 	"H0S1,D64T64,Mount Drive #9;",
 	"-;",
-	"F4,PRG,Load Program;",
-	"F5,CRT,Load Cartridge;",
-	"d7F3,REU,Load REU;",
-	"F6,TAP,Load Tape;",
+	"F1,PRGCRTREUTAP;",
+	"h3-;",
 	"h3R7,Tape Play/Pause;",
 	"h3RN,Tape Unload;",
 	"h3OB,Tape Sound,Off,On;",
@@ -235,6 +233,9 @@ localparam CONF_STR = {
 	"P2oC,Parallel port,Enabled,Disabled;",
 	"P2R6,Reset Disk Drives;",
 	"P2-;",
+	"P2oK,GeoRAM,Disabled,4MB;",
+	"P2oLM,REU,Disabled,512KB,2MB (512KB wrap),16MB;",
+	"P2-;",
 	"P2oB,Expansion,Joysticks,RS232;",
 	"P2oJ,RS232 mode,UP9600,VIC-1011;",
 	"P2oD,CIA Model,6526,8521;",
@@ -247,15 +248,14 @@ localparam CONF_STR = {
 	"P2oI,Reset & Run PRG,Yes,No;",
 	"P2oA,Pause When OSD is Open,No,Yes;",
 	"P2-;",
-	"P2oK,GeoRAM,Disabled,4MB;",
-	"P2oLM,REU,Disabled,512KB,2MB (512KB wrap),16MB;",
-	"P2-;",
-	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 	"P2FC8,ROM,Load System ROM;",
 	"P2FC5,CRT,Boot Cartridge;",
+	"P2-;",
+	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
+	"-;",
 	"oEF,Turbo mode,Off,C128,Smart;",
 	"d6oGH,Turbo speed,2x,3x,4x;",
 	"-;",
@@ -458,10 +458,10 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.ioctl_wait(ioctl_req_wr|reset_wait)
 );
 
-wire load_reu = ioctl_index == 3;
-wire load_prg = ioctl_index == 4;
-wire load_crt = ioctl_index == 5;
-wire load_tap = ioctl_index == 6;
+wire load_prg = ioctl_index == 'h01;
+wire load_crt = ioctl_index == 'h41 || ioctl_index == 5;
+wire load_reu = ioctl_index == 'h81;
+wire load_tap = ioctl_index == 'hC1;
 wire load_flt = ioctl_index == 7;
 wire load_rom = ioctl_index == 8;
 
@@ -518,17 +518,15 @@ cartridge cartridge
 );
 
 wire        dma_req;
-wire        dma_grant;
-wire        dma_cpu_cyc;
-wire        dma_ext_cyc;
+wire        dma_cycle;
 wire [15:0] dma_addr;
 wire  [7:0] dma_dout;
 wire  [7:0] dma_din;
 wire        dma_we;
+wire        ext_cycle;
 
 wire [24:0] reu_ram_addr;
 wire  [7:0] reu_ram_dout;
-wire        reu_ram_ce;
 wire        reu_ram_we;
 
 wire  [7:0] reu_dout;
@@ -544,29 +542,31 @@ reu reu
 	.cfg(reu_cfg),
 
 	.dma_req(dma_req),
-	.dma_grant(dma_grant),
-	.dma_cpu_cyc(dma_cpu_cyc),
-	.dma_ext_cyc(dma_ext_cyc),
+
+	.dma_cycle(dma_cycle),
 	.dma_addr(dma_addr),
 	.dma_dout(dma_dout),
 	.dma_din(dma_din),
 	.dma_we(dma_we),
 
+	.ram_cycle(ext_cycle),
 	.ram_addr(reu_ram_addr),
 	.ram_dout(reu_ram_dout),
 	.ram_din(sdram_data),
-	.ram_ce(reu_ram_ce),
 	.ram_we(reu_ram_we),
 	
 	.cpu_addr(c64_addr),
 	.cpu_dout(c64_data_out),
 	.cpu_din(reu_dout),
-	.cpu_ce(IOF),
 	.cpu_we(ram_we),
+	.cpu_cs(IOF),
 	
 	.irq(reu_irq)
 );
 
+reg ext_cycle_d;
+always @(posedge clk_sys) ext_cycle_d <= ext_cycle;
+wire reu_ram_ce = ~ext_cycle_d & ext_cycle & dma_req;
 
 // rearrange joystick contacts for c64
 wire [6:0] joyA_int = {joyA[6:4], joyA[0], joyA[1], joyA[2], joyA[3]};
@@ -839,10 +839,10 @@ sdram sdram
 	.clk(clk64),
 	.init(~pll_locked),
 	.refresh(refresh),
-	.addr( io_cycle ? io_cycle_addr : dma_ext_cyc ? reu_ram_addr : cart_addr    ),
-	.ce  ( io_cycle ? io_cycle_ce   : dma_ext_cyc ? reu_ram_ce   : cart_ce      ),
-	.we  ( io_cycle ? io_cycle_we   : dma_ext_cyc ? reu_ram_we   : cart_we      ),
-	.din ( io_cycle ? io_cycle_data : dma_ext_cyc ? reu_ram_dout : c64_data_out ),
+	.addr( io_cycle ? io_cycle_addr : ext_cycle ? reu_ram_addr : cart_addr    ),
+	.ce  ( io_cycle ? io_cycle_ce   : ext_cycle ? reu_ram_ce   : cart_ce      ),
+	.we  ( io_cycle ? io_cycle_we   : ext_cycle ? reu_ram_we   : cart_we      ),
+	.din ( io_cycle ? io_cycle_data : ext_cycle ? reu_ram_dout : c64_data_out ),
 	.dout( sdram_data )
 );
 
@@ -914,9 +914,7 @@ fpga64_sid_iec fpga64
 	.io_data(cart_oe ? cart_data : reu_oe ? reu_dout : sid2_oe ? data_sid : opl_dout),
 	
 	.dma_req(dma_req),
-	.dma_grant(dma_grant),
-	.dma_cpu_cyc(dma_cpu_cyc),
-	.dma_ext_cyc(dma_ext_cyc),
+	.dma_cycle(dma_cycle),
 	.dma_addr(dma_addr),
 	.dma_dout(dma_dout),
 	.dma_din(dma_din),
@@ -934,7 +932,9 @@ fpga64_sid_iec fpga64
 	.pot4(pd34_mode[1] ? paddle_4 : pd34_mode[0] ? mouse_y : {8{joyB_c64[6]}}),
 
 	.io_cycle(io_cycle),
+	.ext_cycle(ext_cycle),
 	.refresh(refresh),
+
 	.sid_we_ext(sid_we),
 	.sid_mode({status[22:21]==1,status[20]}),
 	.sid_cfg(status[35:34]),

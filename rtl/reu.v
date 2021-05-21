@@ -10,25 +10,24 @@ module reu
 	input       [1:0] cfg, //none, 512K, 2MB (512KB wrap), 16MB
 
 	output reg        dma_req,
-	input             dma_grant,
-	input             dma_cpu_cyc,
-	input             dma_ext_cyc,
+
+	input             dma_cycle,
 	output reg [15:0] dma_addr,
 	output reg  [7:0] dma_dout,
 	input       [7:0] dma_din,
-	output reg        dma_we,
+	output            dma_we,
 	
+	input             ram_cycle,
 	output reg [24:0] ram_addr,
 	output reg  [7:0] ram_dout,
 	input       [7:0] ram_din,
-	output reg        ram_ce,
 	output reg        ram_we,
 	
 	input      [15:0] cpu_addr,
 	input       [7:0] cpu_dout,
 	output reg  [7:0] cpu_din,
-	input             cpu_ce,
 	input             cpu_we,
+	input             cpu_cs,
 
 	output reg        irq
 );
@@ -54,8 +53,11 @@ wire        op_dev = op_cur[0];   // 0: C64, 1: RAM
 wire        op_dat = op_cur[1];   // storage
 wire  [1:0] op_act = op_cur[3:2]; // 0: read, 1: write, 2: verify, 3: end
 
+reg dma_we_r;
+assign dma_we = dma_we_r & dma_cycle;
+
 always @(posedge clk) begin
-	reg        old_ce;
+	reg        old_cs;
 	reg  [1:0] state;
 	reg  [3:0] cnt;
 	reg  [7:0] data[2];
@@ -74,7 +76,7 @@ always @(posedge clk) begin
 	error = !op_act[0] && data[0] != data[1];
 	addr_mask = ((cfg == 1) ? 24'h7FFFF : (cfg == 2) ? 24'h1FFFFF : 24'hFFFFFF);
 
-	old_ce <= cpu_ce;
+	old_cs <= cpu_cs;
 
 	if(reset || !cfg) begin
 		status     <= 0;
@@ -88,14 +90,13 @@ always @(posedge clk) begin
 		intr       <= 0;
 		ctl        <= 0;
 		dma_req    <= 0;
-		dma_we     <= 0;
-		ram_ce     <= 0;
+		dma_we_r   <= 0;
 		ram_we     <= 0;
 		cpu_din    <= 'hFF;
 		state      <= STATE_IDLE;
 	end
 	else begin
-		if(~dma_grant & ~old_ce & cpu_ce) begin
+		if(~dma_req & ~old_cs & cpu_cs) begin
 			if(cpu_we) begin
 				case(cpu_addr[4:0])
 					 1:       cmd             <= cpu_dout;
@@ -145,7 +146,7 @@ always @(posedge clk) begin
 				end
 
 			STATE_EVAL:
-				if(dma_grant) begin
+				begin
 					cnt <= 0;
 					if(op_act[1]) begin
 						if(~ctl[7]) addr_c64 <= addr_c64 + 1'd1;
@@ -167,18 +168,17 @@ always @(posedge clk) begin
 						else length  <= length - 1'd1;
 					end
 					else if(op_dev) begin
-						if (~dma_ext_cyc) begin
+						if (~ram_cycle) begin
 							ram_addr  <= {1'b1, addr_ram};
-							ram_ce    <= 1;
 							ram_we    <= op_act[0];
 							ram_dout  <= data[op_dat];
 							state     <= STATE_PROC_RAM;
 						end
 					end
 					else begin
-						if(~dma_cpu_cyc) begin
+						if(~dma_cycle) begin
 							dma_addr  <= addr_c64;
-							dma_we    <= op_act[0];
+							dma_we_r  <= op_act[0];
 							dma_dout  <= data[op_dat];
 							state     <= STATE_PROC_C64;
 						end
@@ -186,8 +186,7 @@ always @(posedge clk) begin
 				end
 
 			STATE_PROC_RAM:
-				if(dma_ext_cyc) begin
-					ram_ce <= 0;
+				if(ram_cycle) begin
 					cnt    <= cnt + 1'd1;
 					if(&cnt[1:0]) begin
 						data[op_dat] <= ram_din;
@@ -198,11 +197,11 @@ always @(posedge clk) begin
 				end
 
 			STATE_PROC_C64:
-				if(dma_cpu_cyc) begin
+				if(dma_cycle) begin
 					cnt <= cnt + 1'd1;
 					if(&cnt[3:0]) begin
 						dma_addr     <= 0; // make sure we won't read some device's data while idling.
-						dma_we       <= 0;
+						dma_we_r     <= 0;
 						data[op_dat] <= dma_din;
 						stage        <= stage + 1'd1;
 						state        <= STATE_EVAL;

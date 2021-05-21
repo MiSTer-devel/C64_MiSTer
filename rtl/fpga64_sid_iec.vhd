@@ -52,6 +52,7 @@ port(
 	ramWE       : out std_logic;
 
 	io_cycle    : out std_logic;
+	ext_cycle   : out std_logic;
 	refresh     : out std_logic;
 
 	cia_mode    : in  std_logic;
@@ -86,9 +87,7 @@ port(
 	
 	-- dma access
 	dma_req     : in  std_logic := '0';
-	dma_grant   : out std_logic;
-	dma_cpu_cyc : out std_logic;
-	dma_ext_cyc : out std_logic;
+	dma_cycle   : out std_logic;
 	dma_addr    : in  unsigned(15 downto 0) := (others => '0');
 	dma_dout    : in  unsigned(7 downto 0) := (others => '0');
 	dma_din     : out unsigned(7 downto 0);
@@ -176,6 +175,7 @@ signal phi0_cpu     : std_logic;
 signal cpuHasBus    : std_logic;
 
 signal baLoc        : std_logic;
+signal ba_dma       : std_logic;
 signal aec          : std_logic;
 
 signal enableCpu    : std_logic;
@@ -356,7 +356,7 @@ begin
 	if rising_edge(clk32) then
 		if sysCycle = sysCycleDef'pred(CYCLE_CPU0) then
 			phi0_cpu <= '1';
-			if baLoc = '1' or (cpuWe = '1' and dma_active = '0') then
+			if baLoc = '1' or (cpuWe = '1' and dma_active = '0') or (ba_dma = '1' and dma_active = '1') then
 				cpuHasBus <= '1';
 			end if;
 		end if;
@@ -514,6 +514,7 @@ port map (
 	
 	baSync => '0',
 	ba => baLoc,
+	ba_dma => ba_dma,
 
 	mode6569 => (not ntscMode),
 	mode6567old => '0',
@@ -816,10 +817,9 @@ cpuAddr <= cpuAddr_pre when dma_active = '0' else dma_addr;
 cpuDo   <= cpuDo_pre   when dma_active = '0' else dma_dout;
 cpuWe   <= cpuWe_pre   when dma_active = '0' else dma_we;
 
-dma_ext_cyc <= '1' when (sysCycle >= CYCLE_DMA0 and sysCycle <= CYCLE_DMA3) else '0';
-dma_cpu_cyc <= '1' when (sysCycle >= CYCLE_CPU0 and sysCycle <= CYCLE_CPUF) and cpuHasBus = '1' else '0';
-dma_grant   <= dma_active;
-dma_din     <= cpuDi;
+ext_cycle <= '1' when (sysCycle >= CYCLE_DMA0 and sysCycle <= CYCLE_DMA3) else '0';
+dma_cycle <= '1' when (sysCycle >= CYCLE_CPU0 and sysCycle <= CYCLE_CPUF) and cpuHasBus = '1' and dma_active = '1' else '0';
+dma_din   <= cpuDi;
 
 -- -----------------------------------------------------------------------
 -- Keyboard
