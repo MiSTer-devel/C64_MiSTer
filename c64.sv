@@ -478,7 +478,7 @@ wire [24:0] cart_addr;
 cartridge cartridge
 (
 	.clk32(clk_sys),
-	.reset_n(reset_n & (cart_attached | status[52])),
+	.reset_n(reset_n),
 
 	.cart_loading(ioctl_download && load_crt),
 	.cart_id(cart_attached ? cart_id : status[52] ? 8'd99 : 8'd255),
