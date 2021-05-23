@@ -260,9 +260,9 @@ localparam CONF_STR = {
 	"-;",
 	"R0,Reset;",
 	"RH,Reset & Detach Cartridge;",
-	"J,Fire 1,Fire 2,Fire 3,Paddle Btn;",
-	"jn,A,B,Y,X|P;",
-	"jp,A,B,Y,X|P;",
+	"J,Fire 1,Fire 2,Fire 3,Paddle Btn,Mod1,Mod2;",
+	"jn,A,B,Y,X|P,R,L;",
+	"jp,A,B,Y,X|P,R,L;",
 	"V,v",`BUILD_DATE
 };
 
@@ -383,6 +383,7 @@ always @(posedge clk_sys) begin
 end
 
 wire [15:0] joyA,joyB,joyC,joyD;
+wire [15:0] joy = joyA | joyB | joyC | joyD;
 
 wire [63:0] status;
 wire        forced_scandoubler;
@@ -568,10 +569,10 @@ always @(posedge clk_sys) ext_cycle_d <= ext_cycle;
 wire reu_ram_ce = ~ext_cycle_d & ext_cycle & dma_req;
 
 // rearrange joystick contacts for c64
-wire [6:0] joyA_int = {joyA[6:4], joyA[0], joyA[1], joyA[2], joyA[3]};
-wire [6:0] joyB_int = {joyB[6:4], joyB[0], joyB[1], joyB[2], joyB[3]};
-wire [6:0] joyC_c64 = {joyC[6:4], joyC[0], joyC[1], joyC[2], joyC[3]};
-wire [6:0] joyD_c64 = {joyD[6:4], joyD[0], joyD[1], joyD[2], joyD[3]};
+wire [6:0] joyA_int = joy[8] ? 7'd0 : {joyA[6:4], joyA[0], joyA[1], joyA[2], joyA[3]};
+wire [6:0] joyB_int = joy[8] ? 7'd0 : {joyB[6:4], joyB[0], joyB[1], joyB[2], joyB[3]};
+wire [6:0] joyC_c64 = joy[8] ? 7'd0 : {joyC[6:4], joyC[0], joyC[1], joyC[2], joyC[3]};
+wire [6:0] joyD_c64 = joy[8] ? 7'd0 : {joyD[6:4], joyD[0], joyD[1], joyD[2], joyD[3]};
 
 // swap joysticks if requested
 wire [6:0] joyA_c64 = status[3] ? joyB_int : joyA_int;
@@ -582,10 +583,10 @@ wire [7:0] paddle_2 = status[3] ? pd4 : pd2;
 wire [7:0] paddle_3 = status[3] ? pd1 : pd3;
 wire [7:0] paddle_4 = status[3] ? pd2 : pd4;
 
-wire       paddle_1_btn = status[3] ? joyC[7] : joyA[7];
-wire       paddle_2_btn = status[3] ? joyD[7] : joyB[7];
-wire       paddle_3_btn = status[3] ? joyA[7] : joyC[7];
-wire       paddle_4_btn = status[3] ? joyB[7] : joyD[7];
+wire       paddle_1_btn = ~joy[8] & (status[3] ? joyC[7] : joyA[7]);
+wire       paddle_2_btn = ~joy[8] & (status[3] ? joyD[7] : joyB[7]);
+wire       paddle_3_btn = ~joy[8] & (status[3] ? joyA[7] : joyC[7]);
+wire       paddle_4_btn = ~joy[8] & (status[3] ? joyB[7] : joyD[7]);
 
 wire [1:0] pd12_mode = status[27:26];
 wire [1:0] pd34_mode = status[29:28];
@@ -785,14 +786,62 @@ always @(posedge clk_sys) begin
 	end
 end
 
-reg start_strk = 0;
+reg        start_strk = 0;
+reg        reset_keys = 0;
 reg [10:0] key = 0;
 always @(posedge clk_sys) begin
-	reg [3:0] act = 0;
-	int to;
+	reg  [3:0] act = 0;
+	reg        joy_finish = 0;
+	reg [17:0] joy_last = 0;
+	reg [17:0] joy_key;
+	int        to;
 
-	if(~reset_n) act <= 0;
-	if(act) begin
+	reset_keys <= 0;
+
+	joy_key =(joy[9:8] == 3) ?
+				(joy[0] ? 18'h005 : joy[1] ? 18'h006 : joy[2] ? 18'h004 : joy[3] ? 18'h00C  :
+				 joy[4] ? 18'h003 : joy[5] ? 18'h00B : joy[6] ? 18'h083 : joy[7] ? 18'h00A  : 18'h0):
+				(joy[9]) ?
+				(joy[0] ? 18'h016 : joy[1] ? 18'h01E : joy[2] ? 18'h026 : joy[3] ? 18'h025  :
+			    joy[4] ? 18'h02E : joy[5] ? 18'h045 : joy[6] ? 18'h035 : joy[7] ? 18'h031  : 18'h0):
+				(joy[0] ? 18'h174 : joy[1] ? 18'h16B : joy[2] ? 18'h172 : joy[3] ? 18'h175  : 
+				 joy[4] ? 18'h05A : joy[5] ? 18'h029 : joy[6] ? 18'h076 : joy[7] ? 18'h2276 : 18'h0);
+	
+	if(~reset_n) {joy_finish, act} <= 0;
+
+	if(joy[9:8]) begin
+		joy_finish <= 1;
+		if(!joy[7:0] && joy_last) begin
+			joy_last <= 0;
+			reset_keys <= 1;
+		end
+		else if(!joy_last[8:0] && joy_key) begin
+			to <= to + 1'd1;
+			if(joy_last[17:9] != joy_key[17:9]) begin
+				joy_last[17:9] <= joy_key[17:9];
+				key <= joy_key[17:9];
+				key[9] <= 1;
+				key[10] <= ~key[10];
+			end
+			else if(to > 640000 && joy_last[8:0] != joy_key[8:0]) begin
+				joy_last[8:0] <= joy_key[8:0];
+				key <= joy_key[8:0];
+				key[9] <= 1;
+				key[10] <= ~key[10];
+			end
+		end
+		else begin
+			to <= 0;
+		end
+	end
+	else if(joy_finish) begin
+		joy_last   <= 0;
+		key        <= 0;
+		key[10]    <= ps2_key[10];
+		joy_finish <= 0;
+		reset_keys <= 1;
+	end
+	else if(act) begin
 		to <= to + 1;
 		if(to > 1280000) begin
 			to <= 0;
@@ -881,7 +930,7 @@ fpga64_sid_iec fpga64
 	.turbo_reset(disk_access),
 
 	.ps2_key(key),
-	.kbd_reset(~reset_n & ~status[1]),
+	.kbd_reset((~reset_n & ~status[1]) | reset_keys),
 
 	.ramAddr(c64_addr),
 	.ramDout(c64_data_out),
