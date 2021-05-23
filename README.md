@@ -33,6 +33,16 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 
 ![keyboard-mapping](https://github.com/mister-devel/C64_MiSTer/blob/master/keymap.gif)
 
+### Using without keyboard
+If your joystick/gamepad has more than 4 buttons then you can have some limited usage of keybiard.
+Joystick buttons **Mod1** and **Mod2** adds 12 frequently used keys to skip the intros and start the game.
+Considering default button maps RLDU,Fire1,Fire2,Fire3,Paddle Btn, following keys are possible to enter:
+* With holding **Mod1**: Cursor RLDU, Enter, Space, Esc, Alt+ESC(LOAD"*" then RUN)
+* With holding **Mod2**: 1,2,3,4,5,0,Y,N
+* With holding **Mod1+Mod2**: F1,F2,F3,F4,F5,F6,F7,F8
+
+With maps above and using Dolphin DOS you can issue **F7** to list the files on disk, then move cursor to required file, then issue **Alt+ESC** to load it and run.
+
 ### Loadable ROM
 Alternative ROM can loaded from OSD: Hardware->Load System ROM.
 Format is simple concatenation of BASIC + Kernal.rom + C1541.rom
@@ -80,3 +90,4 @@ Supported standard 512KB, expanded 2MB with wrapping inside 512KB blocks (for co
 Support for REU files.
 
 GeoRAM and REU don't conflict each other and can be both enabled.
+
