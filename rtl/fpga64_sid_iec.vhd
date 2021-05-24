@@ -500,7 +500,7 @@ colorDataAec <= cpuDi(3 downto 0) when aec = '0' else colorData;
 
 vic: entity work.video_vicii_656x
 generic map (
-	registeredAddress => false,
+	registeredAddress => true,
 	emulateRefresh => true,
 	emulateLightpen => true,
 	emulateGraphics => true
