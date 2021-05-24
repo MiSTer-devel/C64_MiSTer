@@ -25,13 +25,10 @@
 //
 // WIDE=1 for 16 bit file I/O
 // VDNUM 1-4
-module hps_io #(parameter STRLEN=0, PS2DIV=0, WIDE=0, VDNUM=1, PS2WE=0)
+module hps_io #(parameter CONF_STR, CONF_STR_BRAM=1, PS2DIV=0, WIDE=0, VDNUM=1, PS2WE=0)
 (
 	input             clk_sys,
 	inout      [45:0] HPS_BUS,
-
-	// parameter STRLEN and the actual length of conf_str have to match
-	input [(8*STRLEN)-1:0] conf_str,
 
 	// buttons up to 32
 	output reg [31:0] joystick_0,
@@ -156,8 +153,6 @@ module hps_io #(parameter STRLEN=0, PS2DIV=0, WIDE=0, VDNUM=1, PS2WE=0)
 assign EXT_BUS[31:16] = HPS_BUS[31:16];
 assign EXT_BUS[35:33] = HPS_BUS[35:33];
 
-localparam MAX_W = $clog2((32 > (STRLEN+2)) ? 32 : (STRLEN+2))-1;
-
 localparam DW = (WIDE) ? 15 : 7;
 localparam AW = (WIDE) ?  7 : 8;
 localparam VD = VDNUM-1;
@@ -220,6 +215,19 @@ video_calc video_calc
 );
 
 /////////////////////////////////////////////////////////
+
+localparam STRLEN = $size(CONF_STR)>>3;
+localparam MAX_W = $clog2((32 > (STRLEN+2)) ? 32 : (STRLEN+2))-1;
+
+wire [7:0] conf_byte;
+generate
+	if(CONF_STR_BRAM) begin
+		confstr_rom #(CONF_STR, STRLEN) confstr_rom(.*, .conf_addr(byte_cnt - 1'd1));
+	end
+	else begin
+		assign conf_byte = CONF_STR[{(STRLEN - byte_cnt),3'b000} +:8];
+	end
+endgenerate
 
 assign     gamma_bus[20:0] = {clk_sys, gamma_en, gamma_wr, gamma_wr_addr, gamma_value};
 reg        gamma_en;
@@ -347,7 +355,7 @@ always@(posedge clk_sys) begin : uio_block
 						end
 
 				// reading config string, returning a byte from string
-				'h14: if(byte_cnt <= STRLEN) io_dout[7:0] <= conf_str[{(STRLEN - byte_cnt),3'b000} +:8];
+				'h14: if(byte_cnt <= STRLEN) io_dout[7:0] <= conf_byte;
 
 				// reading sd card status
 				'h16: if(!byte_cnt[MAX_W:3]) begin
@@ -923,5 +931,18 @@ always @(posedge clk_100) begin
 		vtime <= 0;
 	end
 end
+
+endmodule
+
+module confstr_rom #(parameter CONF_STR, STRLEN)
+(
+	input      clk_sys,
+	input      [$clog2(STRLEN+1)-1:0] conf_addr,
+	output reg [7:0] conf_byte
+);
+
+wire [7:0] rom[STRLEN];
+initial for(int i = 0; i < STRLEN; i++) rom[i] = CONF_STR[((STRLEN-i)*8)-1 -:8];
+always @ (posedge clk_sys) conf_byte <= rom[conf_addr];
 
 endmodule

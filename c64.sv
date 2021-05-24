@@ -412,7 +412,7 @@ wire [21:0] gamma_bus;
 
 wire  [7:0] pd1,pd2,pd3,pd4;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -426,8 +426,6 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .VDNUM(2)) hps_io
 	.paddle_1(pd2),
 	.paddle_2(pd3),
 	.paddle_3(pd4),
-
-	.conf_str(CONF_STR),
 
 	.status(status),
 	.status_menumask({|reu_cfg,|status[47:46],status[16],status[13],tap_loaded, 1'b0, |vcrop, ~status[25]}),
