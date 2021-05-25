@@ -831,8 +831,8 @@ port map (
 	reset => kbd_reset,
 	ps2_key => ps2_key,
 
-	joyA => not unsigned(joyA(4 downto 0)),
-	joyB => not unsigned(joyB(4 downto 0)),
+	joyA => not unsigned(joyA(6 downto 0)),
+	joyB => not unsigned(joyB(6 downto 0)),
 	pai => cia1_pao,
 	pbi => cia1_pbo,
 	pao => cia1_pai,

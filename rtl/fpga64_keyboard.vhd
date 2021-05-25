@@ -39,8 +39,8 @@ entity fpga64_keyboard is
 		reset   : in std_logic;
 		
 		ps2_key : in std_logic_vector(10 downto 0);
-		joyA    : in unsigned(4 downto 0);
-		joyB    : in unsigned(4 downto 0);
+		joyA    : in unsigned(6 downto 0);
+		joyB    : in unsigned(6 downto 0);
 
 		pai     : in unsigned(7 downto 0);
 		pbi     : in unsigned(7 downto 0);
@@ -250,9 +250,9 @@ begin
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_1) and
 				(pbi(1) or not key_arrowleft) and
-				(pbi(2) or not key_ctrl) and
+				(pbi(2) or not (key_ctrl or not joyA(6) or not joyB(6))) and
 				(pbi(3) or not key_2) and
-				(pbi(4) or not key_space) and
+				(pbi(4) or not (key_space or not joyA(5) or not joyB(5))) and
 				(pbi(5) or not (key_commodore or key_caps)) and
 				(pbi(6) or not key_Q) and
 				(pbi(7) or not key_runstop)));
@@ -284,7 +284,7 @@ begin
 				(pai(4) or not key_J) and
 				(pai(5) or not key_L) and
 				(pai(6) or not key_semicolon) and
-				(pai(7) or not key_ctrl);
+				(pai(7) or not (key_ctrl or not joyA(6) or not joyB(6)));
 			pbo(3) <= pbi(3) and joyA(3) and
 				(pai(0) or not (key_F7 or key_F8)) and
 				(pai(1) or not key_4) and
@@ -302,7 +302,7 @@ begin
 				(pai(4) or not key_M) and
 				(pai(5) or not key_dot) and
 				(pai(6) or not (key_left or key_up or (key_shiftr and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8)) and
-				(pai(7) or not key_space);
+				(pai(7) or not (key_space or not joyA(5) or not joyB(5)));
 			pbo(5) <= pbi(5) and
 				(pai(0) or not (key_F3 or key_F4)) and
 				(pai(1) or not key_S) and
