@@ -47,7 +47,7 @@ module sdram (
 );
 
 // no burst configured
-localparam RASCAS_DELAY   = 3'd1;   // tRCD>=20ns -> 2 cycles@64MHz
+localparam RASCAS_DELAY   = 3'd2;   // tRCD>=20ns -> 2 cycles@64MHz
 localparam BURST_LENGTH   = 3'b000; // 000=none, 001=2, 010=4, 011=8
 localparam ACCESS_TYPE    = 1'b0;   // 0=sequential, 1=interleaved
 localparam CAS_LATENCY    = 3'd2;   // 2/3 allowed
@@ -61,7 +61,7 @@ localparam MODE = { 3'b000, NO_WRITE_BURST, OP_MODE, CAS_LATENCY, ACCESS_TYPE, B
 // ---------------------------------------------------------------------
 
 localparam STATE_CMD_START = 3'd0;   // state in which a new command can be started
-localparam STATE_CMD_CONT  = STATE_CMD_START  + RASCAS_DELAY; // 2 command can be continued
+localparam STATE_CMD_CONT  = STATE_CMD_START  + RASCAS_DELAY; // command can be continued
 localparam STATE_READ      = STATE_CMD_CONT + CAS_LATENCY + 1'd1;
 localparam STATE_LAST      = 3'd7;   // last state in cycle
 
