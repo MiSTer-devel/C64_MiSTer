@@ -199,8 +199,8 @@ assign VGA_SCALER = 0;
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;UART9600:2400;",
-	"S0,D64T64,Mount Drive #8;",
-	"H0S1,D64T64,Mount Drive #9;",
+	"S0,D64T64D81,Mount Drive #8;",
+	"H0S1,D64T64D81,Mount Drive #9;",
 	"-;",
 	"F1,PRGCRTREUTAP;",
 	"h3-;",
@@ -247,8 +247,9 @@ localparam CONF_STR = {
 	"P2oI,Reset & Run PRG,Yes,No;",
 	"P2oA,Pause When OSD is Open,No,Yes;",
 	"P2-;",
-	"P2FC8,ROM,Load System ROM;",
-	"P2FC5,CRT,Boot Cartridge;",
+	"P2FC8,ROM,System ROM C64+C1541 ;",
+	"P2FC9,ROM,System ROM C1581     ;",
+	"P2FC5,CRT,Boot Cartridge       ;",
 	"P2-;",
 	"P2OEF,System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 
@@ -402,8 +403,9 @@ wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din1, sd_buff_din2;
 wire        sd_buff_wr;
-wire  [1:0] sd_change;
-wire        disk_readonly;
+wire  [1:0] img_mounted;
+wire [31:0] img_size;
+wire        img_readonly;
 
 wire [24:0] ps2_mouse;
 wire [10:0] ps2_key;
@@ -442,8 +444,9 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_din(sd_ack[0] ? sd_buff_din1 : sd_buff_din2),
 	.sd_buff_wr(sd_buff_wr),
-	.img_mounted(sd_change),
-	.img_readonly(disk_readonly),
+	.img_mounted(img_mounted),
+	.img_size(img_size),
+	.img_readonly(img_readonly),
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
@@ -456,12 +459,13 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 	.ioctl_wait(ioctl_req_wr|reset_wait)
 );
 
-wire load_prg = ioctl_index == 'h01;
-wire load_crt = ioctl_index == 'h41 || ioctl_index == 5;
-wire load_reu = ioctl_index == 'h81;
-wire load_tap = ioctl_index == 'hC1;
-wire load_flt = ioctl_index == 7;
-wire load_rom = ioctl_index == 8;
+wire load_prg   = ioctl_index == 'h01;
+wire load_crt   = ioctl_index == 'h41 || ioctl_index == 5;
+wire load_reu   = ioctl_index == 'h81;
+wire load_tap   = ioctl_index == 'hC1;
+wire load_flt   = ioctl_index == 7;
+wire load_rom   = ioctl_index == 8;
+wire load_c1581 = ioctl_index == 9;
 
 wire game;
 wire exrom;
@@ -1017,7 +1021,7 @@ fpga64_sid_iec fpga64
 
 	.c64rom_addr(ioctl_addr[13:0]),
 	.c64rom_data(ioctl_data),
-	.c64rom_wr(load_rom && !ioctl_addr[15:14] && ioctl_download && ioctl_wr),
+	.c64rom_wr(load_rom && !ioctl_addr[16:14] && ioctl_download && ioctl_wr),
 
 	.cass_motor(cass_motor),
 	.cass_sense(~tap_play),
@@ -1046,13 +1050,13 @@ wire c64_iec_clk;
 wire c64_iec_data;
 wire c64_iec_atn;
 
-wire c1541_reset = ~reset_n | status[6];
+wire c1541_reset = ~reset_n | status[6] | (load_c1581 & ioctl_download);
 
 wire [7:0] c1541_par_i;
 wire       c1541_stb_i;
-wire [7:0] c1541_par_o    = c1541_1_par_o & c1541_2_par_o;
-wire       c1541_stb_o    = c1541_1_stb_o & c1541_2_stb_o;
-wire       c1541_iec_clk  = c1541_1_iec_clk & (~drive9 | c1541_2_iec_clk);
+wire [7:0] c1541_par_o    = c1541_1_par_o    & ({8{~drive9}} | c1541_2_par_o);
+wire       c1541_stb_o    = c1541_1_stb_o    & (~drive9 | c1541_2_stb_o);
+wire       c1541_iec_clk  = c1541_1_iec_clk  & (~drive9 | c1541_2_iec_clk);
 wire       c1541_iec_data = c1541_1_iec_data & (~drive9 | c1541_2_iec_data);
 
 wire c1541_1_iec_clk;
@@ -1062,11 +1066,13 @@ wire c1541_1_led;
 wire [7:0] c1541_1_par_o;
 wire       c1541_1_stb_o;
 
-c1541 #(1) c1541_8
+iec_drive drive_8
 (
 	// C1541 signals
-	.clk_c1541(clk_sys),
-	.ce_c1541(c1541_ce),
+	.clk(clk_sys),
+	.ce(c1541_ce),
+
+	.drive_num(0),
 
 	.iec_atn_i(c64_iec_atn),
 	.iec_data_i(c64_iec_data),
@@ -1082,19 +1088,19 @@ c1541 #(1) c1541_8
 	.par_data_o(c1541_1_par_o),
 	.par_stb_o(c1541_1_stb_o),
 
-
 	// implementation and system specific signals
 	.clk_sys(clk_sys),
 	.pause(c64_pause),
 
-	.rom_addr({~ioctl_addr[14], ioctl_addr[13:0]}),
+	.rom_addr(load_rom ? (ioctl_addr[15:0] - 16'h4000) : {1'b1,ioctl_addr[14:0]}),
 	.rom_data(ioctl_data),
-	.rom_wr(load_rom && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
+	.rom_wr(((load_rom && ioctl_addr[16:14]) || load_c1581) && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
 
-	.disk_change(sd_change[0]),
-	.disk_readonly(disk_readonly),
-	.drive_num(0),
+	.img_mounted(img_mounted[0]),
+	.img_size(img_size),
+	.img_readonly(img_readonly),
+	.img_type(ioctl_index[7]),
 
 	.sd_lba(sd_lba1),
 	.sd_rd(sd_rd[0]),
@@ -1112,12 +1118,13 @@ wire c1541_2_led;
 
 wire [7:0] c1541_2_par_o;
 wire       c1541_2_stb_o;
-
-c1541 #(1) c1541_9
+iec_drive drive_9
 (
 	// C1541 signals
-	.clk_c1541(clk_sys),
-	.ce_c1541(c1541_ce),
+	.clk(clk_sys),
+	.ce(c1541_ce),
+
+	.drive_num(1),
 
 	.iec_atn_i(c64_iec_atn | ~drive9),
 	.iec_data_i(c64_iec_data | ~drive9),
@@ -1128,8 +1135,8 @@ c1541 #(1) c1541_9
 
 	.led(c1541_2_led),
 
-	.par_data_i(c1541_par_i),
-	.par_stb_i(c1541_stb_i),
+	.par_data_i(c1541_par_i | ~drive9),
+	.par_stb_i(c1541_stb_i | ~drive9),
 	.par_data_o(c1541_2_par_o),
 	.par_stb_o(c1541_2_stb_o),
 
@@ -1137,14 +1144,15 @@ c1541 #(1) c1541_9
 	.clk_sys(clk_sys),
 	.pause(c64_pause),
 
-	.rom_addr({~ioctl_addr[14], ioctl_addr[13:0]}),
+	.rom_addr(load_rom ? (ioctl_addr[15:0] - 16'h4000) : {1'b1,ioctl_addr[14:0]}),
 	.rom_data(ioctl_data),
-	.rom_wr(load_rom && ioctl_addr[15:14] && ioctl_download && ioctl_wr),
+	.rom_wr(((load_rom && ioctl_addr[16:14]) || load_c1581) && ioctl_download && ioctl_wr),
 	.rom_std(status[14]),
 
-	.disk_change(sd_change[1]),
-	.disk_readonly(disk_readonly),
-	.drive_num(1),
+	.img_mounted(img_mounted[1]),
+	.img_size(img_size),
+	.img_readonly(img_readonly),
+	.img_type(ioctl_index[7]),
 
 	.sd_lba(sd_lba2),
 	.sd_rd(sd_rd[1]),

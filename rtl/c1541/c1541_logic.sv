@@ -134,7 +134,7 @@ end
 
 reg rom_32k_i;
 reg rom_16k_i;
-always @(posedge c1541rom_clk) if (c1541rom_wr) {rom_32k_i,rom_16k_i} <= c1541rom_addr[14:13];
+always @(posedge c1541rom_clk) if (c1541rom_wr & |c1541rom_data & ~&c1541rom_data) {rom_32k_i,rom_16k_i} <= c1541rom_addr[14:13];
 
 reg [1:0] rom_sz;
 always @(posedge clk) rom_sz <= {rom_32k_i,rom_32k_i|rom_16k_i}; // support for 8K/16K/32K ROM

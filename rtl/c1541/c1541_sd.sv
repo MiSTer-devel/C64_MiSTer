@@ -19,9 +19,9 @@
 
 module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 (
-	//clk_c1541 ports
-	input         clk_c1541,
-	input         ce_c1541,
+	//clk ports
+	input         clk,
+	input         ce,
 
 	input         pause,
 
@@ -65,7 +65,7 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 assign led = act | sd_busy;
 
 reg reset;
-always @(posedge clk_c1541) begin
+always @(posedge clk) begin
 	reg reset1, reset2;
 	
 	reset1 <= iec_reset_i;
@@ -76,10 +76,10 @@ end
 
 reg        readonly = 0;
 reg [23:0] ch_timeout;
-always @(posedge clk_c1541) begin
+always @(posedge clk) begin
 	reg prev_change;
 
-	if(ce_c1541 && ch_timeout > 0) ch_timeout <= ch_timeout - 1'd1;
+	if(ce && ch_timeout > 0) ch_timeout <= ch_timeout - 1'd1;
 
 	prev_change <= disk_change;
 	if (~prev_change & disk_change) begin
@@ -96,8 +96,8 @@ wire [1:0] freq;
 
 c1541_logic #(PARPORT,DUALROM) c1541_logic
 (
-	.clk(clk_c1541),
-	.ce(ce_c1541),
+	.clk(clk),
+	.ce(ce),
 	.reset(reset),
 	.pause(pause),
 
@@ -147,8 +147,8 @@ wire [4:0] sector;
 
 c1541_gcr c1541_gcr
 (
-	.clk(clk_c1541),
-	.ce(ce_c1541),
+	.clk(clk),
+	.ce(ce),
 
 	.dout(gcr_do),
 	.din(gcr_di),
@@ -191,15 +191,15 @@ c1541_track c1541_track
 	.track(track),
 	.sector(sector),
 
-	.clk(clk_c1541),
-	.ce(ce_c1541),
+	.clk(clk),
+	.ce(ce),
 	.reset(reset),
 	.busy(sd_busy)
 );
 
 reg [5:0] track;
 reg       save_track;
-always @(posedge clk_c1541) if(ce_c1541) begin
+always @(posedge clk) if(ce) begin
 	reg       track_modified;
 	reg [6:0] track_num;
 	reg [1:0] stp_r;

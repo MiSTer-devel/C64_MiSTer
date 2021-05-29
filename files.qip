@@ -1,6 +1,7 @@
 set_global_assignment -name QIP_FILE rtl/sid/sid.qip
 set_global_assignment -name QIP_FILE rtl/opl3/opl3.qip
 set_global_assignment -name QIP_FILE rtl/c1541/c1541.qip
+set_global_assignment -name QIP_FILE rtl/c1581/c1581.qip
 set_global_assignment -name QIP_FILE rtl/t65/t65.qip
 set_global_assignment -name VHDL_FILE rtl/cpu_6510.vhd
 set_global_assignment -name VERILOG_FILE rtl/mos6526.v
@@ -11,6 +12,7 @@ set_global_assignment -name VERILOG_FILE rtl/cartridge.v
 set_global_assignment -name VERILOG_FILE rtl/reu.v
 set_global_assignment -name VHDL_FILE rtl/c1530.vhd
 set_global_assignment -name VERILOG_FILE rtl/c1351.v
+set_global_assignment -name VERILOG_FILE rtl/iec_drive.v
 set_global_assignment -name VHDL_FILE rtl/video_sync.vhd
 set_global_assignment -name VHDL_FILE rtl/video_vicII_656x.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_rgbcolor.vhd
