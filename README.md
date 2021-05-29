@@ -4,7 +4,8 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 
 ## Features
 - C64 and C64GS modes.
-- Disk read/write support (*.D64)
+- C1541 read/write support (*.D64)
+- C1581 read/write support (*.D81)
 - Parallel C1541 port for faster (~20x) loading time using DolphinDOS.
 - Amost all cartridge formats (*.CRT)
 - Direct file injection (*.PRG)
@@ -60,6 +61,8 @@ To use JiffyDOS or another alternative kernel, replace the filenames with the na
 To confirm you have the correct image, the BOOT.ROM created must be exactly 32768 or 49152(in case of 32KB C1541 ROM) bytes long. 
 
 There are 2 loadable ROM sets are provided: **DolphinDOS v2.0** and **SpeedDOS v2.7**. Both ROMs support parallel Disk Port. DolphinDOS is fastest one.
+
+For **C1581** you can use separate ROM with size up to 32768 bytes.
 
 ### Autoload the cartridge
 In OSD->Hardware page you can choose Boot Cartridge, so everytime core loaded, this cartridge will be loaded too.
