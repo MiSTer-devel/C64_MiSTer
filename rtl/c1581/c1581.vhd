@@ -36,6 +36,12 @@ port
 	iec_fclk_i     : in  std_logic := '1';
 	iec_fclk_o     : out std_logic;
 
+	-- parallel bus
+	par_data_i     : in  std_logic_vector(7 downto 0) := (others => '1');
+	par_stb_i      : in  std_logic := '1';
+	par_data_o     : out std_logic_vector(7 downto 0);
+	par_stb_o      : out std_logic;
+
 	-- clk_sys ports
 	clk_sys        : in  std_logic;
 
@@ -85,6 +91,11 @@ architecture rtl of C1581 is
 		iec_clk_o      : out std_logic;
 		iec_fclk_o     : out std_logic;
 
+		par_data_i     : in  std_logic_vector(7 downto 0) := (others => '1');
+		par_stb_i      : in  std_logic := '1';
+		par_data_o     : out std_logic_vector(7 downto 0);
+		par_stb_o      : out std_logic;
+
 		clk_sys        : in  std_logic;
 
 		img_mounted    : in  std_logic;
@@ -129,6 +140,10 @@ begin
 		iec_data_o    => iec_data_o   ,
 		iec_clk_o     => iec_clk_o    ,
 		iec_fclk_o    => iec_fclk_o   ,
+		par_data_i    => par_data_i   ,
+		par_stb_i     => par_stb_i    ,
+		par_data_o    => par_data_o   ,
+		par_stb_o     => par_stb_o    ,
 		clk_sys       => clk_sys      ,
 		sd_lba        => sd_lba       ,
 		sd_rd         => sd_rd        ,

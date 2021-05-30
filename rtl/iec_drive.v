@@ -55,8 +55,8 @@ always @(posedge clk_sys) if(img_mounted && img_size) dtype <= img_type;
 assign led          = dtype ? c1581_led          : c1541_led          ;
 assign iec_data_o   = dtype ? c1581_iec_data     : c1541_iec_data     ;
 assign iec_clk_o    = dtype ? c1581_iec_clk      : c1541_iec_clk      ;
-assign par_stb_o    = dtype ? 1'b1               : c1541_stb_o        ;
-assign par_data_o   = dtype ? 8'hFF              : c1541_par_o        ;
+assign par_stb_o    = dtype ? c1581_stb_o        : c1541_stb_o        ;
+assign par_data_o   = dtype ? c1581_par_o        : c1541_par_o        ;
 assign sd_buff_din  = dtype ? c1581_sd_buff_dout : c1541_sd_buff_dout ;
 assign sd_lba       = dtype ? c1581_sd_lba       : c1541_sd_lba       ;
 assign sd_rd        = dtype ? c1581_sd_rd        : c1541_sd_rd        ;
@@ -110,8 +110,8 @@ c1541 #(1) c1541
 );
 
 
-wire        c1581_iec_data, c1581_iec_clk, c1581_led;
-wire  [7:0] c1581_sd_buff_dout;
+wire        c1581_iec_data, c1581_iec_clk, c1581_led, c1581_stb_o;
+wire  [7:0] c1581_par_o, c1581_sd_buff_dout;
 wire [31:0] c1581_sd_lba;
 wire        c1581_sd_rd, c1581_sd_wr;
 
@@ -130,6 +130,11 @@ c1581 #(1) c1581
 
 	.drive_num(drive_num),
 	.act_led(c1581_led),
+
+	.par_data_i(par_data_i),
+	.par_stb_i(par_stb_i),
+	.par_data_o(c1581_par_o),
+	.par_stb_o(c1581_stb_o),
 
 	.clk_sys(clk_sys),
 	.pause(pause),

@@ -28,6 +28,12 @@ module c1581_sd #(parameter PARPORT=0,DUALROM=1)
 	output        iec_clk_o,
 	output        iec_fclk_o,
 
+	// parallel bus
+	input   [7:0] par_data_i,
+	input         par_stb_i,
+	output  [7:0] par_data_o,
+	output        par_stb_o,
+
 	//clk_sys ports
 	input         clk_sys,
 
@@ -89,6 +95,7 @@ wire stdrom = (DUALROM || PARPORT) ? rom_std : 1'b1;
 //same decoder as on real HW
 wire [2:0] ls193 = cpu_a[15:13];
 wire ram_cs      = ls193 == 0;
+wire via_cs      = ls193 == 1;
 wire cia_cs      = ls193 == 2;
 wire wd_cs       = ls193 == 3;
 wire rom_cs      = cpu_a[15];
@@ -96,6 +103,7 @@ wire rom_cs      = cpu_a[15];
 wire  [7:0] cpu_di =
 	!cpu_rw ? cpu_do :
 	 ram_cs ? ram_do :
+	 via_cs ? via_do :
 	 cia_cs ? cia_do :
 	 wd_cs  ? wd_do  :
 	 rom_cs ? rom_dout :
@@ -111,7 +119,7 @@ T65 cpu
 	.enable(p2_h_r),
 	.mode(2'b00),
 	.res_n(~iec_reset),
-	.irq_n(irq_n),
+	.irq_n(cia_irq_n & ~via_irq),
 	.r_w_n(cpu_rw),
 	.A(cpu_a),
 	.DI(cpu_di),
@@ -167,7 +175,7 @@ c1581mem #(8,13) ram
 );
 
 wire [7:0] cia_do;
-wire       irq_n;
+wire       cia_irq_n;
 
 assign     act_led    =  pa_out[6];
 assign     pwr_led    =  pa_out[5];
@@ -215,8 +223,64 @@ c1581_mos8520 cia
 	.cnt_in(fast_dir | iec_fclk_i),
 	.cnt_out(cnt_out),
 
-	.irq_n(irq_n)
+	.irq_n(cia_irq_n)
 );
+
+
+wire [7:0] via_do;
+wire       via_irq;
+wire [7:0] via_pa_o;
+wire [7:0] via_pa_oe;
+wire       via_ca2_o;
+wire       via_ca2_oe;
+wire [7:0] via_pb_o;
+wire [7:0] via_pb_oe;
+wire       via_cb1_o;
+wire       via_cb1_oe;
+wire       via_cb2_o;
+wire       via_cb2_oe;
+
+assign     par_stb_o  = via_ca2_o | ~via_ca2_oe;
+assign     par_data_o = via_pa_o  | ~via_pa_oe;
+
+c1581_via6522 via
+(
+	.clock(clk),
+	.rising(p2_h_f),
+	.falling(p2_h_r),
+	.reset(iec_reset),
+
+	.addr(cpu_a[3:0]),
+	.wen(~cpu_rw & via_cs),
+	.ren(cpu_rw & via_cs),
+	.data_in(cpu_do),
+	.data_out(via_do),
+
+	.port_a_o(via_pa_o),
+	.port_a_t(via_pa_oe),
+	.port_a_i(par_data_i & (via_pa_o  | ~via_pa_oe)),
+
+	.port_b_o(via_pb_o),
+	.port_b_t(via_pb_oe),
+	.port_b_i(via_pb_o | ~via_pb_oe),
+
+	.ca1_i(1'b1),
+
+	.ca2_o(via_ca2_o),
+	.ca2_t(via_ca2_oe),
+	.ca2_i(via_ca2_o | ~via_ca2_oe),
+
+	.cb1_o(via_cb1_o),
+	.cb1_t(via_cb1_oe),
+	.cb1_i(par_stb_i & (via_cb1_o | ~via_cb1_oe)),
+
+	.cb2_o(via_cb2_o),
+	.cb2_t(via_cb2_oe),
+	.cb2_i(via_cb2_o | ~via_cb2_oe),
+
+	.irq(via_irq)
+);
+
 
 reg disk_chng_n;
 always @(posedge clk) begin
@@ -327,6 +391,5 @@ always @(posedge clk) begin
 	s2 <= s1;
 	if(s1 == s2) out <= s2;
 end
-
 
 endmodule
