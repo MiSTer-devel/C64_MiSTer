@@ -16,11 +16,11 @@ module c1541_logic #(parameter PARPORT, DUALROM)
 	input        pause,
 
 	// serial bus
-	input        sb_clk_in,
-	input        sb_data_in,
-	input        sb_atn_in,
-	output       sb_clk_out,
-	output       sb_data_out,
+	input        iec_clk_in,
+	input        iec_data_in,
+	input        iec_atn_in,
+	output       iec_clk_out,
+	output       iec_data_out,
 
 	input        c1541rom_clk,
 	input [14:0] c1541rom_addr,
@@ -48,26 +48,6 @@ module c1541_logic #(parameter PARPORT, DUALROM)
 	input        tr00_sense_n,	// track 0 sense (unused?)
 	output       act			// activity LED
 );
-
-reg iec_atn;
-reg iec_data;
-reg iec_clk;
-always @(posedge clk) begin
-	reg iec_atn_d1, iec_data_d1, iec_clk_d1;
-	reg iec_atn_d2, iec_data_d2, iec_clk_d2;
-
-	iec_atn_d1 <= sb_atn_in;
-	iec_atn_d2 <= iec_atn_d1;
-	if(iec_atn_d1 == iec_atn_d2) iec_atn <= iec_atn_d2;
-
-	iec_data_d1 <= sb_data_in;
-	iec_data_d2 <= iec_data_d1;
-	if(iec_data_d1 == iec_data_d2) iec_data <= iec_data_d2;
-
-	iec_clk_d1 <= sb_clk_in;
-	iec_clk_d2 <= iec_clk_d1;
-	if(iec_clk_d1 == iec_clk_d2) iec_clk <= iec_clk_d2;
-end
 
 reg p2_h_r;
 reg p2_h_f;
@@ -230,8 +210,8 @@ wire       uc1_cb1_oe;
 wire       uc1_cb2_o;
 wire       uc1_cb2_oe;
 
-assign     sb_data_out  = ~(uc1_pb_o[1] | ~uc1_pb_oe[1]) & ~((uc1_pb_o[4] | ~uc1_pb_oe[4]) ^ ~iec_atn);
-assign     sb_clk_out   = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
+assign     iec_data_out  = ~(uc1_pb_o[1] | ~uc1_pb_oe[1]) & ~((uc1_pb_o[4] | ~uc1_pb_oe[4]) ^ ~iec_atn_in);
+assign     iec_clk_out   = ~(uc1_pb_o[3] | ~uc1_pb_oe[3]);
 
 assign     par_stb_out  = uc1_ca2_o | ~uc1_ca2_oe;
 assign     par_data_out = uc1_pa_o  | ~uc1_pa_oe;
@@ -255,9 +235,9 @@ c1541_via6522 uc1
 
 	.port_b_o(uc1_pb_o),
 	.port_b_t(uc1_pb_oe),
-	.port_b_i({~iec_atn, ds, 2'b11, ~(iec_clk & sb_clk_out), 1'b1, ~(iec_data & sb_data_out)} & (uc1_pb_o | ~uc1_pb_oe)),
+	.port_b_i({~iec_atn_in, ds, 2'b11, ~(iec_clk_in & iec_clk_out), 1'b1, ~(iec_data_in & iec_data_out)} & (uc1_pb_o | ~uc1_pb_oe)),
 
-	.ca1_i(~iec_atn),
+	.ca1_i(~iec_atn_in),
 
 	.ca2_o(uc1_ca2_o),
 	.ca2_t(uc1_ca2_oe),

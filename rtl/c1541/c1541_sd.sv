@@ -64,15 +64,11 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 
 assign led = act | sd_busy;
 
-reg reset;
-always @(posedge clk) begin
-	reg reset1, reset2;
-	
-	reset1 <= iec_reset_i;
-	reset2 <= reset1;
-	if(reset2 == reset1) reset <= reset2;
-end
-
+wire iec_atn, iec_data, iec_clk, iec_reset;
+c1541_sync atn_sync(clk, iec_atn_i,   iec_atn);
+c1541_sync dat_sync(clk, iec_data_i,  iec_data);
+c1541_sync clk_sync(clk, iec_clk_i,   iec_clk);
+c1541_sync rst_sync(clk, iec_reset_i, iec_reset);
 
 reg        readonly = 0;
 reg [23:0] ch_timeout;
@@ -98,15 +94,15 @@ c1541_logic #(PARPORT,DUALROM) c1541_logic
 (
 	.clk(clk),
 	.ce(ce),
-	.reset(reset),
+	.reset(iec_reset),
 	.pause(pause),
 
 	// serial bus
-	.sb_clk_in(iec_clk_i),
-	.sb_data_in(iec_data_i),
-	.sb_atn_in(iec_atn_i),
-	.sb_clk_out(iec_clk_o),
-	.sb_data_out(iec_data_o),
+	.iec_clk_in(iec_clk),
+	.iec_data_in(iec_data),
+	.iec_atn_in(iec_atn),
+	.iec_clk_out(iec_clk_o),
+	.iec_data_out(iec_data_o),
 
 	.c1541rom_clk(clk_sys),
 	.c1541rom_addr(rom_addr),
@@ -193,7 +189,7 @@ c1541_track c1541_track
 
 	.clk(clk),
 	.ce(ce),
-	.reset(reset),
+	.reset(iec_reset),
 	.busy(sd_busy)
 );
 
@@ -213,7 +209,7 @@ always @(posedge clk) if(ce) begin
 	if (buff_we) track_modified <= 1;
 	if (disk_change) track_modified <= 0;
 
-	if (reset) begin
+	if (iec_reset) begin
 		track_num <= 36;
 		track_modified <= 0;
 	end else begin
@@ -242,6 +238,22 @@ always @(posedge clk) if(ce) begin
 			track_modified <= 0;
 		end
 	end
+end
+
+endmodule
+
+module c1541_sync
+(
+	input      clk,
+	input      in,
+	output reg out
+);
+
+reg s1,s2;
+always @(posedge clk) begin
+	s1 <= in;
+	s2 <= s1;
+	if(s1 == s2) out <= s2;
 end
 
 endmodule
