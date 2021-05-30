@@ -169,8 +169,8 @@ always @(*) begin
 end
 
 always @(posedge clkcpu) begin
-	reg [3:0] img_mountedD;
-	reg [2:0] i;
+	reg [W:0] img_mountedD;
+	integer i;
 	img_mountedD <= img_mounted;
 	
 	for(i = 0; i < FD_NUM; i = i+1'd1) begin
@@ -300,6 +300,8 @@ wire       fd_writeprot   = fd_any ? img_wp[fdn]          : 1'b1;
 wire       fd_doubleside  = fdn_doubleside[fdn];
 wire [4:0] fd_spt         = fdn_spt[fdn];
 
+assign floppy_ready = fd_ready && fd_present;
+
 // -------------------------------------------------------------------------
 // ----------------------- internal state machines -------------------------
 // -------------------------------------------------------------------------
@@ -322,9 +324,7 @@ wire fd_motor = EXT_MOTOR ? floppy_motor : motor_on;
 
 // consider spin up done either if the motor is not supposed to spin at all or
 // if it's supposed to run and has left the spin up sequence
-wire motor_spin_up_done = (motor_spin_up_sequence == 0);
-assign floppy_ready = fd_ready && fd_present;
-
+wire motor_spin_up_done = (!motor_on) || (motor_on && (motor_spin_up_sequence == 0));
 
 // ---------------------------- step handling ------------------------------
 
@@ -365,7 +365,6 @@ always @(posedge clkcpu) begin
 	reg sector_not_found;
 	reg irq_at_index;
 	reg [1:0] data_transfer_state;
-	reg wait_for_motor;
 
 	sector_inc_strobe <= 1'b0;
 	track_inc_strobe <= 1'b0;
@@ -414,15 +413,12 @@ always @(posedge clkcpu) begin
 			notready_wait <= 1'b0;
 			sector_not_found <= 1'b0;
 			data_transfer_state <= 2'b00;
-			wait_for_motor <= 1'b0;
 
 			if(cmd_type_1 || cmd_type_2 || cmd_type_3) begin
 				RNF <= 1'b0;
+				motor_on <= 1'b1;
 				// 'h' flag '0' -> wait for spin up
-				if (!cmd[3]) begin
-					motor_on <= 1'b1;       // start the motor and
-					wait_for_motor <= 1'b1; // wait for 6 full rotations
-				end
+				if (!motor_on && !cmd[3]) motor_spin_up_sequence <= 6;   // wait for 6 full rotations
 			end
 
 			// handle "forced interrupt"
@@ -437,7 +433,7 @@ always @(posedge clkcpu) begin
 
 		// execute command if motor is not supposed to be running or
 		// wait for motor spinup to finish
-		if(busy && (motor_spin_up_done || !wait_for_motor) && !step_busy && !delaying) begin
+		if(busy && motor_spin_up_done && !step_busy && !delaying) begin
 
 			// ------------------------ TYPE I -------------------------
 			if(cmd_type_1) begin
@@ -669,7 +665,7 @@ always @(posedge clkcpu) begin
 			if (irq_at_index) irq_set <= 1'b1;
 
 			// let motor timeout run once fdc is not busy anymore
-			if(!busy && motor_on && motor_spin_up_done) begin
+			if(!busy && motor_spin_up_done) begin
 				if(motor_timeout_index != 0)
 					motor_timeout_index <= motor_timeout_index - 4'd1;
 				else if(motor_on)
@@ -683,7 +679,6 @@ always @(posedge clkcpu) begin
 				motor_spin_up_sequence <= motor_spin_up_sequence - 4'd1;
 		end
 		if(busy) motor_timeout_index <= 0;
-		if(!fd_motor) motor_spin_up_sequence <= 6;
 	end
 end
 
@@ -896,7 +891,7 @@ end
 
 // the status byte
 wire [7:0] status = { (MODEL == 1 || MODEL == 3) ? !floppy_ready : motor_on,
-		      fd_writeprot,                        // wrprot
+		      (cmd[7:5] == 3'b101 || cmd[7:4] == 4'b1111 || cmd_type_1) && fd_writeprot, // wrprot (only for write!)
 		      cmd_type_1?motor_spin_up_done:1'b0,  // data mark
 		      RNF,                                 // seek error/record not found
 		      1'b0,                                // crc error
