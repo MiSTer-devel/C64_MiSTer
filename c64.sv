@@ -1453,7 +1453,7 @@ assign AUDIO_MIX = status[19:18];
 reg [24:0] tap_play_addr;
 reg [24:0] tap_last_addr;
 wire       tap_reset = ~reset_n | tape_download | status[23] | (cass_motor & ((tap_last_addr - tap_play_addr) < 80));
-reg        tap_wrreq;
+reg  [1:0] tap_wrreq;
 wire       tap_wrfull;
 wire       tap_finish;
 wire       tap_loaded = (tap_play_addr < tap_last_addr);
@@ -1470,7 +1470,7 @@ always @(posedge clk_sys) begin
 	tap_play_btnD <= tap_play_btn;
 	io_cycleD <= io_cycle;
 	tap_finishD <= tap_finish;
-	tap_wrreq <= 0;
+	tap_wrreq <= tap_wrreq << 1;
 
 	if(tap_reset) begin
 		//C1530 module requires one more byte at the end due to fifo early check.
@@ -1487,7 +1487,7 @@ always @(posedge clk_sys) begin
 		if (io_cycle & io_cycleD & read_cyc) begin
 			tap_play_addr <= tap_play_addr + 1'd1;
 			read_cyc <= 0;
-			tap_wrreq <= 1;
+			tap_wrreq[0] <= 1;
 		end
 	end
 end
@@ -1510,7 +1510,7 @@ c1530 c1530
 	.cpu_freq(1000000),
 
 	.din(sdram_data),
-	.wr(tap_wrreq),
+	.wr(tap_wrreq[1]),
 	.full(tap_wrfull),
 	.empty(tap_finish),
 
