@@ -25,8 +25,10 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 
 	input         pause,
 
-	input         disk_change,
-	input         disk_readonly,
+	input         img_mounted,
+	input         img_readonly,
+	input  [31:0] img_size,
+
 	input   [1:0] drive_num,
 	output        led,
 
@@ -47,14 +49,14 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 	input         clk_sys,
 
 	output [31:0] sd_lba,
+	output  [5:0] sd_sz,
 	output        sd_rd,
 	output        sd_wr,
 	input         sd_ack,
-	input   [8:0] sd_buff_addr,
+	input  [12:0] sd_buff_addr,
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din,
 	input         sd_buff_wr,
-	output        sd_busy,
 
 	input  [14:0] rom_addr,
 	input   [7:0] rom_data,
@@ -71,16 +73,18 @@ c1541_sync clk_sync(clk, iec_clk_i,   iec_clk);
 c1541_sync rst_sync(clk, iec_reset_i, iec_reset);
 
 reg        readonly = 0;
+reg        disk_present = 0;
 reg [23:0] ch_timeout;
 always @(posedge clk) begin
-	reg prev_change;
+	reg old_mounted;
 
 	if(ce && ch_timeout > 0) ch_timeout <= ch_timeout - 1'd1;
 
-	prev_change <= disk_change;
-	if (~prev_change & disk_change) begin
+	old_mounted <= img_mounted;
+	if (~old_mounted & img_mounted) begin
 		ch_timeout <= '1;
-		readonly <= disk_readonly;
+		readonly <= img_readonly;
+		disk_present <= |img_size;
 	end
 end
 
@@ -104,11 +108,11 @@ c1541_logic #(PARPORT,DUALROM) c1541_logic
 	.iec_clk_out(iec_clk_o),
 	.iec_data_out(iec_data_o),
 
-	.c1541rom_clk(clk_sys),
-	.c1541rom_addr(rom_addr),
-	.c1541rom_data(rom_data),
-	.c1541rom_wr(rom_wr),
-	.c1541std(rom_std),
+	.rom_clk(clk_sys),
+	.rom_addr(rom_addr),
+	.rom_data(rom_data),
+	.rom_wr(rom_wr),
+	.rom_std(rom_std),
 
 	// parallel bus
 	.par_data_in(par_data_i),
@@ -131,21 +135,20 @@ c1541_logic #(PARPORT,DUALROM) c1541_logic
 	.act(act)
 );
 
-wire [7:0] buff_addr;
-wire [7:0] buff_dout;
-wire [7:0] buff_din;
-wire       buff_we;
-wire [7:0] gcr_do;
-wire [7:0] gcr_di;
-wire       sync_n;
-wire       byte_n;
-wire [4:0] sector;
+wire        we;
+wire  [7:0] gcr_do;
+wire  [7:0] gcr_di;
+wire        sync_n;
+wire        byte_n;
+
+wire sd_busy;
+c1541_sync busy_sync(clk, busy, sd_busy);
 
 c1541_gcr c1541_gcr
 (
 	.clk(clk),
 	.ce(ce),
-
+	
 	.dout(gcr_do),
 	.din(gcr_di),
 	.mode(mode),
@@ -155,86 +158,63 @@ c1541_gcr c1541_gcr
 	.byte_n(byte_n),
 
 	.track(track),
-	.sector(sector),
+	.busy(sd_busy | ~disk_present),
+	.we(we),
 
-	.ram_addr(buff_addr),
-	.ram_do(buff_dout),
-	.ram_di(buff_din),
-	.ram_we(buff_we),
-	.ram_ready(~sd_busy)
+	.sd_clk(clk_sys),
+	.sd_lba(sd_lba),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din(sd_buff_din),
+	.sd_buff_wr(sd_ack & sd_buff_wr)
 );
+
+wire busy;
 
 c1541_track c1541_track
 (
-	.sd_clk(clk_sys),
+	.clk(clk_sys),
 	.sd_lba(sd_lba),
+	.sd_sz(sd_sz),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 
-	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din),
-	.sd_buff_wr(sd_buff_wr),
-
-	.buff_addr(buff_addr),
-	.buff_dout(buff_dout),
-	.buff_din(buff_din),
-	.buff_we(buff_we),
-
 	.save_track(save_track),
-	.change(disk_change),
+	.change(img_mounted),
 	.track(track),
-	.sector(sector),
-
-	.clk(clk),
-	.ce(ce),
 	.reset(iec_reset),
-	.busy(sd_busy)
+	.busy(busy)
 );
 
 reg [5:0] track;
-reg       save_track;
-always @(posedge clk) if(ce) begin
+reg       save_track = 0;
+always @(posedge clk) begin
 	reg       track_modified;
 	reg [6:0] track_num;
-	reg [1:0] stp_r;
-	reg       act_r;
+	reg [1:0] move, stp_old;
 
-	stp_r <= stp;
-	act_r <= act;
-	save_track <= 0;
 	track <= track_num[6:1];
 
-	if (buff_we) track_modified <= 1;
-	if (disk_change) track_modified <= 0;
+	stp_old <= stp;
+	move <= stp - stp_old;
+
+	if (we)          track_modified <= 1;
+	if (img_mounted) track_modified <= 0;
 
 	if (iec_reset) begin
 		track_num <= 36;
 		track_modified <= 0;
 	end else begin
-		if (mtr) begin
-			if ( (stp_r == 0 & stp == 2)
-				| (stp_r == 2 & stp == 1)
-				| (stp_r == 1 & stp == 3)
-				| (stp_r == 3 & stp == 0)) begin
-				if (track_num < 80) track_num <= track_num + 1'b1;
-				save_track <= track_modified;
-				track_modified <= 0;
-			end
-
-			if ( (stp_r == 0 & stp == 3)
-				| (stp_r == 2 & stp == 0)
-				| (stp_r == 1 & stp == 2)
-				| (stp_r == 3 & stp == 1)) begin
-				if (track_num > 1) track_num <= track_num - 1'b1;
-				save_track <= track_modified;
-				track_modified <= 0;
-			end
+		if (mtr & move[0]) begin
+			if (~move[1] && track_num < 80) track_num <= track_num + 1'b1;
+			if ( move[1] && track_num > 0 ) track_num <= track_num - 1'b1;
+			if (track_modified) save_track <= ~save_track;
+			track_modified <= 0;
 		end
 
-		if (act_r & ~act) begin		// stopping activity
-			save_track <= track_modified;
+		if (track_modified & ~act) begin	// stopping activity
+			save_track <= ~save_track;
 			track_modified <= 0;
 		end
 	end
@@ -242,18 +222,59 @@ end
 
 endmodule
 
-module c1541_sync
+// -------------------------------------------------------------------------------
+
+module c1541_sync #(parameter WIDTH = 1) 
 (
-	input      clk,
-	input      in,
-	output reg out
+	input                  clk,
+	input      [WIDTH-1:0] in,
+	output reg [WIDTH-1:0] out
 );
 
-reg s1,s2;
+reg [WIDTH-1:0] s1,s2;
 always @(posedge clk) begin
 	s1 <= in;
 	s2 <= s1;
 	if(s1 == s2) out <= s2;
+end
+
+endmodule
+
+// -------------------------------------------------------------------------------
+
+module c1541mem #(parameter DATAWIDTH, ADDRWIDTH, INITFILE=" ")
+(
+	input	                     clock_a,
+	input	     [ADDRWIDTH-1:0] address_a,
+	input	     [DATAWIDTH-1:0] data_a,
+	input	                     wren_a,
+	output reg [DATAWIDTH-1:0] q_a,
+
+	input	                     clock_b,
+	input	     [ADDRWIDTH-1:0] address_b,
+	input	     [DATAWIDTH-1:0] data_b,
+	input	                     wren_b,
+	output reg [DATAWIDTH-1:0] q_b
+);
+
+(* ram_init_file = INITFILE *) reg [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
+
+always @(posedge clock_a) begin
+	if(wren_a) begin
+		ram[address_a] <= data_a;
+		q_a <= data_a;
+	end else begin
+		q_a <= ram[address_a];
+	end
+end
+
+always @(posedge clock_b) begin
+	if(wren_b) begin
+		ram[address_b] <= data_b;
+		q_b <= data_b;
+	end else begin
+		q_b <= ram[address_b];
+	end
 end
 
 endmodule

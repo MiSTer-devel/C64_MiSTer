@@ -22,11 +22,11 @@ module c1541_logic #(parameter PARPORT, DUALROM)
 	output       iec_clk_out,
 	output       iec_data_out,
 
-	input        c1541rom_clk,
-	input [14:0] c1541rom_addr,
-	input  [7:0] c1541rom_data,
-	input        c1541rom_wr,
-	input        c1541std,
+	input        rom_clk,
+	input [14:0] rom_addr,
+	input  [7:0] rom_data,
+	input        rom_wr,
+	input        rom_std,
 
 	// parallel bus
 	input  [7:0] par_data_in,
@@ -67,7 +67,7 @@ always @(posedge clk) begin
 	end
 end
 
-wire stdrom = (DUALROM || PARPORT) ? c1541std : 1'b1;
+wire stdrom = (DUALROM || PARPORT) ? rom_std : 1'b1;
 
 //same decoder as on real HW
 wire [3:0] ls42 = {cpu_a[15],cpu_a[12:10]};
@@ -114,7 +114,7 @@ end
 
 reg rom_32k_i;
 reg rom_16k_i;
-always @(posedge c1541rom_clk) if (c1541rom_wr & |c1541rom_data & ~&c1541rom_data) {rom_32k_i,rom_16k_i} <= c1541rom_addr[14:13];
+always @(posedge rom_clk) if (rom_wr & |rom_data & ~&rom_data) {rom_32k_i,rom_16k_i} <= rom_addr[14:13];
 
 reg [1:0] rom_sz;
 always @(posedge clk) rom_sz <= {rom_32k_i,rom_32k_i|rom_16k_i}; // support for 8K/16K/32K ROM
@@ -140,10 +140,10 @@ generate
 	
 		c1541mem #(8,15,"rtl/c1541/c1541_dolphin.mif") rom
 		(
-			.clock_a(c1541rom_clk),
-			.address_a(c1541rom_addr),
-			.data_a(c1541rom_data),
-			.wren_a(c1541rom_wr),
+			.clock_a(rom_clk),
+			.address_a(rom_addr),
+			.data_a(rom_data),
+			.wren_a(rom_wr),
 
 			.clock_b(clk),
 			.address_b(mem_a),
@@ -155,10 +155,10 @@ generate
 	else if(DUALROM) begin
 		c1541mem #(8,14,"rtl/c1541/c1541_rom.mif") rom
 		(
-			.clock_a(c1541rom_clk),
-			.address_a(c1541rom_addr[13:0]),
-			.data_a(c1541rom_data),
-			.wren_a(c1541rom_wr),
+			.clock_a(rom_clk),
+			.address_a(rom_addr[13:0]),
+			.data_a(rom_data),
+			.wren_a(rom_wr),
 
 			.clock_b(clk),
 			.address_b(mem_a[13:0]),
@@ -173,10 +173,10 @@ endgenerate
 wire [7:0] romstd_do;
 c1541mem #(8,14,"rtl/c1541/c1541_rom.mif") romstd
 (
-	.clock_a(c1541rom_clk),
-	.address_a(c1541rom_addr[13:0]),
-	.data_a(c1541rom_data),
-	.wren_a((DUALROM || PARPORT) ? 1'b0 : c1541rom_wr),
+	.clock_a(rom_clk),
+	.address_a(rom_addr[13:0]),
+	.data_a(rom_data),
+	.wren_a((DUALROM || PARPORT) ? 1'b0 : rom_wr),
 
 	.clock_b(clk),
 	.address_b(mem_a[13:0]),
@@ -269,15 +269,14 @@ wire       uc3_cb1_oe;
 wire       uc3_cb2_o;
 wire       uc3_cb2_oe;
 
-wire       soe    = uc3_ca2_o | ~uc3_ca2_oe;
-assign     dout   = uc3_pa_o  | ~uc3_pa_oe;
-assign     mode   = uc3_cb2_o | ~uc3_cb2_oe;
+wire       soe  = uc3_ca2_o | ~uc3_ca2_oe;
+assign     dout = uc3_pa_o  | ~uc3_pa_oe;
+assign     mode = uc3_cb2_o | ~uc3_cb2_oe;
 
-assign     stp[1] = uc3_pb_o[0]   | ~uc3_pb_oe[0];
-assign     stp[0] = uc3_pb_o[1]   | ~uc3_pb_oe[1];
-assign     mtr    = uc3_pb_o[2]   | ~uc3_pb_oe[2];
-assign     act    = uc3_pb_o[3]   | ~uc3_pb_oe[3];
-assign     freq   = uc3_pb_o[6:5] | ~uc3_pb_oe[6:5];
+assign     stp  = uc3_pb_o[1:0] | ~uc3_pb_oe[1:0];
+assign     mtr  = uc3_pb_o[2]   | ~uc3_pb_oe[2];
+assign     act  = uc3_pb_o[3]   | ~uc3_pb_oe[3];
+assign     freq = uc3_pb_o[6:5] | ~uc3_pb_oe[6:5];
 
 
 c1541_via6522 uc3
@@ -317,42 +316,5 @@ c1541_via6522 uc3
 
 	.irq(uc3_irq)
 );
-
-endmodule
-
-module c1541mem #(parameter DATAWIDTH, ADDRWIDTH, INITFILE=" ")
-(
-	input	                     clock_a,
-	input	     [ADDRWIDTH-1:0] address_a,
-	input	     [DATAWIDTH-1:0] data_a,
-	input	                     wren_a,
-	output reg [DATAWIDTH-1:0] q_a,
-
-	input	                     clock_b,
-	input	     [ADDRWIDTH-1:0] address_b,
-	input	     [DATAWIDTH-1:0] data_b,
-	input	                     wren_b,
-	output reg [DATAWIDTH-1:0] q_b
-);
-
-(* ram_init_file = INITFILE *) reg [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
-
-always @(posedge clock_a) begin
-	if(wren_a) begin
-		ram[address_a] <= data_a;
-		q_a <= data_a;
-	end else begin
-		q_a <= ram[address_a];
-	end
-end
-
-always @(posedge clock_b) begin
-	if(wren_b) begin
-		ram[address_b] <= data_b;
-		q_b <= data_b;
-	end else begin
-		q_b <= ram[address_b];
-	end
-end
 
 endmodule

@@ -185,7 +185,7 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_DISK = 0;
 assign LED_POWER = 0;
-assign LED_USER = c1541_1_led | c1541_2_led | ioctl_download | tape_led;
+assign LED_USER = drive_8_led | drive_9_led | ioctl_download | tape_led;
 assign BUTTONS   = 0;
 assign VGA_SCALER = 0;
 
@@ -194,7 +194,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX X XX XX XXXXXXXXXXXXXXM
+// XXXXXXXXXXXXXXXXXXXXXXXXX XXXXXX X XX XX XXXXXXXXXXXXXXMXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -228,7 +228,7 @@ localparam CONF_STR = {
 	"P1OIJ,Stereo Mix,None,25%,50%,100%;",
 
 	"P2,System;", 
-	"P2OP,Enable Drive #9,No,Yes;",
+	"P2oNO,Enable Drive #9,If Mounted,Always,Never;",
 	"P2oC,Parallel port,Enabled,Disabled;",
 	"P2R6,Reset Disk Drives;",
 	"P2-;",
@@ -395,13 +395,14 @@ wire  [7:0] ioctl_data;
 wire  [7:0] ioctl_index;
 wire        ioctl_download;
 
-wire [31:0] sd_lba1, sd_lba2;
+wire [31:0] sd_lba[2];
+wire  [5:0] sd_sz[2];
 wire  [1:0] sd_rd;
 wire  [1:0] sd_wr;
 wire  [1:0] sd_ack;
-wire  [8:0] sd_buff_addr;
+wire [12:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
-wire  [7:0] sd_buff_din1, sd_buff_din2;
+wire  [7:0] sd_buff_din[2];
 wire        sd_buff_wr;
 wire  [1:0] img_mounted;
 wire [31:0] img_size;
@@ -414,7 +415,7 @@ wire [21:0] gamma_bus;
 
 wire  [7:0] pd1,pd2,pd3,pd4;
 
-hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
@@ -430,19 +431,20 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2)) hps_io
 	.paddle_3(pd4),
 
 	.status(status),
-	.status_menumask({|reu_cfg,|status[47:46],status[16],status[13],tap_loaded, 1'b0, |vcrop, ~status[25]}),
+	.status_menumask({|reu_cfg,|status[47:46],status[16],status[13],tap_loaded, 1'b0, |vcrop, status[56]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
 
-	.sd_lba((sd_rd[0]|sd_wr[0]) ? sd_lba1 : sd_lba2),
+	.sd_lba(sd_lba),
+	.sd_sz(sd_sz),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
 
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_ack[0] ? sd_buff_din1 : sd_buff_din2),
+	.sd_buff_din(sd_buff_din),
 	.sd_buff_wr(sd_buff_wr),
 	.img_mounted(img_mounted),
 	.img_size(img_size),
@@ -927,9 +929,8 @@ fpga64_sid_iec fpga64
 	.pause_out(c64_pause),
 	.bios(status[15:14]),
 	
-	.turbo_mode(status[47:46]),
+	.turbo_mode({status[47] & ~disk_access, status[46]}),
 	.turbo_speed(status[49:48]),
-	.turbo_reset(disk_access),
 
 	.ps2_key(key),
 	.kbd_reset((~reset_n & ~status[1]) | reset_keys),
@@ -1001,8 +1002,8 @@ fpga64_sid_iec fpga64
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
 	.iec_clk_o(c64_iec_clk),
-	.iec_data_i(c1541_iec_data),
-	.iec_clk_i(c1541_iec_clk),
+	.iec_data_i(drive_iec_data),
+	.iec_clk_i(drive_iec_clk),
 
 	.pb_i(pb_i),
 	.pb_o(pb_o),
@@ -1044,49 +1045,45 @@ c1351 mouse
 	.button(mouse_btn)
 );
 
-wire drive9 = status[25];
+wire       c64_iec_clk;
+wire       c64_iec_data;
+wire       c64_iec_atn;
 
-wire c64_iec_clk;
-wire c64_iec_data;
-wire c64_iec_atn;
+wire [7:0] drive_par_i;
+wire       drive_stb_i;
+wire [7:0] drive_par_o    = drive_8_par_o    & drive_9_par_o    ;
+wire       drive_stb_o    = drive_8_stb_o    & drive_9_stb_o    ;
+wire       drive_iec_clk  = drive_8_iec_clk  & drive_9_iec_clk  ;
+wire       drive_iec_data = drive_8_iec_data & drive_9_iec_data ;
+wire       drive_reset    = ~reset_n | status[6] | (load_c1581 & ioctl_download);
 
-wire c1541_reset = ~reset_n | status[6] | (load_c1581 & ioctl_download);
+wire       drive_8_iec_clk;
+wire       drive_8_iec_data;
+wire       drive_8_led;
 
-wire [7:0] c1541_par_i;
-wire       c1541_stb_i;
-wire [7:0] c1541_par_o    = c1541_1_par_o    & ({8{~drive9}} | c1541_2_par_o);
-wire       c1541_stb_o    = c1541_1_stb_o    & (~drive9 | c1541_2_stb_o);
-wire       c1541_iec_clk  = c1541_1_iec_clk  & (~drive9 | c1541_2_iec_clk);
-wire       c1541_iec_data = c1541_1_iec_data & (~drive9 | c1541_2_iec_data);
-
-wire c1541_1_iec_clk;
-wire c1541_1_iec_data;
-wire c1541_1_led;
-
-wire [7:0] c1541_1_par_o;
-wire       c1541_1_stb_o;
+wire [7:0] drive_8_par_o;
+wire       drive_8_stb_o;
 
 iec_drive drive_8
 (
-	// C1541 signals
 	.clk(clk_sys),
-	.ce(c1541_ce),
+	.ce(drive_ce),
 
 	.drive_num(0),
 
 	.iec_atn_i(c64_iec_atn),
-	.iec_data_i(c64_iec_data),
-	.iec_clk_i(c64_iec_clk),
-	.iec_data_o(c1541_1_iec_data),
-	.iec_clk_o(c1541_1_iec_clk),
-	.iec_reset_i(c1541_reset),
+	.iec_data_i(c64_iec_data & drive_9_iec_data),
+	.iec_clk_i(c64_iec_clk & drive_9_iec_clk),
+	.iec_data_o(drive_8_iec_data),
+	.iec_clk_o(drive_8_iec_clk),
+	.iec_reset_i(drive_reset),
 
-	.led(c1541_1_led),
+	.led(drive_8_led),
 
-	.par_data_i(c1541_par_i),
-	.par_stb_i(c1541_stb_i),
-	.par_data_o(c1541_1_par_o),
-	.par_stb_o(c1541_1_stb_o),
+	.par_data_i(drive_par_i),
+	.par_stb_i(drive_stb_i),
+	.par_data_o(drive_8_par_o),
+	.par_stb_o(drive_8_stb_o),
 
 	// implementation and system specific signals
 	.clk_sys(clk_sys),
@@ -1102,43 +1099,44 @@ iec_drive drive_8
 	.img_readonly(img_readonly),
 	.img_type(ioctl_index[7]),
 
-	.sd_lba(sd_lba1),
+	.sd_lba(sd_lba[0]),
+	.sd_sz(sd_sz[0]),
 	.sd_rd(sd_rd[0]),
 	.sd_wr(sd_wr[0]),
 	.sd_ack(sd_ack[0]),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din1),
+	.sd_buff_din(sd_buff_din[0]),
 	.sd_buff_wr(sd_buff_wr)
 );
 
-wire c1541_2_iec_clk;
-wire c1541_2_iec_data;
-wire c1541_2_led;
+wire       drive_9_iec_clk;
+wire       drive_9_iec_data;
+wire       drive_9_led;
 
-wire [7:0] c1541_2_par_o;
-wire       c1541_2_stb_o;
+wire [7:0] drive_9_par_o;
+wire       drive_9_stb_o;
+
 iec_drive drive_9
 (
-	// C1541 signals
 	.clk(clk_sys),
-	.ce(c1541_ce),
+	.ce(drive_ce),
 
 	.drive_num(1),
 
-	.iec_atn_i(c64_iec_atn | ~drive9),
-	.iec_data_i(c64_iec_data | ~drive9),
-	.iec_clk_i(c64_iec_clk | ~drive9),
-	.iec_data_o(c1541_2_iec_data),
-	.iec_clk_o(c1541_2_iec_clk),
-	.iec_reset_i(c1541_reset),
+	.iec_atn_i(c64_iec_atn),
+	.iec_data_i(c64_iec_data & drive_8_iec_data),
+	.iec_clk_i(c64_iec_clk & drive_8_iec_clk),
+	.iec_data_o(drive_9_iec_data),
+	.iec_clk_o(drive_9_iec_clk),
+	.iec_reset_i(drive_reset | (!status[56:55]) ? ~drive_9_mounted : status[56]),
 
-	.led(c1541_2_led),
+	.led(drive_9_led),
 
-	.par_data_i(c1541_par_i | ~drive9),
-	.par_stb_i(c1541_stb_i | ~drive9),
-	.par_data_o(c1541_2_par_o),
-	.par_stb_o(c1541_2_stb_o),
+	.par_data_i(drive_par_i),
+	.par_stb_i(drive_stb_i),
+	.par_data_o(drive_9_par_o),
+	.par_stb_o(drive_9_stb_o),
 
 	// implementation and system specific signals
 	.clk_sys(clk_sys),
@@ -1154,43 +1152,55 @@ iec_drive drive_9
 	.img_readonly(img_readonly),
 	.img_type(ioctl_index[7]),
 
-	.sd_lba(sd_lba2),
+	.sd_lba(sd_lba[1]),
+	.sd_sz(sd_sz[1]),
 	.sd_rd(sd_rd[1]),
 	.sd_wr(sd_wr[1]),
 	.sd_ack(sd_ack[1]),
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din2),
+	.sd_buff_din(sd_buff_din[1]),
 	.sd_buff_wr(sd_buff_wr)
 );
 
-reg c1541_ce;
+reg drive_9_mounted = 0;
+always @(posedge clk_sys) if(img_mounted[1]) drive_9_mounted <= |img_size;
+
+reg drive_ce;
 always @(posedge clk_sys) begin
 	int sum = 0;
 	int msum;
 	
 	msum <= ntsc ? 32727264 : 31527954;
 
-	c1541_ce <= 0;
+	drive_ce <= 0;
 	sum = sum + 16000000;
 	if(sum >= msum) begin
 		sum = sum - msum;
-		c1541_ce <= 1;
+		drive_ce <= 1;
 	end
 end
 
+wire disk_parport = ~status[44];
+
 reg disk_access;
 always @(posedge clk_sys) begin
-	reg c64_iec_clk_old, c1541_iec_clk_old, c1541_stb_i_old, c1541_stb_o_old;
+	reg c64_iec_clk_old, drive_iec_clk_old, drive_stb_i_old, drive_stb_o_old;
+	integer to = 0;
 
 	c64_iec_clk_old <= c64_iec_clk;
-	c1541_iec_clk_old <= c1541_iec_clk;
-	c1541_stb_i_old <= c1541_stb_i;
-	c1541_stb_o_old <= c1541_stb_o;
+	drive_iec_clk_old <= drive_iec_clk;
+	drive_stb_i_old <= drive_stb_i;
+	drive_stb_o_old <= drive_stb_o;
 	
-	disk_access <= 0;
-	if((c64_iec_clk_old != c64_iec_clk) || (c1541_iec_clk_old != c1541_iec_clk)) disk_access <= 1;
-	if(disk_parport && ((c1541_stb_i_old != c1541_stb_i) || (c1541_stb_o_old != c1541_stb_o))) disk_access <= 1;
+	if(((c64_iec_clk_old != c64_iec_clk) || (drive_iec_clk_old != drive_iec_clk)) || 
+		(disk_parport && ((drive_stb_i_old != drive_stb_i) || (drive_stb_o_old != drive_stb_o))))
+	begin
+		disk_access <= 1;
+		to <= 16000000; // 0.5s
+	end
+	else if(to) to <= to - 1;
+	else disk_access <= 0;
 end
 
 wire hsync;
@@ -1526,7 +1536,6 @@ wire       pc2_n_o;
 wire       flag2_n_i;
 wire       sp2_i, sp2_o, sp1_o, sp1_i;
 wire       cnt2_i, cnt2_o, cnt1_o, cnt1_i;
-wire       disk_parport;
 
 always_comb begin
 	pa2_i       = 1;
@@ -1539,16 +1548,14 @@ always_comb begin
 	UART_TXD    = 1;
 	UART_RTS    = 0;
 	UART_DTR    = 0;
-	c1541_par_i = 8'hFF;
-	c1541_stb_i = 1;
-	disk_parport= 0;
+	drive_par_i = 8'hFF;
+	drive_stb_i = 1;
 
-	if(~status[44] & (c1541_1_led | c1541_2_led)) begin
-		c1541_par_i = pb_o;
-		c1541_stb_i = pc2_n_o;
-		pb_i        = c1541_par_o;
-		flag2_n_i   = c1541_stb_o;
-		disk_parport= 1;
+	if(disk_parport & disk_access) begin
+		drive_par_i = pb_o;
+		drive_stb_i = pc2_n_o;
+		pb_i        = drive_par_o;
+		flag2_n_i   = drive_stb_o;
 	end
 	else if(status[43]) begin
 		UART_TXD  = pa2_o;

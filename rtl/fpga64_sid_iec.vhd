@@ -9,10 +9,9 @@
 -- http://www.syntiac.com/fpga64.html
 -- -----------------------------------------------------------------------
 --
--- System runs on 32 Mhz (derived from a 50MHz clock). 
--- The VIC-II runs in the first 4 cycles of 32 Mhz clock.
+-- System runs on 32 Mhz
+-- The VIC-II runs in 4 cycles of first 16 cycles.
 -- The CPU runs in the last 16 cycles. Effective cpu speed is 1 Mhz.
--- 4 additional cycles are used to interface with the C-One IEC port.
 -- 
 -- -----------------------------------------------------------------------
 -- Dar 08/03/2014 
@@ -23,6 +22,16 @@
 -- add external conection in/out for IEC signal
 -- add sid entity 
 -- -----------------------------------------------------------------------
+-- 
+-- Alexey Melnikov 2021
+-- 
+-- add dma engine
+-- implement up to 4x turbo of C128 and smart types.
+-- add user port signals
+-- various fixes and tweaks
+-- 
+-- -----------------------------------------------------------------------
+
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -58,7 +67,6 @@ port(
 	cia_mode    : in  std_logic;
 	turbo_mode  : in  std_logic_vector(1 downto 0);
 	turbo_speed : in  std_logic_vector(1 downto 0);
-	turbo_reset : in  std_logic;
 
 	-- VGA/SCART interface
 	ntscMode    : in  std_logic;
@@ -154,14 +162,14 @@ end fpga64_sid_iec;
 architecture rtl of fpga64_sid_iec is
 -- System state machine
 type sysCycleDef is (
-	CYCLE_IDLE0, CYCLE_IDLE1, CYCLE_IDLE2, CYCLE_IDLE3,
-	CYCLE_DMA0,  CYCLE_DMA1,  CYCLE_DMA2,  CYCLE_DMA3,
-	CYCLE_IEC0,  CYCLE_IEC1,  CYCLE_IEC2,  CYCLE_IEC3,
-	CYCLE_VIC0,  CYCLE_VIC1,  CYCLE_VIC2,  CYCLE_VIC3,
-	CYCLE_CPU0,  CYCLE_CPU1,  CYCLE_CPU2,  CYCLE_CPU3,
-	CYCLE_CPU4,  CYCLE_CPU5,  CYCLE_CPU6,  CYCLE_CPU7,
-	CYCLE_CPU8,  CYCLE_CPU9,  CYCLE_CPUA,  CYCLE_CPUB,
-	CYCLE_CPUC,  CYCLE_CPUD,  CYCLE_CPUE,  CYCLE_CPUF
+	CYCLE_EXT0, CYCLE_EXT1, CYCLE_EXT2, CYCLE_EXT3,
+	CYCLE_DMA0, CYCLE_DMA1, CYCLE_DMA2, CYCLE_DMA3,
+	CYCLE_EXT4, CYCLE_EXT5, CYCLE_EXT6, CYCLE_EXT7,
+	CYCLE_VIC0, CYCLE_VIC1, CYCLE_VIC2, CYCLE_VIC3,
+	CYCLE_CPU0, CYCLE_CPU1, CYCLE_CPU2, CYCLE_CPU3,
+	CYCLE_CPU4, CYCLE_CPU5, CYCLE_CPU6, CYCLE_CPU7,
+	CYCLE_CPU8, CYCLE_CPU9, CYCLE_CPUA, CYCLE_CPUB,
+	CYCLE_CPUC, CYCLE_CPUD, CYCLE_CPUE, CYCLE_CPUF
 );
 
 signal sysCycle     : sysCycleDef := sysCycleDef'low;
@@ -210,7 +218,6 @@ signal io_enable    : std_logic;
 signal cpu_cyc      : std_logic;
 signal cpu_cyc_s    : std_logic_vector(1 downto 0);
 signal turbo_m      : std_logic_vector(2 downto 0);
-signal turbo_cnt    : integer range 0 to 9999;
 
 signal reset        : std_logic := '1';
 
@@ -311,15 +318,15 @@ begin
 -- -----------------------------------------------------------------------
 
 io_cycle <= '1' when
-	(sysCycle >= CYCLE_IDLE0 and sysCycle <= CYCLE_IDLE3) or
-	(sysCycle >= CYCLE_IEC0  and sysCycle <= CYCLE_IEC3 and rfsh_cycle /= "00")  else '0';
+	(sysCycle >= CYCLE_EXT0 and sysCycle <= CYCLE_EXT3) or
+	(sysCycle >= CYCLE_EXT4 and sysCycle <= CYCLE_EXT7 and rfsh_cycle /= "00")  else '0';
 
 -- -----------------------------------------------------------------------
 -- System state machine, controls bus accesses
 -- and triggers enables of other components
 -- -----------------------------------------------------------------------
 
-sysCycle <= preCycle when sysEnable = '1' else CYCLE_IEC0;
+sysCycle <= preCycle when sysEnable = '1' else CYCLE_EXT4;
 pause_out <= not sysEnable;
 
 process(clk32)
@@ -334,7 +341,7 @@ begin
 		end if;
 		
 		refresh <= '0';
-		if preCycle = sysCycleDef'pred(CYCLE_IEC0) and rfsh_cycle = "00" then
+		if preCycle = sysCycleDef'pred(CYCLE_EXT4) and rfsh_cycle = "00" then
 			sysEnable <= not pause;
 			refresh <= '1';
 		end if;
@@ -587,9 +594,9 @@ begin
 	if rising_edge(clk32) then
 		enablePixel <= '0';
 		if sysCycle = CYCLE_VIC2
-		or sysCycle = CYCLE_IDLE2
+		or sysCycle = CYCLE_EXT2
 		or sysCycle = CYCLE_DMA2
-		or sysCycle = CYCLE_IEC2
+		or sysCycle = CYCLE_EXT6
 		or sysCycle = CYCLE_CPU2
 		or sysCycle = CYCLE_CPU6
 		or sysCycle = CYCLE_CPUA
@@ -704,7 +711,7 @@ port map (
 serialBus: process(clk32)
 begin
 	if rising_edge(clk32) then
-		if sysCycle = CYCLE_IEC1 then
+		if sysCycle = CYCLE_EXT5 then
 			cia2_pai(7) <= iec_data_i and not cia2_pao(5);
 			cia2_pai(6) <= iec_clk_i and not cia2_pao(4);
 		end if;
@@ -785,19 +792,16 @@ begin
 		enableCpu <= cpu_cyc_s(1);
 		io_enable <= io_enable and not enableCpu;
 
-		if sysCycle = CYCLE_IDLE0 then
-			if turbo_cnt /= 0 then
-				turbo_cnt <= turbo_cnt - 1;
-			end if;
+		if sysCycle = CYCLE_EXT0 then
 			io_enable <= '1';
 		end if;
 
 		-- 2 points to register DMA request before CPU cycles.
-		if sysCycle = CYCLE_IDLE1 or sysCycle = CYCLE_IEC1 then
+		if sysCycle = CYCLE_EXT1 or sysCycle = CYCLE_EXT5 then
 			dma_active <= dma_req;
 			turbo_en <= turbo_mode(0);
 			turbo_m <= "000";
-			if dma_req = '0' and ((turbo_mode(0) and turbo_state) = '1' or (turbo_mode(1) = '1' and turbo_cnt = 0)) then
+			if dma_req = '0' and ((turbo_mode(0) and turbo_state) = '1' or turbo_mode(1) = '1') then
 				case turbo_speed is
 					when "00" => turbo_m <= "010";
 					when "01" => turbo_m <= "110";
@@ -805,10 +809,6 @@ begin
 					when "11" => turbo_m <= "111"; -- unused
 				end case;
 			end if;
-		end if;
-
-		if turbo_reset = '1' then
-			turbo_cnt <= 9999;
 		end if;
 	end if;
 end process;

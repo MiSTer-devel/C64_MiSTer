@@ -35,10 +35,11 @@ module iec_drive
 	input         img_type,
 
 	output [31:0] sd_lba,
+	output  [5:0] sd_sz,
 	output        sd_rd,
 	output        sd_wr,
 	input         sd_ack,
-	input   [8:0] sd_buff_addr,
+	input  [12:0] sd_buff_addr,
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din,
 	input         sd_buff_wr,
@@ -52,20 +53,22 @@ module iec_drive
 reg dtype;
 always @(posedge clk_sys) if(img_mounted && img_size) dtype <= img_type;
 
-assign led          = dtype ? c1581_led          : c1541_led          ;
-assign iec_data_o   = dtype ? c1581_iec_data     : c1541_iec_data     ;
-assign iec_clk_o    = dtype ? c1581_iec_clk      : c1541_iec_clk      ;
-assign par_stb_o    = dtype ? c1581_stb_o        : c1541_stb_o        ;
-assign par_data_o   = dtype ? c1581_par_o        : c1541_par_o        ;
-assign sd_buff_din  = dtype ? c1581_sd_buff_dout : c1541_sd_buff_dout ;
-assign sd_lba       = dtype ? c1581_sd_lba       : c1541_sd_lba       ;
-assign sd_rd        = dtype ? c1581_sd_rd        : c1541_sd_rd        ;
-assign sd_wr        = dtype ? c1581_sd_wr        : c1541_sd_wr        ;
+assign led          = (dtype ? c1581_led          : c1541_led          ) & ~iec_reset_i;
+assign iec_data_o   = (dtype ? c1581_iec_data     : c1541_iec_data     ) | iec_reset_i;
+assign iec_clk_o    = (dtype ? c1581_iec_clk      : c1541_iec_clk      ) | iec_reset_i;
+assign par_stb_o    = (dtype ? c1581_stb_o        : c1541_stb_o        ) | iec_reset_i;
+assign par_data_o   = (dtype ? c1581_par_o        : c1541_par_o        ) | {8{iec_reset_i}};
+assign sd_buff_din  = (dtype ? c1581_sd_buff_dout : c1541_sd_buff_dout );
+assign sd_lba       = (dtype ? c1581_sd_lba << 1  : c1541_sd_lba       );
+assign sd_rd        = (dtype ? c1581_sd_rd        : c1541_sd_rd        );
+assign sd_wr        = (dtype ? c1581_sd_wr        : c1541_sd_wr        );
+assign sd_sz        = (dtype ? 6'd1               : c1541_sd_sz        );
 
 wire        c1541_iec_data, c1541_iec_clk, c1541_led, c1541_stb_o;
 wire  [7:0] c1541_par_o, c1541_sd_buff_dout;
 wire [31:0] c1541_sd_lba;
 wire        c1541_sd_rd, c1541_sd_wr;
+wire  [5:0] c1541_sd_sz;
 
 c1541 #(1) c1541
 (
@@ -96,10 +99,12 @@ c1541 #(1) c1541
 	.rom_wr(~rom_addr[15] & rom_wr),
 	.rom_std(rom_std),
 
-	.disk_change(img_mounted),
-	.disk_readonly(img_readonly),
+	.img_mounted(img_mounted),
+	.img_size(img_size),
+	.img_readonly(img_readonly),
 
 	.sd_lba(c1541_sd_lba),
+	.sd_sz(c1541_sd_sz),
 	.sd_rd(c1541_sd_rd),
 	.sd_wr(c1541_sd_wr),
 	.sd_ack(sd_ack),
@@ -152,7 +157,7 @@ c1581 #(1) c1581
 	.sd_rd(c1581_sd_rd),
 	.sd_wr(c1581_sd_wr),
 	.sd_ack(sd_ack),
-	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_addr(sd_buff_addr[8:0]),
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_din(c1581_sd_buff_dout),
 	.sd_buff_wr(sd_buff_wr)

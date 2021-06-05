@@ -21,8 +21,10 @@ port
 	ce             : in  std_logic := '1'; -- 16 MHz
 	pause          : in  std_logic := '0';
 
-	disk_change    : in  std_logic;
-	disk_readonly  : in  std_logic := '0';
+	img_mounted    : in  std_logic;
+	img_readonly   : in  std_logic := '0';
+	img_size       : in  std_logic_vector(31 downto 0);
+
 	drive_num      : in  std_logic_vector(1 downto 0) := "00";
 	led            : out std_logic;
 
@@ -43,10 +45,11 @@ port
 	clk_sys        : in  std_logic;
 
 	sd_lba         : out std_logic_vector(31 downto 0);
+	sd_sz          : out std_logic_vector(5 downto 0);
 	sd_rd          : out std_logic;
 	sd_wr          : out std_logic;
 	sd_ack         : in  std_logic;
-	sd_buff_addr   : in  std_logic_vector(8 downto 0);
+	sd_buff_addr   : in  std_logic_vector(12 downto 0);
 	sd_buff_dout   : in  std_logic_vector(7 downto 0);
 	sd_buff_din    : out std_logic_vector(7 downto 0);
 	sd_buff_wr     : in  std_logic;
@@ -71,8 +74,10 @@ architecture rtl of C1541 is
 		ce             : in  std_logic;
 		pause          : in  std_logic;
 
-		disk_change    : in  std_logic;
-		disk_readonly  : in  std_logic;
+		img_mounted    : in  std_logic;
+		img_readonly   : in  std_logic;
+		img_size       : in  std_logic_vector(31 downto 0);
+
 		drive_num      : in  std_logic_vector(1 downto 0);
 		led            : out std_logic;
 
@@ -91,10 +96,11 @@ architecture rtl of C1541 is
 		clk_sys        : in  std_logic;
 
 		sd_lba         : out std_logic_vector(31 downto 0);
+		sd_sz          : out std_logic_vector(5 downto 0);
 		sd_rd          : out std_logic;
 		sd_wr          : out std_logic;
 		sd_ack         : in  std_logic;
-		sd_buff_addr   : in  std_logic_vector(8 downto 0);
+		sd_buff_addr   : in  std_logic_vector(12 downto 0);
 		sd_buff_dout   : in  std_logic_vector(7 downto 0);
 		sd_buff_din    : out std_logic_vector(7 downto 0);
 		sd_buff_wr     : in  std_logic;
@@ -114,8 +120,9 @@ begin
 		clk           => clk           ,
 		ce            => ce            ,
 		pause         => pause         ,
-		disk_change   => disk_change   ,
-		disk_readonly => disk_readonly ,
+		img_mounted   => img_mounted   ,
+		img_readonly  => img_readonly  ,
+		img_size      => img_size      ,
 		drive_num     => drive_num     ,
 		led           => led           ,
 		iec_reset_i   => iec_reset_i   ,
@@ -130,6 +137,7 @@ begin
 		par_stb_o     => par_stb_o     ,
 		clk_sys       => clk_sys       ,
 		sd_lba        => sd_lba        ,
+		sd_sz         => sd_sz         ,
 		sd_rd         => sd_rd         ,
 		sd_wr         => sd_wr         ,
 		sd_ack        => sd_ack        ,

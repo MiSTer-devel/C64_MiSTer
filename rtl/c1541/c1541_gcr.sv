@@ -15,28 +15,30 @@
 
 module c1541_gcr
 (
-	input            clk,
-	input            ce,
+	input             clk,
+	input             ce,
 
-	output reg [7:0] dout,    // data from ram to 1541 logic
-	input      [7:0] din,     // data from 1541 logic to ram
-	input            mode,    // read/write
-	input            mtr,     // stepper motor on/off
-	input      [1:0] freq,    // motor (gcr_bit) frequency
-	output           sync_n,  // reading SYNC bytes
-	output reg       byte_n,  // byte ready
+	output reg  [7:0] dout,    // data from ram to 1541 logic
+	input       [7:0] din,     // data from 1541 logic to ram
+	input             mode,    // read/write
+	input             mtr,     // stepper motor on/off
+	input       [1:0] freq,    // motor (gcr_bit) frequency
+	output            sync_n,  // reading SYNC bytes
+	output reg        byte_n,  // byte ready
 
-	input      [5:0] track,
-	output reg [4:0] sector,
-
-	output reg [7:0] ram_addr,
-	input      [7:0] ram_do,
-	output reg [7:0] ram_di,
-	output reg       ram_we,
-	input            ram_ready
+	input       [5:0] track,
+	input             busy,
+	output reg        we,
+	
+	input             sd_clk,
+	input      [31:0] sd_lba,
+	input      [12:0] sd_buff_addr,
+	input       [7:0] sd_buff_dout,
+	output      [7:0] sd_buff_din,
+	input             sd_buff_wr
 );
 
-assign sync_n = ~(mtr & ram_ready) | sync_in_n;
+assign sync_n = ~mtr | busy | sync_in_n;
 
 wire [4:0] sector_max=	(track < 18) ? 5'd20 :
 								(track < 25) ? 5'd18 :
@@ -44,11 +46,11 @@ wire [4:0] sector_max=	(track < 18) ? 5'd20 :
 													5'd16;
 
 wire [7:0] data_header= (byte_cnt == 0) ? 8'h08 :
-								(byte_cnt == 1) ? track ^ sector :
+								(byte_cnt == 1) ? hdr_cks :
 								(byte_cnt == 2) ? sector :
 								(byte_cnt == 3) ? track :
-								(byte_cnt == 4) ? 8'h20 :
-								(byte_cnt == 5) ? 8'h20 :
+								(byte_cnt == 4) ? id2 :
+								(byte_cnt == 5) ? id1 :
 														8'h0F;
 
 wire [7:0] data_body=	(byte_cnt == 0)   ? 8'h07 :
@@ -56,7 +58,7 @@ wire [7:0] data_body=	(byte_cnt == 0)   ? 8'h07 :
 								(byte_cnt == 258) ? 8'h00 :
 								(byte_cnt == 259) ? 8'h00 :
 								(byte_cnt >= 260) ? 8'h0F :
-														  ram_do;
+														  buff_do;
 
 wire [7:0] data = state ? data_body : data_header;
 wire [4:0] gcr_nibble = gcr_lut[nibble ? data[3:0] : data[7:4]];
@@ -92,42 +94,71 @@ end
 
 reg       bit_clk_en;
 reg [5:0] old_track;
-always @(posedge clk) if(ce) begin
+always @(posedge clk) begin
 	reg [5:0] bit_clk_cnt;
 	reg       mode_r1;
 
-	old_track <= track;
-	mode_r1 <= mode;
+	bit_clk_en <= 0;
 
-	if (old_track != track && mode_r1 ^ mode) begin		// read/write change, track change
-		bit_clk_cnt = {freq,2'b00};
+	if(ce) begin
+		old_track <= track;
+		mode_r1 <= mode;
 		byte_n <= 1;
-		bit_clk_en <= 0;
-	end
-	else begin
-		bit_clk_en <= 0;
-		if (&bit_clk_cnt) begin
-			bit_clk_en <= 1;
-			bit_clk_cnt = {freq,2'b00};
+
+		if ((old_track != track) | (mode_r1 ^ mode) | busy | ~mtr) begin
+			bit_clk_cnt <= {freq,2'b00};
 		end
 		else begin
-			bit_clk_cnt = bit_clk_cnt + 1'b1;
-		end
+			bit_clk_cnt <= bit_clk_cnt + 1'b1;
+			if(byte_in && bit_clk_cnt[5:4] == 1) byte_n <= 0;
 
-		byte_n <= ~((~byte_in_n & mtr & ram_ready) && bit_clk_cnt > 20 && bit_clk_cnt < 59);
+			if (&bit_clk_cnt) begin
+				bit_clk_en <= 1;
+				bit_clk_cnt <= {freq,2'b00};
+			end
+		end
 	end
 end
 
-reg       sync_in_n;
-reg       byte_in_n;
-reg [8:0] byte_cnt;
-reg       nibble;
-reg       state;
-reg [7:0] data_cks; 
-reg [7:0] gcr_byte_out;
-reg [4:0] gcr_nibble_out;
+reg [7:0] id1=0, id2=0;
+always @(posedge sd_clk) begin
+	if(sd_lba == 357 && sd_buff_wr) begin
+		if(sd_buff_addr == 'hA2) id1 <= sd_buff_dout;
+		if(sd_buff_addr == 'hA3) id2 <= sd_buff_dout;
+	end
+end
 
-always @(posedge clk) if(ce) begin
+c1541mem #(8,13) buffer
+(
+	.clock_a(sd_clk),
+	.address_a(sd_buff_addr),
+	.data_a(sd_buff_dout),
+	.wren_a(sd_buff_wr),
+	.q_a(sd_buff_din),
+
+	.clock_b(clk),
+	.address_b(buff_addr),
+	.data_b(buff_di),
+	.wren_b(we),
+	.q_b(buff_do)
+);
+
+reg [12:0] buff_addr;
+wire [7:0] buff_do;
+reg  [7:0] buff_di;
+
+reg  [4:0] sector;
+reg        sync_in_n;
+reg        byte_in;
+reg  [8:0] byte_cnt;
+reg        nibble;
+reg        state;
+reg  [7:0] data_cks; 
+reg  [7:0] gcr_byte_out;
+reg  [4:0] gcr_nibble_out;
+reg  [7:0] hdr_cks;
+
+always @(posedge clk) begin
 	reg       mode_r2;
 	reg       autorise_write;
 	reg       autorise_count;
@@ -136,9 +167,10 @@ always @(posedge clk) if(ce) begin
 	reg [2:0] bit_cnt;
 	reg [3:0] gcr_bit_cnt;
 
-	ram_we <= 0;
+	hdr_cks <= track ^ sector ^ id1 ^ id2;
+	we <= 0;
 
-	if (old_track != track) sector <= 0;		//reset sector number on track change
+	if (sector > sector_max) sector <= 0;
 	else if (bit_clk_en) begin
 		mode_r2 <= mode;
 		if (mode) autorise_write <= 0;
@@ -159,19 +191,20 @@ always @(posedge clk) if(ce) begin
 			end
 		end
 
+		byte_in <= 0;
+
 		if (~sync_in_n & mode) begin
 			byte_cnt <= 0;
 			nibble <= 0;
 			gcr_bit_cnt <= 0;
 			bit_cnt <= 0;
-			dout <= 0;
+			dout <= 8'hFF;
 			gcr_byte <= 0;
 			data_cks <= 0;
-			if (sync_cnt == 49) begin
+			sync_cnt <= sync_cnt + 1'd1;
+			if (sync_cnt == 39) begin
 				sync_cnt <= 0;
 				sync_in_n <= 1;
-			end else begin
-				sync_cnt <= sync_cnt + 1'b1;
 			end
 		end
 		else begin
@@ -180,14 +213,14 @@ always @(posedge clk) if(ce) begin
 				gcr_bit_cnt <= 0;
 				if (nibble) begin
 					nibble <= 0;
-					ram_addr <= byte_cnt[7:0];
+					buff_addr <= {sector,byte_cnt[7:0]};
 					if (!byte_cnt) data_cks <= 0;
 					else data_cks <= data_cks ^ data;
 
-					if (mode | (~mode & autorise_count)) byte_cnt <= byte_cnt + 1'b1;
+					if (mode | autorise_count) byte_cnt <= byte_cnt + 1'b1;
 				end else begin
 					nibble <= 1;
-					if (~mode && ram_di == 'h07) begin
+					if (~mode && buff_di == 'h07) begin
 						autorise_write <= 1;
 						autorise_count <= 1;
 					end
@@ -199,9 +232,8 @@ always @(posedge clk) if(ce) begin
 			end
 
 			bit_cnt <= bit_cnt + 1'b1;
-			byte_in_n <= 1;
 			if (bit_cnt == 7) begin
-				byte_in_n <= 0;
+				byte_in <= 1;
 				gcr_byte_out <= din;
 			end
 
@@ -227,12 +259,12 @@ always @(posedge clk) if(ce) begin
 			gcr_nibble_out <= {gcr_nibble_out[3:0], gcr_byte_out[~bit_cnt]};
 
 			if (!gcr_bit_cnt) begin
-				if (nibble) ram_di[7:4] <= nibble_out;
-				else ram_di[3:0] <= nibble_out;
+				if (nibble) buff_di[7:4] <= nibble_out;
+				else buff_di[3:0] <= nibble_out;
 			end
 
 			if (gcr_bit_cnt == 1 && ~nibble) begin
-				if (autorise_write) ram_we <= 1;
+				if (autorise_write) we <= 1;
 			end
 		end
 	end
