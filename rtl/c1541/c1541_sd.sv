@@ -66,11 +66,11 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 
 assign led = act | sd_busy;
 
-wire iec_atn, iec_data, iec_clk, iec_reset;
+wire iec_atn, iec_data, iec_clk, reset_n;
 c1541_sync atn_sync(clk, iec_atn_i,   iec_atn);
 c1541_sync dat_sync(clk, iec_data_i,  iec_data);
 c1541_sync clk_sync(clk, iec_clk_i,   iec_clk);
-c1541_sync rst_sync(clk, iec_reset_i, iec_reset);
+c1541_sync rst_sync(clk, iec_reset_i, reset_n);
 
 reg        readonly = 0;
 reg        disk_present = 0;
@@ -98,7 +98,7 @@ c1541_logic #(PARPORT,DUALROM) c1541_logic
 (
 	.clk(clk),
 	.ce(ce),
-	.reset(iec_reset),
+	.reset(~reset_n),
 	.pause(pause),
 
 	// serial bus
@@ -183,7 +183,7 @@ c1541_track c1541_track
 	.save_track(save_track),
 	.change(img_mounted),
 	.track(track),
-	.reset(iec_reset),
+	.reset(~reset_n),
 	.busy(busy)
 );
 
@@ -202,7 +202,7 @@ always @(posedge clk) begin
 	if (we)          track_modified <= 1;
 	if (img_mounted) track_modified <= 0;
 
-	if (iec_reset) begin
+	if (~reset_n) begin
 		track_num <= 36;
 		track_modified <= 0;
 	end else begin

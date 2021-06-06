@@ -63,11 +63,11 @@ always @(posedge clk) begin
 	if (~prev_mounted & img_mounted) wps_n <= ~img_readonly;
 end
 
-wire iec_atn, iec_data, iec_clk, iec_reset;
+wire iec_atn, iec_data, iec_clk, reset_n;
 c1581_sync atn_sync(clk, iec_atn_i,   iec_atn);
 c1581_sync dat_sync(clk, iec_data_i,  iec_data);
 c1581_sync clk_sync(clk, iec_clk_i,   iec_clk);
-c1581_sync rst_sync(clk, iec_reset_i, iec_reset);
+c1581_sync rst_sync(clk, iec_reset_i, reset_n);
 
 reg p2_h_r;
 reg p2_h_f;
@@ -118,7 +118,7 @@ T65 cpu
 	.clk(clk),
 	.enable(p2_h_r),
 	.mode(2'b00),
-	.res_n(~iec_reset),
+	.res_n(reset_n),
 	.irq_n(cia_irq_n & ~via_irq),
 	.r_w_n(cpu_rw),
 	.A(cpu_a),
@@ -200,7 +200,7 @@ c1581_mos8520 cia
 	.clk(clk),
 	.phi2_p(p2_h_r),
 	.phi2_n(p2_h_f),
-	.res_n(~iec_reset),
+	.res_n(reset_n),
 	.cs_n(~cia_cs),
 	.rw(cpu_rw),
 
@@ -248,7 +248,7 @@ c1581_via6522 via
 	.clock(clk),
 	.rising(p2_h_f),
 	.falling(p2_h_r),
-	.reset(iec_reset),
+	.reset(~reset_n),
 
 	.addr(cpu_a[3:0]),
 	.wen(~cpu_rw & via_cs),
@@ -284,7 +284,7 @@ c1581_via6522 via
 
 reg disk_chng_n;
 always @(posedge clk) begin
-	if(img_mounted | iec_reset) disk_chng_n <=0;
+	if(img_mounted | ~reset_n) disk_chng_n <=0;
 	if(floppy_step) disk_chng_n <=1;
 end
 
@@ -300,7 +300,7 @@ fdc1772 #(.SECTOR_SIZE_CODE(2), .SECTOR_BASE(1), .EXT_MOTOR(1), .FD_NUM(1)) fdc
 
 	.floppy_drive(1'b0),
 	.floppy_side(~side), 
-	.floppy_reset(~iec_reset),
+	.floppy_reset(reset_n),
 	.floppy_step(floppy_step),
 	.floppy_motor(~motor_n),
 	.floppy_ready(floppy_ready),

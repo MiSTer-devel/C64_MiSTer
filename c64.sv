@@ -1076,7 +1076,7 @@ iec_drive drive_8
 	.iec_clk_i(c64_iec_clk & drive_9_iec_clk),
 	.iec_data_o(drive_8_iec_data),
 	.iec_clk_o(drive_8_iec_clk),
-	.iec_reset_i(drive_reset),
+	.iec_reset_i(~drive_reset),
 
 	.led(drive_8_led),
 
@@ -1129,7 +1129,7 @@ iec_drive drive_9
 	.iec_clk_i(c64_iec_clk & drive_8_iec_clk),
 	.iec_data_o(drive_9_iec_data),
 	.iec_clk_o(drive_9_iec_clk),
-	.iec_reset_i(drive_reset | (!status[56:55]) ? ~drive_9_mounted : status[56]),
+	.iec_reset_i(~(drive_reset | (!status[56:55]) ? ~drive_9_mounted : status[56])),
 
 	.led(drive_9_led),
 

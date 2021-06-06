@@ -53,11 +53,11 @@ module iec_drive
 reg dtype;
 always @(posedge clk_sys) if(img_mounted && img_size) dtype <= img_type;
 
-assign led          = (dtype ? c1581_led          : c1541_led          ) & ~iec_reset_i;
-assign iec_data_o   = (dtype ? c1581_iec_data     : c1541_iec_data     ) | iec_reset_i;
-assign iec_clk_o    = (dtype ? c1581_iec_clk      : c1541_iec_clk      ) | iec_reset_i;
-assign par_stb_o    = (dtype ? c1581_stb_o        : c1541_stb_o        ) | iec_reset_i;
-assign par_data_o   = (dtype ? c1581_par_o        : c1541_par_o        ) | {8{iec_reset_i}};
+assign led          = (dtype ? c1581_led          : c1541_led          ) &  iec_reset_i;
+assign iec_data_o   = (dtype ? c1581_iec_data     : c1541_iec_data     ) | ~iec_reset_i;
+assign iec_clk_o    = (dtype ? c1581_iec_clk      : c1541_iec_clk      ) | ~iec_reset_i;
+assign par_stb_o    = (dtype ? c1581_stb_o        : c1541_stb_o        ) | ~iec_reset_i;
+assign par_data_o   = (dtype ? c1581_par_o        : c1541_par_o        ) | ~{8{iec_reset_i}};
 assign sd_buff_din  = (dtype ? c1581_sd_buff_dout : c1541_sd_buff_dout );
 assign sd_lba       = (dtype ? c1581_sd_lba << 1  : c1541_sd_lba       );
 assign sd_rd        = (dtype ? c1581_sd_rd        : c1541_sd_rd        );
@@ -75,7 +75,7 @@ c1541 #(1) c1541
 	.clk(clk),
 	.ce(ce),
 
-	.iec_reset_i(iec_reset_i | dtype),
+	.iec_reset_i(iec_reset_i & ~dtype),
 
 	.iec_atn_i (iec_atn_i),
 	.iec_data_i(iec_data_i),
@@ -125,7 +125,7 @@ c1581 #(1) c1581
 	.clk(clk),
 	.ce(ce),
 
-	.iec_reset_i(iec_reset_i | ~dtype),
+	.iec_reset_i(iec_reset_i & dtype),
 
 	.iec_atn_i (iec_atn_i),
 	.iec_data_i(iec_data_i),
