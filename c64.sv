@@ -193,7 +193,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX X XX XX XXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -238,6 +238,7 @@ localparam CONF_STR = {
 	"P2OP,External IEC,Disabled,Enabled;",
 	"P2oB,Expansion,Joysticks,RS232;",
 	"P2oJ,RS232 mode,UP9600,VIC-1011;",
+	"P2O1,RS232 connection,Internal,External;",
 	"P2oD,CIA Model,6526,8521;",
 	"P2-;",
 	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
@@ -1211,8 +1212,6 @@ wire ext_iec_en   = status[25];
 wire ext_iec_clk  = USER_IN[2] | ~ext_iec_en;
 wire ext_iec_data = USER_IN[3] | ~ext_iec_en;
 
-assign USER_OUT[0] = 1;
-assign USER_OUT[1] = 1;
 assign USER_OUT[2] = (c64_iec_clk  & drive_8_iec_clk  & drive_9_iec_clk)  | ~ext_iec_en;
 assign USER_OUT[3] = (reset_n & ~status[6]) | ~ext_iec_en;
 assign USER_OUT[4] = (c64_iec_data & drive_8_iec_data & drive_9_iec_data) | ~ext_iec_en;
@@ -1580,6 +1579,8 @@ always_comb begin
 	UART_DTR    = 0;
 	drive_par_i = 8'hFF;
 	drive_stb_i = 1;
+	USER_OUT[0] = 1;
+	USER_OUT[1] = 1;
 
 	if(disk_parport & disk_access) begin
 		drive_par_i = pb_o;
@@ -1588,20 +1589,24 @@ always_comb begin
 		flag2_n_i   = drive_stb_o;
 	end
 	else if(status[43]) begin
-		UART_TXD  = pa2_o;
+		UART_TXD  = pa2_o & uart_int;
 		flag2_n_i = uart_rxd;
 		sp2_i     = uart_rxd;
 		pb_i[0]   = uart_rxd;
-		UART_RTS  = ~pb_o[1];
-		UART_DTR  = ~pb_o[2];
+		UART_RTS  = ~pb_o[1] & uart_int;
+		UART_DTR  = ~pb_o[2] & uart_int;
 		pb_i[4]   = ~uart_dsr;
 		pb_i[6]   = ~uart_cts;
 		pb_i[7]   = ~uart_dsr;
 
+		USER_OUT[1] = pa2_o | uart_int;
+
 		if(~status[51]) begin
-			UART_TXD = pa2_o & sp1_o;
+			UART_TXD = pa2_o & sp1_o & uart_int;
 			pb_i[7]  = cnt2_o;
 			cnt2_i   = pb_o[7];
+
+			USER_OUT[1] = (pa2_o & sp1_o) | uart_int;
 		end
 	end
 	else begin
@@ -1609,13 +1614,15 @@ always_comb begin
 	end
 end
 
+wire uart_int = ~status[33];
+
 reg uart_rxd, uart_dsr, uart_cts;
 always @(posedge clk_sys) begin
 	reg rxd1, rxd2, dsr1, dsr2, cts1, cts2;
 
-	rxd1 <= UART_RXD; rxd2 <= rxd1; if(rxd1 == rxd2) uart_rxd <= rxd2;
-	cts1 <= UART_CTS; cts2 <= cts1; if(cts1 == cts2) uart_cts <= cts2;
-	dsr1 <= UART_DSR; dsr2 <= dsr1; if(dsr1 == dsr2) uart_dsr <= dsr2;
+	rxd1 <= uart_int ? UART_RXD : USER_IN[0]; rxd2 <= rxd1; if(rxd1 == rxd2) uart_rxd <= rxd2;
+	cts1 <= UART_CTS & uart_int; cts2 <= cts1; if(cts1 == cts2) uart_cts <= cts2;
+	dsr1 <= UART_DSR & uart_int; dsr2 <= dsr1; if(dsr1 == dsr2) uart_dsr <= dsr2;
 end
 
 endmodule
