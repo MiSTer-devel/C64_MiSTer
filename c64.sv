@@ -178,7 +178,6 @@ module emu
 );
 
 assign ADC_BUS  = 'Z;
-assign USER_OUT = '1;
 
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
@@ -194,7 +193,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXX XXXXXX X XX XX XXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX X XX XX XXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -236,6 +235,7 @@ localparam CONF_STR = {
 	"P2oK,GeoRAM,Disabled,4MB;",
 	"P2oLM,REU,Disabled,512KB,2MB (512KB wrap),16MB;",
 	"P2-;",
+	"P2OP,External IEC,Disabled,Enabled;",
 	"P2oB,Expansion,Joysticks,RS232;",
 	"P2oJ,RS232 mode,UP9600,VIC-1011;",
 	"P2oD,CIA Model,6526,8521;",
@@ -1052,10 +1052,10 @@ wire       c64_iec_atn;
 
 wire [7:0] drive_par_i;
 wire       drive_stb_i;
-wire [7:0] drive_par_o    = drive_8_par_o    & drive_9_par_o    ;
-wire       drive_stb_o    = drive_8_stb_o    & drive_9_stb_o    ;
-wire       drive_iec_clk  = drive_8_iec_clk  & drive_9_iec_clk  ;
-wire       drive_iec_data = drive_8_iec_data & drive_9_iec_data ;
+wire [7:0] drive_par_o    = drive_8_par_o    & drive_9_par_o;
+wire       drive_stb_o    = drive_8_stb_o    & drive_9_stb_o;
+wire       drive_iec_clk  = drive_8_iec_clk  & drive_9_iec_clk  & ext_iec_clk;
+wire       drive_iec_data = drive_8_iec_data & drive_9_iec_data & ext_iec_data;
 wire       drive_reset    = ~reset_n | status[6] | (load_c1581 & ioctl_download);
 
 wire       drive_8_iec_clk;
@@ -1076,8 +1076,8 @@ iec_drive drive_8
 	.drive_num(0),
 
 	.iec_atn_i(c64_iec_atn),
-	.iec_data_i(c64_iec_data & drive_9_iec_data),
-	.iec_clk_i(c64_iec_clk & drive_9_iec_clk),
+	.iec_data_i(c64_iec_data & drive_9_iec_data & ext_iec_data),
+	.iec_clk_i(c64_iec_clk & drive_9_iec_clk & ext_iec_clk),
 	.iec_data_o(drive_8_iec_data),
 	.iec_clk_o(drive_8_iec_clk),
 	.iec_reset_i(~(drive_reset | ((!status[58:57]) ? ~drive_8_mounted : status[58]))),
@@ -1132,8 +1132,8 @@ iec_drive drive_9
 	.drive_num(1),
 
 	.iec_atn_i(c64_iec_atn),
-	.iec_data_i(c64_iec_data & drive_8_iec_data),
-	.iec_clk_i(c64_iec_clk & drive_8_iec_clk),
+	.iec_data_i(c64_iec_data & drive_8_iec_data & ext_iec_data),
+	.iec_clk_i(c64_iec_clk & drive_8_iec_clk & ext_iec_clk),
 	.iec_data_o(drive_9_iec_data),
 	.iec_clk_o(drive_9_iec_clk),
 	.iec_reset_i(~(drive_reset | ((!status[56:55]) ? ~drive_9_mounted : status[56]))),
@@ -1206,6 +1206,32 @@ always @(posedge clk_sys) begin
 	else if(to) to <= to - 1;
 	else disk_access <= 0;
 end
+
+wire ext_iec_en   = status[25];
+wire ext_iec_clk  = USER_IN[2] | ~ext_iec_en;
+wire ext_iec_data = USER_IN[3] | ~ext_iec_en;
+
+assign USER_OUT[0] = 1;
+assign USER_OUT[1] = 1;
+assign USER_OUT[2] = (c64_iec_clk  & drive_8_iec_clk  & drive_9_iec_clk)  | ~ext_iec_en;
+assign USER_OUT[3] = (reset_n & ~status[6]) | ~ext_iec_en;
+assign USER_OUT[4] = (c64_iec_data & drive_8_iec_data & drive_9_iec_data) | ~ext_iec_en;
+assign USER_OUT[5] = c64_iec_atn | ~ext_iec_en;
+assign USER_OUT[6] = '1;
+
+/*
+wire ext_iec_clk  = USER_IN[3] | ~ext_iec_en;
+wire ext_iec_data = USER_IN[1] | ~ext_iec_en;
+
+assign USER_OUT[2] = 1;
+assign USER_OUT[4] = 1;
+assign USER_OUT[3] = (c64_iec_clk  & drive_8_iec_clk  & drive_9_iec_clk)  | ~ext_iec_en;
+assign USER_OUT[1] = (c64_iec_data & drive_8_iec_data & drive_9_iec_data) | ~ext_iec_en;
+assign USER_OUT[0] = c64_iec_atn | ~ext_iec_en;
+assign USER_OUT[6] = (reset_n & ~status[6]) | ~ext_iec_en;
+assign USER_OUT[5] = '1;
+*/
+
 
 wire hsync;
 wire vsync;
