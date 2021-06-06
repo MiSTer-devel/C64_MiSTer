@@ -194,12 +194,12 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXX XXXXXX X XX XX XXXXXXXXXXXXXXMXX
+// XXXXXXXXXXXXXXXXXXXXXXXXX XXXXXX X XX XX XXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;UART9600:2400;",
-	"S0,D64T64D81,Mount Drive #8;",
+	"H7S0,D64T64D81,Mount Drive #8;",
 	"H0S1,D64T64D81,Mount Drive #9;",
 	"-;",
 	"F1,PRGCRTREUTAP;",
@@ -227,7 +227,8 @@ localparam CONF_STR = {
 	"P1o89,DigiMax,Disabled,DE00,DF00;",
 	"P1OIJ,Stereo Mix,None,25%,50%,100%;",
 
-	"P2,System;", 
+	"P2,Hardware;", 
+	"P2oPQ,Enable Drive #8,If Mounted,Always,Never;",
 	"P2oNO,Enable Drive #9,If Mounted,Always,Never;",
 	"P2oC,Parallel port,Enabled,Disabled;",
 	"P2R6,Reset Disk Drives;",
@@ -431,7 +432,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.paddle_3(pd4),
 
 	.status(status),
-	.status_menumask({|reu_cfg,|status[47:46],status[16],status[13],tap_loaded, 1'b0, |vcrop, status[56]}),
+	.status_menumask({status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -1064,6 +1065,9 @@ wire       drive_8_led;
 wire [7:0] drive_8_par_o;
 wire       drive_8_stb_o;
 
+reg drive_8_mounted = 0;
+always @(posedge clk_sys) if(img_mounted[0]) drive_8_mounted <= |img_size;
+
 iec_drive drive_8
 (
 	.clk(clk_sys),
@@ -1076,7 +1080,7 @@ iec_drive drive_8
 	.iec_clk_i(c64_iec_clk & drive_9_iec_clk),
 	.iec_data_o(drive_8_iec_data),
 	.iec_clk_o(drive_8_iec_clk),
-	.iec_reset_i(~drive_reset),
+	.iec_reset_i(~(drive_reset | ((!status[58:57]) ? ~drive_8_mounted : status[58]))),
 
 	.led(drive_8_led),
 
@@ -1117,6 +1121,9 @@ wire       drive_9_led;
 wire [7:0] drive_9_par_o;
 wire       drive_9_stb_o;
 
+reg drive_9_mounted = 0;
+always @(posedge clk_sys) if(img_mounted[1]) drive_9_mounted <= |img_size;
+
 iec_drive drive_9
 (
 	.clk(clk_sys),
@@ -1129,7 +1136,7 @@ iec_drive drive_9
 	.iec_clk_i(c64_iec_clk & drive_8_iec_clk),
 	.iec_data_o(drive_9_iec_data),
 	.iec_clk_o(drive_9_iec_clk),
-	.iec_reset_i(~(drive_reset | (!status[56:55]) ? ~drive_9_mounted : status[56])),
+	.iec_reset_i(~(drive_reset | ((!status[56:55]) ? ~drive_9_mounted : status[56]))),
 
 	.led(drive_9_led),
 
@@ -1162,9 +1169,6 @@ iec_drive drive_9
 	.sd_buff_din(sd_buff_din[1]),
 	.sd_buff_wr(sd_buff_wr)
 );
-
-reg drive_9_mounted = 0;
-always @(posedge clk_sys) if(img_mounted[1]) drive_9_mounted <= |img_size;
 
 reg drive_ce;
 always @(posedge clk_sys) begin
