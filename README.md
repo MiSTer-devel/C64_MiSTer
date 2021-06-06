@@ -7,6 +7,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - C1541 read/write support (*.D64)
 - C1581 read/write support (*.D81)
 - Parallel C1541 port for faster (~20x) loading time using DolphinDOS.
+- External IEC through USER_IO port.
 - Amost all cartridge formats (*.CRT)
 - Direct file injection (*.PRG)
 - Dual SID with several degree of mixing 6581/8580 from stereo to mono.
@@ -15,7 +16,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - OPL2 sound expander.
 - Pause option when OSD is opened.
 - 4 joysticks mode.
-- RS232 with VIC-1011 and UP9600 modes.
+- RS232 with VIC-1011 and UP9600 modes either internal or through USER_IO.
 - Loadable Kernal/C1541 ROMs.
 - Special reduced border mode for 16:9 display.
 - C128/Smart Turbo mode up to 4x.
@@ -93,4 +94,17 @@ Supported standard 512KB, expanded 2MB with wrapping inside 512KB blocks (for co
 Support for REU files.
 
 GeoRAM and REU don't conflict each other and can be both enabled.
+
+### USER_IO pins
+
+| USER_IO | USB 3.0 name | Signal name |
+|:-------:|:-------------|:------------|
+|   0     |    D+        | RS232 RX    |
+|   1     |    D-        | RS232 TX    |
+|   2     |    TX-       | IEC /CLK    |
+|   3     |    GND_d     | IEC /RESET  |
+|   4     |    RX+       | IEC /DATA   |
+|   5     |    RX-       | IEC /ATN    |
+
+All signals are 3.3V LVTTL and must be properly converted to required levels!
 
