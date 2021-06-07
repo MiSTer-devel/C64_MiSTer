@@ -238,7 +238,7 @@ localparam CONF_STR = {
 	"P2OP,External IEC,Disabled,Enabled;",
 	"P2oB,Expansion,Joysticks,RS232;",
 	"P2oJ,RS232 mode,UP9600,VIC-1011;",
-	"P2O1,RS232 connection,Internal,External;",
+	"P2o1,RS232 connection,Internal,External;",
 	"P2oD,CIA Model,6526,8521;",
 	"P2-;",
 	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
