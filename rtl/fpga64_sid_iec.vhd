@@ -110,18 +110,17 @@ port(
 	pot3        : in  std_logic_vector(7 downto 0);
 	pot4        : in  std_logic_vector(7 downto 0);
 
-	--Connector to the SID
-	audio_data  : out std_logic_vector(17 downto 0);
-	sid_filter  : in  std_logic;
-	sid_ver     : in  std_logic;
-	sid_we_ext  : out std_logic;
-	sid_mode    : in  std_logic_vector(1 downto 0);
-	sid_cfg     : in  std_logic_vector(2 downto 0);
+	--SID
+	audio_l     : out std_logic_vector(17 downto 0);
+	audio_r     : out std_logic_vector(17 downto 0);
+	sid_filter  : in  std_logic_vector(1 downto 0);
+	sid_ver     : in  std_logic_vector(1 downto 0);
+	sid_mode    : in  unsigned(2 downto 0);
+	sid_cfg     : in  std_logic_vector(3 downto 0);
 	sid_ld_clk  : in  std_logic;
 	sid_ld_addr : in  std_logic_vector(11 downto 0);
 	sid_ld_data : in  std_logic_vector(15 downto 0);
 	sid_ld_wr   : in  std_logic;
-	sid_ce      : out std_logic;
 	
 	-- USER
 	pb_i        : in  unsigned(7 downto 0);
@@ -213,6 +212,9 @@ signal cpuDi        : unsigned(7 downto 0);
 signal cpuDo        : unsigned(7 downto 0);
 signal cpuDo_pre    : unsigned(7 downto 0);
 signal cpuIO        : unsigned(7 downto 0);
+signal io_data_i    : unsigned(7 downto 0);
+signal ioe_i        : std_logic;
+signal iof_i        : std_logic;
 
 signal io_enable    : std_logic;
 signal cpu_cyc      : std_logic;
@@ -253,9 +255,8 @@ signal turbo_state  : std_logic;
 
 -- SID signals
 signal sid_do       : unsigned(7 downto 0);
-signal sid_do_int   : unsigned(7 downto 0);
-signal sid_we       : std_logic;
-signal sid_sel_int  : std_logic;
+signal sid_sel_l    : std_logic;
+signal sid_sel_r    : std_logic;
 signal pot_x1       : std_logic_vector(7 downto 0);
 signal pot_y1       : std_logic_vector(7 downto 0);
 signal pot_x2       : std_logic_vector(7 downto 0);
@@ -266,17 +267,25 @@ component sid_top
 		reset         : in  std_logic;
 		clk           : in  std_logic;
 		ce_1m         : in  std_logic;
+
+		cs            : in  std_logic_vector(1 downto 0);
 		we            : in  std_logic;
 		addr          : in  unsigned(4 downto 0);
 		data_in       : in  unsigned(7 downto 0);
 		data_out      : out unsigned(7 downto 0);
-		pot_x         : in  std_logic_vector(7 downto 0);
-		pot_y         : in  std_logic_vector(7 downto 0);
-		audio_data    : out std_logic_vector(17 downto 0);
-		filter_en     : in  std_logic;
 
-		mode          : in  std_logic;
-		cfg           : in  std_logic_vector(2 downto 0);
+		pot_x_l       : in  std_logic_vector(7 downto 0) := (others => '0');
+		pot_y_l       : in  std_logic_vector(7 downto 0) := (others => '0');
+		pot_x_r       : in  std_logic_vector(7 downto 0) := (others => '0');
+		pot_y_r       : in  std_logic_vector(7 downto 0) := (others => '0');
+
+		audio_l       : out std_logic_vector(17 downto 0);
+		audio_r       : out std_logic_vector(17 downto 0);
+
+		filter_en     : in  std_logic_vector(1 downto 0);
+		mode          : in  std_logic_vector(1 downto 0);
+		cfg           : in  std_logic_vector(3 downto 0);
+
 		ld_clk        : in  std_logic;
 		ld_addr       : in  std_logic_vector(11 downto 0);
 		ld_data       : in  std_logic_vector(15 downto 0);
@@ -431,8 +440,8 @@ port map (
 	game => game,
 	exrom => exrom,
 	io_rom => io_rom,
-	io_ext => io_ext,
-	io_data => io_data,
+	io_ext => io_ext or sid_sel_r,
+	io_data => io_data_i,
 
 	ramData => ramDin,
 
@@ -460,8 +469,8 @@ port map (
 	cs_cia1 => cs_cia1,
 	cs_cia2 => cs_cia2,
 	cs_ram => cs_ram,
-	cs_ioE => IOE,
-	cs_ioF => IOF,
+	cs_ioE => ioe_i,
+	cs_ioF => iof_i,
 	cs_romL => romL,
 	cs_romH => romH,
 	cs_UMAXromH => UMAXromH,
@@ -470,6 +479,9 @@ port map (
 	c64rom_data => c64rom_data,
 	c64rom_wr => c64rom_wr
 );
+
+IOE <= ioe_i;
+IOF <= iof_i;
 
 process(clk32)
 begin
@@ -610,11 +622,11 @@ end process;
 -- SID
 -- -----------------------------------------------------------------------
 
-sid_we      <= pulseWr_io and cs_sid;
-sid_sel_int <= not sid_mode(1) or (not sid_mode(0) and not cpuAddr(5)) or (sid_mode(0) and not cpuAddr(8));
-sid_we_ext  <= sid_we and (not sid_mode(1) or not sid_sel_int);
-sid_do      <= io_data when sid_sel_int = '0' else sid_do_int;
-sid_ce      <= enableSid;
+--	Right SID Port: Same,DE00,D420,D500,DF00
+
+sid_sel_l <= cs_sid when sid_mode(2 downto 1) /= 1 else (cs_sid and ((not sid_mode(0) and not cpuAddr(5)) or (sid_mode(0) and not cpuAddr(8))));
+sid_sel_r <= sid_sel_l when sid_mode = 0 else ioe_i when sid_mode = 1 else iof_i when sid_mode = 4 else (cs_sid and not sid_sel_l);
+io_data_i <= io_data when io_ext = '1' else sid_do when sid_sel_r = '1' else (others => '1');
 
 pot_x1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot1;
 pot_y1 <= (others => '1' ) when cia1_pao(6) = '0' else not pot2;
@@ -626,17 +638,21 @@ port map (
 	reset => reset,
 	clk => clk32,
 	ce_1m => enableSid,
-	we => sid_we and sid_sel_int,
+	we => pulseWr_io,
+	cs => sid_sel_r & sid_sel_l,
 	addr => cpuAddr(4 downto 0),
 	data_in => cpuDo,
-	data_out => sid_do_int,
-	pot_x => pot_x1 and pot_x2,
-	pot_y => pot_y1 and pot_y2,
-	audio_data => audio_data,
-	filter_en => sid_filter,
+	data_out => sid_do,
+	pot_x_l => pot_x1 and pot_x2,
+	pot_y_l => pot_y1 and pot_y2,
 
+	audio_l => audio_l,
+	audio_r => audio_r,
+
+	filter_en => sid_filter,
 	mode    => sid_ver,
 	cfg     => sid_cfg,
+
 	ld_clk  => sid_ld_clk,
 	ld_addr => sid_ld_addr,
 	ld_data => sid_ld_data,

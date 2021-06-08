@@ -916,8 +916,6 @@ wire        romL;
 wire        romH;
 wire        UMAXromH;
 
-wire        sid_we;
-wire        sid_ce;
 wire [17:0] audio_l,audio_r;
 wire  [7:0] r,g,b;
 
@@ -964,7 +962,7 @@ fpga64_sid_iec fpga64
 	.iof(IOF),
 	.io_rom(io_rom),
 	.io_ext(cart_oe | reu_oe | opl_en),
-	.io_data(cart_oe ? cart_data : reu_oe ? reu_dout : sid2_oe ? data_sid : opl_dout),
+	.io_data(cart_oe ? cart_data : reu_oe ? reu_dout : opl_dout),
 	
 	.dma_req(dma_req),
 	.dma_cycle(dma_cycle),
@@ -988,18 +986,16 @@ fpga64_sid_iec fpga64
 	.ext_cycle(ext_cycle),
 	.refresh(refresh),
 
-	.sid_we_ext(sid_we),
-	.sid_mode({status[22:21]==1,status[20]}),
-	.sid_cfg(status[35:34]),
 	.sid_ld_clk(clk_sys),
 	.sid_ld_addr(sid_ld_addr),
 	.sid_ld_data(sid_ld_data),
 	.sid_ld_wr(sid_ld_wr),
-	.sid_ce(sid_ce),
-	
-	.audio_data(audio_l),
-	.sid_filter(1),
-	.sid_ver(status[13]),
+	.sid_mode(status[22:20]),
+	.sid_filter(2'b11),
+	.sid_ver({status[16],status[13]}),
+	.sid_cfg({status[38:37],status[35:34]}),
+	.audio_l(audio_l),
+	.audio_r(audio_r),
 
 	.iec_data_o(c64_iec_data),
 	.iec_atn_o(c64_iec_atn),
@@ -1378,9 +1374,6 @@ always @(posedge clk_sys) begin
 	iof_we <= ~old_iof & IOF & ram_we;
 end
 
-wire sid2_we = (status[22:20]==1) ? ioe_we : (status[22:20]==4) ? iof_we : sid_we;
-wire sid2_oe = (status[22:20]==1) ? IOE    : (status[22:20]==4) ? IOF    : ~IOE & ~IOF;
-
 reg [11:0] sid_ld_addr = 0;
 reg [15:0] sid_ld_data = 0;
 reg        sid_ld_wr   = 0;
@@ -1397,30 +1390,6 @@ always @(posedge clk_sys) begin
 		end
 	end
 end
-
-wire  [7:0] data_sid;
-sid_top sid
-(
-	.clk(clk_sys),
-	.reset(~reset_n),
-	.ce_1m(sid_ce),
-
-	.addr(c64_addr[4:0]),
-	.we(sid2_we),
-	.data_in(c64_data_out),
-	.data_out(data_sid),
-
-	.audio_data(audio_r),
-
-	.filter_en(1),
-	.cfg(status[38:37]),
-	.mode(status[16]),
-
-	.ld_clk(clk_sys),
-	.ld_addr(sid_ld_addr),
-	.ld_data(sid_ld_data),
-	.ld_wr(sid_ld_wr)
-);
 
 //DigiMax
 reg [8:0] dac_l, dac_r;
