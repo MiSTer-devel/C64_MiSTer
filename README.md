@@ -20,6 +20,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - Loadable Kernal/C1541 ROMs.
 - Special reduced border mode for 16:9 display.
 - C128/Smart Turbo mode up to 4x.
+- Real-time clock
 
 ## Installation
 Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
@@ -108,3 +109,7 @@ GeoRAM and REU don't conflict each other and can be both enabled.
 
 All signals are 3.3V LVTTL and must be properly converted to required levels!
 
+### Real-time clock
+
+RTC is PCF8583 connected to tape port.
+To get real time in GEOS, copy CP-CLOCK64-1.3 from supplied [disk](https://github.com/mister-devel/C64_MiSTer/blob/master/releases/CP-ClockF83_1.3.D64) to GEOS system disk.

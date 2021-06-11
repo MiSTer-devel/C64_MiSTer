@@ -5,6 +5,7 @@ set_global_assignment -name QIP_FILE rtl/c1581/c1581.qip
 set_global_assignment -name QIP_FILE rtl/t65/t65.qip
 set_global_assignment -name VHDL_FILE rtl/cpu_6510.vhd
 set_global_assignment -name VERILOG_FILE rtl/mos6526.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rtcF83.sv
 set_global_assignment -name VERILOG_FILE rtl/sdram.v
 set_global_assignment -name VHDL_FILE rtl/dprom.vhd
 set_global_assignment -name VHDL_FILE rtl/spram.vhd

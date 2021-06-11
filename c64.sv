@@ -193,7 +193,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXX XX XXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -239,6 +239,7 @@ localparam CONF_STR = {
 	"P2oB,Expansion,Joysticks,RS232;",
 	"P2oJ,RS232 mode,UP9600,VIC-1011;",
 	"P2o1,RS232 connection,Internal,External;",
+	"P2o4,Real-Time Clock,Auto,Disabled;",
 	"P2oD,CIA Model,6526,8521;",
 	"P2-;",
 	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
@@ -417,6 +418,8 @@ wire [21:0] gamma_bus;
 
 wire  [7:0] pd1,pd2,pd3,pd4;
 
+wire [64:0] RTC;
+
 hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -454,6 +457,8 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 
 	.ps2_key(ps2_key),
 	.ps2_mouse(ps2_mouse),
+
+	.RTC(RTC),
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
@@ -1022,8 +1027,9 @@ fpga64_sid_iec fpga64
 	.c64rom_data(ioctl_data),
 	.c64rom_wr(load_rom && !ioctl_addr[16:14] && ioctl_download && ioctl_wr),
 
+	.cass_write(cass_write),
 	.cass_motor(cass_motor),
-	.cass_sense(~tap_play),
+	.cass_sense(use_tape ? ~tap_play : cass_rtc),
 	.cass_in(cass_do)
 );
 
@@ -1213,19 +1219,6 @@ assign USER_OUT[3] = (reset_n & ~status[6]) | ~ext_iec_en;
 assign USER_OUT[4] = (c64_iec_data & drive_8_iec_data & drive_9_iec_data) | ~ext_iec_en;
 assign USER_OUT[5] = c64_iec_atn | ~ext_iec_en;
 assign USER_OUT[6] = '1;
-
-/*
-wire ext_iec_clk  = USER_IN[3] | ~ext_iec_en;
-wire ext_iec_data = USER_IN[1] | ~ext_iec_en;
-
-assign USER_OUT[2] = 1;
-assign USER_OUT[4] = 1;
-assign USER_OUT[3] = (c64_iec_clk  & drive_8_iec_clk  & drive_9_iec_clk)  | ~ext_iec_en;
-assign USER_OUT[1] = (c64_iec_data & drive_8_iec_data & drive_9_iec_data) | ~ext_iec_en;
-assign USER_OUT[0] = c64_iec_atn | ~ext_iec_en;
-assign USER_OUT[6] = (reset_n & ~status[6]) | ~ext_iec_en;
-assign USER_OUT[5] = '1;
-*/
 
 
 wire hsync;
@@ -1500,10 +1493,25 @@ always @(posedge clk_sys) begin
 	end
 end
 
+reg use_tape;
+always @(posedge clk_sys) begin
+	integer to = 0;
+
+	if(to) to <= to - 1;
+	else use_tape <= status[36];
+
+	if(tap_loaded | tap_play) begin
+		use_tape <= 1;
+		to <= 128000000; //4s
+	end
+end
+
+
 reg [26:0] act_cnt;
 always @(posedge clk_sys) act_cnt <= act_cnt + (tap_play ? 4'd8 : 4'd1);
 wire tape_led = tap_loaded && (act_cnt[26] ? (~(tap_play & cass_motor) && act_cnt[25:18] > act_cnt[7:0]) : act_cnt[25:18] <= act_cnt[7:0]);
 
+wire cass_write;
 wire cass_motor;
 wire cass_run = ~cass_motor & tap_play;
 wire cass_snd = cass_run & status[11] & cass_do;
@@ -1593,5 +1601,19 @@ always @(posedge clk_sys) begin
 	cts1 <= UART_CTS & uart_int; cts2 <= cts1; if(cts1 == cts2) uart_cts <= cts2;
 	dsr1 <= UART_DSR & uart_int; dsr2 <= dsr1; if(dsr1 == dsr2) uart_dsr <= dsr2;
 end
+
+wire rtcF83_sda;
+rtcF83 #(16000000) rtcF83
+(
+	.clk(clk_sys),
+	.ce(drive_ce),
+	.reset(~reset_n | use_tape),
+	.RTC(RTC),
+	.scl_i(cass_write),
+	.sda_i(cass_motor),
+	.sda_o(rtcF83_sda)
+);
+
+wire cass_rtc = ~(rtcF83_sda & cass_motor);
 
 endmodule
