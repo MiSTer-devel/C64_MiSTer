@@ -1603,7 +1603,7 @@ always @(posedge clk_sys) begin
 end
 
 wire rtcF83_sda;
-rtcF83 #(16000000) rtcF83
+rtcF83 #(16000000, 0) rtcF83
 (
 	.clk(clk_sys),
 	.ce(drive_ce),

@@ -19,7 +19,7 @@
 //
 //============================================================================
 
-module rtcF83 #(parameter CLOCK_RATE)
+module rtcF83 #(parameter CLOCK_RATE, HAS_RAM = 1)
 (
 	input        clk,
 	input        ce,
@@ -67,7 +67,7 @@ always @(posedge clk) begin
 	reg  [7:0] sda_d;
 	reg  [7:0] bt;
 
-	bt <= data[ptr];
+	bt <= HAS_RAM ? data[ptr] : 8'h00;
 
 	if(reset) begin
 		sda_o <= 1;
@@ -130,7 +130,7 @@ always @(posedge clk) begin
 					if(~i2c_rw) begin
 						if(bcnt == 1) ptr <= tmp;
 						if(ptr<=16) tm[ptr] <= tmp;
-						else data[ptr] <= tmp;
+						else if(HAS_RAM) data[ptr] <= tmp;
 					end
 					if(~&bcnt) bcnt <= bcnt + 1'd1;
 					sda_o <= 0;
