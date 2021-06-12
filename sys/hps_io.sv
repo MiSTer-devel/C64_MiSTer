@@ -86,7 +86,7 @@ module hps_io #(parameter CONF_STR, CONF_STR_BRAM=1, PS2DIV=0, WIDE=0, VDNUM=1, 
 
 	// SD block level access
 	input      [31:0] sd_lba[VDNUM],
-	input       [5:0] sd_sz[VDNUM], // number of blocks-1, but total size ((sd_sz+1)*(1<<(BLKSZ+7))) must be <= 16384!
+	input       [5:0] sd_blk_cnt[VDNUM], // number of blocks-1, total size ((sd_blk_cnt+1)*(1<<(BLKSZ+7))) must be <= 16384!
 	input      [VD:0] sd_rd,
 	input      [VD:0] sd_wr,
 	output reg [VD:0] sd_ack,
@@ -299,7 +299,7 @@ always@(posedge clk_sys) begin : uio_block
 			cmd <= io_din;
 
 			casex(io_din)
-				  'h16: begin io_dout <= {1'b1, sd_sz[sdn], BLKSZ[2:0], sdn, sd_wr[sdn], sd_rd[sdn]}; sdn_r <= sdn; end
+				  'h16: begin io_dout <= {1'b1, sd_blk_cnt[sdn], BLKSZ[2:0], sdn, sd_wr[sdn], sd_rd[sdn]}; sdn_r <= sdn; end
 				'h0X17,
 				'h0X18: begin sd_ack <= disk[VD:0]; sdn_ack <= io_din[11:8]; end
 				  'h29: io_dout <= {4'hA, stflg};

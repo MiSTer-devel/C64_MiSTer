@@ -54,7 +54,7 @@ module c1541_drv
 	input         clk_sys,
 
 	output [31:0] sd_lba,
-	output  [5:0] sd_sz,
+	output  [5:0] sd_blk_cnt,
 	output        sd_rd,
 	output        sd_wr,
 	input         sd_ack,
@@ -169,7 +169,7 @@ c1541_track c1541_track
 (
 	.clk(clk_sys),
 	.sd_lba(sd_lba),
-	.sd_sz(sd_sz),
+	.sd_blk_cnt(sd_blk_cnt),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),

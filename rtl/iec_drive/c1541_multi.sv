@@ -39,7 +39,7 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input         clk_sys,
 
 	output [31:0] sd_lba[NDR],
-	output  [5:0] sd_sz[NDR],
+	output  [5:0] sd_blk_cnt[NDR],
 	output  [N:0] sd_rd,
 	output  [N:0] sd_wr,
 	input   [N:0] sd_ack,
@@ -215,7 +215,7 @@ generate
 			.clk_sys(clk_sys),
 
 			.sd_lba(sd_lba[i]),
-			.sd_sz(sd_sz[i]),
+			.sd_blk_cnt(sd_blk_cnt[i]),
 			.sd_rd(sd_rd[i]),
 			.sd_wr(sd_wr[i]),
 			.sd_ack(sd_ack[i]),

@@ -39,7 +39,7 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input         clk_sys,
 
 	output [31:0] sd_lba[NDR],
-	output  [5:0] sd_sz[NDR],
+	output  [5:0] sd_blk_cnt[NDR],
 	output  [N:0] sd_rd,
 	output  [N:0] sd_wr,
 	input   [N:0] sd_ack,
@@ -71,7 +71,7 @@ always_comb for(int i=0; i<NDR; i=i+1) begin
 	sd_lba[i]      = (dtype[i] ? c1581_sd_lba[i] << 1  : c1541_sd_lba[i]       );
 	sd_rd[i]       = (dtype[i] ? c1581_sd_rd[i]        : c1541_sd_rd[i]        );
 	sd_wr[i]       = (dtype[i] ? c1581_sd_wr[i]        : c1541_sd_wr[i]        );
-	sd_sz[i]       = (dtype[i] ? 6'd1                  : c1541_sd_sz[i]        );
+	sd_blk_cnt[i]  = (dtype[i] ? 6'd1                  : c1541_sd_blk_cnt[i]   );
 end
 
 wire        c1541_iec_data, c1541_iec_clk, c1541_stb_o;
@@ -80,7 +80,7 @@ wire  [N:0] c1541_led;
 wire  [7:0] c1541_sd_buff_dout[NDR];
 wire [31:0] c1541_sd_lba[NDR];
 wire  [N:0] c1541_sd_rd, c1541_sd_wr;
-wire  [5:0] c1541_sd_sz[NDR];
+wire  [5:0] c1541_sd_blk_cnt[NDR];
 
 c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 (
@@ -114,7 +114,7 @@ c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 	.img_readonly(img_readonly),
 
 	.sd_lba(c1541_sd_lba),
-	.sd_sz(c1541_sd_sz),
+	.sd_blk_cnt(c1541_sd_blk_cnt),
 	.sd_rd(c1541_sd_rd),
 	.sd_wr(c1541_sd_wr),
 	.sd_ack(sd_ack),

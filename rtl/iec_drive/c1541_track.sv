@@ -24,7 +24,7 @@ module c1541_track
 	input         reset,
 
 	output [31:0] sd_lba,
-	output  [5:0] sd_sz,
+	output  [5:0] sd_blk_cnt,
 	output reg    sd_rd,
 	output reg    sd_wr,
 	input         sd_ack,
@@ -36,7 +36,7 @@ module c1541_track
 );
 
 assign sd_lba = lba;
-assign sd_sz  = len[5:0];
+assign sd_blk_cnt = len[5:0];
 
 wire [5:0] track_s;
 wire       change_s, save_track_s, reset_s;

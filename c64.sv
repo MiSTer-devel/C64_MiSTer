@@ -399,7 +399,7 @@ wire  [7:0] ioctl_index;
 wire        ioctl_download;
 
 wire [31:0] sd_lba[2];
-wire  [5:0] sd_sz[2];
+wire  [5:0] sd_blk_cnt[2];
 wire  [1:0] sd_rd;
 wire  [1:0] sd_wr;
 wire  [1:0] sd_ack;
@@ -442,7 +442,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.gamma_bus(gamma_bus),
 
 	.sd_lba(sd_lba),
-	.sd_sz(sd_sz),
+	.sd_blk_cnt(sd_blk_cnt),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
@@ -1103,7 +1103,7 @@ iec_drive iec_drive
 	.clk_sys(clk_sys),
 
 	.sd_lba(sd_lba),
-	.sd_sz(sd_sz),
+	.sd_blk_cnt(sd_blk_cnt),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
 	.sd_ack(sd_ack),
