@@ -182,10 +182,10 @@ assign ADC_BUS  = 'Z;
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
-assign LED_DISK = 0;
-assign LED_POWER = 0;
-assign LED_USER = drive_8_led | drive_9_led | ioctl_download | tape_led;
-assign BUTTONS   = 0;
+assign LED_DISK   = 0;
+assign LED_POWER  = 0;
+assign LED_USER   = |drive_led | ioctl_download | tape_led;
+assign BUTTONS    = 0;
 assign VGA_SCALER = 0;
 
 // Status Bit Map:
@@ -1053,124 +1053,69 @@ wire       c64_iec_clk;
 wire       c64_iec_data;
 wire       c64_iec_atn;
 
+wire       drive_iec_clk  = drive_iec_clk_o  & ext_iec_clk;
+wire       drive_iec_data = drive_iec_data_o & ext_iec_data;
+
 wire [7:0] drive_par_i;
 wire       drive_stb_i;
-wire [7:0] drive_par_o    = drive_8_par_o    & drive_9_par_o;
-wire       drive_stb_o    = drive_8_stb_o    & drive_9_stb_o;
-wire       drive_iec_clk  = drive_8_iec_clk  & drive_9_iec_clk  & ext_iec_clk;
-wire       drive_iec_data = drive_8_iec_data & drive_9_iec_data & ext_iec_data;
-wire       drive_reset    = ~reset_n | status[6] | (load_c1581 & ioctl_download);
+wire [7:0] drive_par_o;
+wire       drive_stb_o;
+wire       drive_iec_clk_o;
+wire       drive_iec_data_o;
+wire       drive_reset = ~reset_n | status[6] | (load_c1581 & ioctl_download);
 
-wire       drive_8_iec_clk;
-wire       drive_8_iec_data;
-wire       drive_8_led;
+wire [1:0] drive_led;
 
-wire [7:0] drive_8_par_o;
-wire       drive_8_stb_o;
+reg [1:0] drive_mounted = 0;
+always @(posedge clk_sys) begin 
+	if(img_mounted[0]) drive_mounted[0] <= |img_size;
+	if(img_mounted[1]) drive_mounted[1] <= |img_size;
+end
 
-reg drive_8_mounted = 0;
-always @(posedge clk_sys) if(img_mounted[0]) drive_8_mounted <= |img_size;
-
-iec_drive drive_8
+iec_drive iec_drive
 (
 	.clk(clk_sys),
+	.reset({drive_reset | ((!status[56:55]) ? ~drive_mounted[1] : status[56]),
+		     drive_reset | ((!status[58:57]) ? ~drive_mounted[0] : status[58])}),
+
 	.ce(drive_ce),
 
-	.drive_num(0),
-
 	.iec_atn_i(c64_iec_atn),
-	.iec_data_i(c64_iec_data & drive_9_iec_data & ext_iec_data),
-	.iec_clk_i(c64_iec_clk & drive_9_iec_clk & ext_iec_clk),
-	.iec_data_o(drive_8_iec_data),
-	.iec_clk_o(drive_8_iec_clk),
-	.iec_reset_i(~(drive_reset | ((!status[58:57]) ? ~drive_8_mounted : status[58]))),
+	.iec_data_i(c64_iec_data & ext_iec_data),
+	.iec_clk_i(c64_iec_clk & ext_iec_clk),
+	.iec_data_o(drive_iec_data_o),
+	.iec_clk_o(drive_iec_clk_o),
 
-	.led(drive_8_led),
-
-	.par_data_i(drive_par_i),
-	.par_stb_i(drive_stb_i),
-	.par_data_o(drive_8_par_o),
-	.par_stb_o(drive_8_stb_o),
-
-	// implementation and system specific signals
-	.clk_sys(clk_sys),
 	.pause(c64_pause),
 
-	.rom_addr(load_rom ? (ioctl_addr[15:0] - 16'h4000) : {1'b1,ioctl_addr[14:0]}),
-	.rom_data(ioctl_data),
-	.rom_wr(((load_rom && ioctl_addr[16:14]) || load_c1581) && ioctl_download && ioctl_wr),
-	.rom_std(status[14]),
-
-	.img_mounted(img_mounted[0]),
+	.img_mounted(img_mounted),
 	.img_size(img_size),
 	.img_readonly(img_readonly),
 	.img_type(ioctl_index[7]),
 
-	.sd_lba(sd_lba[0]),
-	.sd_sz(sd_sz[0]),
-	.sd_rd(sd_rd[0]),
-	.sd_wr(sd_wr[0]),
-	.sd_ack(sd_ack[0]),
-	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din[0]),
-	.sd_buff_wr(sd_buff_wr)
-);
-
-wire       drive_9_iec_clk;
-wire       drive_9_iec_data;
-wire       drive_9_led;
-
-wire [7:0] drive_9_par_o;
-wire       drive_9_stb_o;
-
-reg drive_9_mounted = 0;
-always @(posedge clk_sys) if(img_mounted[1]) drive_9_mounted <= |img_size;
-
-iec_drive drive_9
-(
-	.clk(clk_sys),
-	.ce(drive_ce),
-
-	.drive_num(1),
-
-	.iec_atn_i(c64_iec_atn),
-	.iec_data_i(c64_iec_data & drive_8_iec_data & ext_iec_data),
-	.iec_clk_i(c64_iec_clk & drive_8_iec_clk & ext_iec_clk),
-	.iec_data_o(drive_9_iec_data),
-	.iec_clk_o(drive_9_iec_clk),
-	.iec_reset_i(~(drive_reset | ((!status[56:55]) ? ~drive_9_mounted : status[56]))),
-
-	.led(drive_9_led),
+	.led(drive_led),
 
 	.par_data_i(drive_par_i),
 	.par_stb_i(drive_stb_i),
-	.par_data_o(drive_9_par_o),
-	.par_stb_o(drive_9_stb_o),
+	.par_data_o(drive_par_o),
+	.par_stb_o(drive_stb_o),
 
-	// implementation and system specific signals
 	.clk_sys(clk_sys),
-	.pause(c64_pause),
+
+	.sd_lba(sd_lba),
+	.sd_sz(sd_sz),
+	.sd_rd(sd_rd),
+	.sd_wr(sd_wr),
+	.sd_ack(sd_ack),
+	.sd_buff_addr(sd_buff_addr),
+	.sd_buff_dout(sd_buff_dout),
+	.sd_buff_din(sd_buff_din),
+	.sd_buff_wr(sd_buff_wr),
 
 	.rom_addr(load_rom ? (ioctl_addr[15:0] - 16'h4000) : {1'b1,ioctl_addr[14:0]}),
 	.rom_data(ioctl_data),
 	.rom_wr(((load_rom && ioctl_addr[16:14]) || load_c1581) && ioctl_download && ioctl_wr),
-	.rom_std(status[14]),
-
-	.img_mounted(img_mounted[1]),
-	.img_size(img_size),
-	.img_readonly(img_readonly),
-	.img_type(ioctl_index[7]),
-
-	.sd_lba(sd_lba[1]),
-	.sd_sz(sd_sz[1]),
-	.sd_rd(sd_rd[1]),
-	.sd_wr(sd_wr[1]),
-	.sd_ack(sd_ack[1]),
-	.sd_buff_addr(sd_buff_addr),
-	.sd_buff_dout(sd_buff_dout),
-	.sd_buff_din(sd_buff_din[1]),
-	.sd_buff_wr(sd_buff_wr)
+	.rom_std(status[14])
 );
 
 reg drive_ce;
@@ -1214,9 +1159,9 @@ wire ext_iec_en   = status[25];
 wire ext_iec_clk  = USER_IN[2] | ~ext_iec_en;
 wire ext_iec_data = USER_IN[3] | ~ext_iec_en;
 
-assign USER_OUT[2] = (c64_iec_clk  & drive_8_iec_clk  & drive_9_iec_clk)  | ~ext_iec_en;
+assign USER_OUT[2] = (c64_iec_clk & drive_iec_clk_o)  | ~ext_iec_en;
 assign USER_OUT[3] = (reset_n & ~status[6]) | ~ext_iec_en;
-assign USER_OUT[4] = (c64_iec_data & drive_8_iec_data & drive_9_iec_data) | ~ext_iec_en;
+assign USER_OUT[4] = (c64_iec_data & drive_iec_data_o) | ~ext_iec_en;
 assign USER_OUT[5] = c64_iec_atn | ~ext_iec_en;
 assign USER_OUT[6] = '1;
 

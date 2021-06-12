@@ -1,0 +1,16 @@
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) iec_drive.sv       ]
+
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_multi.sv     ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_drv.sv       ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_gcr.sv       ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_track.sv     ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_logic.sv     ]
+
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1581_multi.sv     ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1581_drv.sv       ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) fdc1772.v          ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) floppy.v           ]
+
+set_global_assignment -name VHDL_FILE          [file join $::quartus(qip_path) iecdrv_via6522.vhd ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) iecdrv_mos8520.v   ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) iecdrv_misc.sv     ]

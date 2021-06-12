@@ -16,7 +16,7 @@ use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
 use ieee.std_logic_unsigned.all;
 
-entity c1581_via6522 is
+entity iecdrv_via6522 is
 port (
     clock       : in  std_logic;
     rising      : in  std_logic;
@@ -59,7 +59,7 @@ port (
     
 end entity;
 
-architecture Gideon of c1581_via6522 is
+architecture Gideon of iecdrv_via6522 is
 
     type pio_t is
     record

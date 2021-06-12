@@ -6,7 +6,7 @@
 //
 // 8520 version by Sorgelig
 
-module c1581_mos8520 (
+module iecdrv_mos8520 (
   input  wire       clk,
   input  wire       phi2_p, // Phi 2 positive edge
   input  wire       phi2_n, // Phi 2 negative edge

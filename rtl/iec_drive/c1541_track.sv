@@ -41,10 +41,10 @@ assign sd_sz  = len[5:0];
 wire [5:0] track_s;
 wire       change_s, save_track_s, reset_s;
 
-c1541_sync #(6) track_sync  (clk, track,      track_s);
-c1541_sync #(1) change_sync (clk, change,     change_s);
-c1541_sync #(1) save_sync   (clk, save_track, save_track_s);
-c1541_sync #(1) reset_sync  (clk, reset,      reset_s);
+iecdrv_sync #(6) track_sync  (clk, track,      track_s);
+iecdrv_sync #(1) change_sync (clk, change,     change_s);
+iecdrv_sync #(1) save_sync   (clk, save_track, save_track_s);
+iecdrv_sync #(1) reset_sync  (clk, reset,      reset_s);
 
 wire [9:0] start_sectors[41] =
 '{  0, 21, 42, 63, 84,105,126,147,168,189,210,231,252,273,294,315,336,357,376,395,

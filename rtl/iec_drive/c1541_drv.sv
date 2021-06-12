@@ -17,13 +17,15 @@
 //
 //-------------------------------------------------------------------------------
 
-module c1541_sd #(parameter PARPORT=0,DUALROM=1)
+module c1541_drv
 (
 	//clk ports
 	input         clk,
-	input         ce,
+	input         reset,
 
-	input         pause,
+	input         ce,
+	input         ph2_r,
+	input         ph2_f,
 
 	input         img_mounted,
 	input         img_readonly,
@@ -32,7 +34,6 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 	input   [1:0] drive_num,
 	output        led,
 
-	input         iec_reset_i,
 	input         iec_atn_i,
 	input         iec_data_i,
 	input         iec_clk_i,
@@ -45,6 +46,10 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 	output  [7:0] par_data_o,
 	output        par_stb_o,
 
+	input         ext_en,
+	output [14:0] rom_addr,
+	input   [7:0] rom_data,
+
 	//clk_sys ports
 	input         clk_sys,
 
@@ -56,21 +61,10 @@ module c1541_sd #(parameter PARPORT=0,DUALROM=1)
 	input  [12:0] sd_buff_addr,
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din,
-	input         sd_buff_wr,
-
-	input  [14:0] rom_addr,
-	input   [7:0] rom_data,
-	input         rom_wr,
-	input         rom_std
+	input         sd_buff_wr
 );
 
 assign led = act | sd_busy;
-
-wire iec_atn, iec_data, iec_clk, reset_n;
-c1541_sync atn_sync(clk, iec_atn_i,   iec_atn);
-c1541_sync dat_sync(clk, iec_data_i,  iec_data);
-c1541_sync clk_sync(clk, iec_clk_i,   iec_clk);
-c1541_sync rst_sync(clk, iec_reset_i, reset_n);
 
 reg        readonly = 0;
 reg        disk_present = 0;
@@ -94,25 +88,25 @@ wire       mtr;
 wire       act;
 wire [1:0] freq;
 
-c1541_logic #(PARPORT,DUALROM) c1541_logic
+c1541_logic c1541_logic
 (
 	.clk(clk),
+	.reset(reset),
+
 	.ce(ce),
-	.reset(~reset_n),
-	.pause(pause),
+	.ph2_r(ph2_r),
+	.ph2_f(ph2_f),
 
 	// serial bus
-	.iec_clk_in(iec_clk),
-	.iec_data_in(iec_data),
-	.iec_atn_in(iec_atn),
+	.iec_clk_in(iec_clk_i),
+	.iec_data_in(iec_data_i),
+	.iec_atn_in(iec_atn_i),
 	.iec_clk_out(iec_clk_o),
 	.iec_data_out(iec_data_o),
 
-	.rom_clk(clk_sys),
+	.ext_en(ext_en),
 	.rom_addr(rom_addr),
 	.rom_data(rom_data),
-	.rom_wr(rom_wr),
-	.rom_std(rom_std),
 
 	// parallel bus
 	.par_data_in(par_data_i),
@@ -142,7 +136,7 @@ wire        sync_n;
 wire        byte_n;
 
 wire sd_busy;
-c1541_sync busy_sync(clk, busy, sd_busy);
+iecdrv_sync busy_sync(clk, busy, sd_busy);
 
 c1541_gcr c1541_gcr
 (
@@ -183,7 +177,7 @@ c1541_track c1541_track
 	.save_track(save_track),
 	.change(img_mounted),
 	.track(track),
-	.reset(~reset_n),
+	.reset(reset),
 	.busy(busy)
 );
 
@@ -202,7 +196,7 @@ always @(posedge clk) begin
 	if (we)          track_modified <= 1;
 	if (img_mounted) track_modified <= 0;
 
-	if (~reset_n) begin
+	if (reset) begin
 		track_num <= 36;
 		track_modified <= 0;
 	end else begin
@@ -217,63 +211,6 @@ always @(posedge clk) begin
 			save_track <= ~save_track;
 			track_modified <= 0;
 		end
-	end
-end
-
-endmodule
-
-// -------------------------------------------------------------------------------
-
-module c1541_sync #(parameter WIDTH = 1) 
-(
-	input                  clk,
-	input      [WIDTH-1:0] in,
-	output reg [WIDTH-1:0] out
-);
-
-reg [WIDTH-1:0] s1,s2;
-always @(posedge clk) begin
-	s1 <= in;
-	s2 <= s1;
-	if(s1 == s2) out <= s2;
-end
-
-endmodule
-
-// -------------------------------------------------------------------------------
-
-module c1541mem #(parameter DATAWIDTH, ADDRWIDTH, INITFILE=" ")
-(
-	input	                     clock_a,
-	input	     [ADDRWIDTH-1:0] address_a,
-	input	     [DATAWIDTH-1:0] data_a,
-	input	                     wren_a,
-	output reg [DATAWIDTH-1:0] q_a,
-
-	input	                     clock_b,
-	input	     [ADDRWIDTH-1:0] address_b,
-	input	     [DATAWIDTH-1:0] data_b,
-	input	                     wren_b,
-	output reg [DATAWIDTH-1:0] q_b
-);
-
-(* ram_init_file = INITFILE *) reg [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
-
-always @(posedge clock_a) begin
-	if(wren_a) begin
-		ram[address_a] <= data_a;
-		q_a <= data_a;
-	end else begin
-		q_a <= ram[address_a];
-	end
-end
-
-always @(posedge clock_b) begin
-	if(wren_b) begin
-		ram[address_b] <= data_b;
-		q_b <= data_b;
-	end else begin
-		q_b <= ram[address_b];
 	end
 end
 

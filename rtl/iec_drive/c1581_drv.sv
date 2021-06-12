@@ -7,19 +7,25 @@
 //
 //-------------------------------------------------------------------------------
 
-module c1581_sd #(parameter PARPORT=0,DUALROM=1)
+module c1581_drv
 (
 	//clk ports
 	input         clk,
-	input         ce,
+	input         reset,
 
-	input         pause,
+	input         ce,
+	input         wd_ce,
+	input         ph2_r,
+	input         ph2_f,
+
+	input         img_mounted,
+	input         img_readonly,
+	input  [31:0] img_size,
 
 	input   [1:0] drive_num,
 	output        act_led,
 	output        pwr_led,
 
-	input         iec_reset_i,
 	input         iec_atn_i,
 	input         iec_data_i,
 	input         iec_clk_i,
@@ -34,12 +40,11 @@ module c1581_sd #(parameter PARPORT=0,DUALROM=1)
 	output  [7:0] par_data_o,
 	output        par_stb_o,
 
+	output [14:0] rom_addr,
+	input   [7:0] rom_data,
+
 	//clk_sys ports
 	input         clk_sys,
-
-	input         img_mounted,
-	input  [31:0] img_size,
-	input         img_readonly,
 
 	output [31:0] sd_lba,
 	output        sd_rd,
@@ -48,13 +53,10 @@ module c1581_sd #(parameter PARPORT=0,DUALROM=1)
 	input   [8:0] sd_buff_addr,
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din,
-	input         sd_buff_wr,
-
-	input  [14:0] rom_addr,
-	input   [7:0] rom_data,
-	input         rom_wr,
-	input         rom_std
+	input         sd_buff_wr
 );
+
+assign rom_addr = cpu_a[14:0];
 
 reg wps_n = 0;
 always @(posedge clk) begin
@@ -62,35 +64,6 @@ always @(posedge clk) begin
 	prev_mounted <= img_mounted;
 	if (~prev_mounted & img_mounted) wps_n <= ~img_readonly;
 end
-
-wire iec_atn, iec_data, iec_clk, reset_n;
-c1581_sync atn_sync(clk, iec_atn_i,   iec_atn);
-c1581_sync dat_sync(clk, iec_data_i,  iec_data);
-c1581_sync clk_sync(clk, iec_clk_i,   iec_clk);
-c1581_sync rst_sync(clk, iec_reset_i, reset_n);
-
-reg p2_h_r;
-reg p2_h_f;
-reg wd_ce;
-always @(posedge clk) begin
-	reg [2:0] div;
-	reg       ena, ena1;
-
-	ena1 <= ~pause;
-	if(div[1:0]) ena <= ena1;
-
-	p2_h_r <= 0;
-	p2_h_f <= 0;
-	wd_ce  <= 0;
-	if(ce) begin
-		div <= div + 1'd1;
-		p2_h_r <= ena && !div[2] && !div[1:0];
-		p2_h_f <= ena &&  div[2] && !div[1:0];
-		wd_ce  <= ena && !div[0];
-	end
-end
-
-wire stdrom = (DUALROM || PARPORT) ? rom_std : 1'b1;
 
 //same decoder as on real HW
 wire [2:0] ls193 = cpu_a[15:13];
@@ -106,7 +79,7 @@ wire  [7:0] cpu_di =
 	 via_cs ? via_do :
 	 cia_cs ? cia_do :
 	 wd_cs  ? wd_do  :
-	 rom_cs ? rom_dout :
+	 rom_cs ? rom_data :
 	 8'hFF;
 
 wire [23:0] cpu_a;
@@ -116,9 +89,9 @@ wire        cpu_rw;
 T65 cpu
 (
 	.clk(clk),
-	.enable(p2_h_r),
+	.enable(ph2_r),
 	.mode(2'b00),
-	.res_n(reset_n),
+	.res_n(~reset),
 	.irq_n(cia_irq_n & ~via_irq),
 	.r_w_n(cpu_rw),
 	.A(cpu_a),
@@ -126,48 +99,13 @@ T65 cpu
 	.DO(cpu_do)
 );
 
-wire [7:0] rom_do;
-generate
-	if(PARPORT || DUALROM) begin
-		c1581mem #(8,15,"rtl/c1581/c1581_rom.mif") rom
-		(
-			.clock_a(clk_sys),
-			.address_a(rom_addr),
-			.data_a(rom_data),
-			.wren_a(rom_wr),
-
-			.clock_b(clk),
-			.address_b(cpu_a[14:0]),
-			.q_b(rom_do)
-		);
-	end
-	else begin
-		assign rom_do = 0;
-	end
-endgenerate
-
-wire [7:0] romstd_do;
-c1581mem #(8,15,"rtl/c1581/c1581_rom.mif") romstd
-(
-	.clock_a(clk_sys),
-	.address_a(rom_addr),
-	.data_a(rom_data),
-	.wren_a((DUALROM || PARPORT) ? 1'b0 : rom_wr),
-
-	.clock_b(clk),
-	.address_b(cpu_a[14:0]),
-	.q_b(romstd_do)
-);
-
-wire [7:0] rom_dout = stdrom ? romstd_do : rom_do;
-
 wire [7:0] ram_do;
-c1581mem #(8,13) ram
+iecdrv_mem #(8,13) ram
 (
 	.clock_a(clk),
 	.address_a(cpu_a[12:0]),
 	.data_a(cpu_do),
-	.wren_a(p2_h_f & ~cpu_rw & ram_cs),
+	.wren_a(ph2_f & ~cpu_rw & ram_cs),
 
 	.clock_b(clk),
 	.address_b(cpu_a[12:0]),
@@ -185,9 +123,9 @@ wire [7:0] pa_in      = {disk_chng_n, 2'b11, drive_num, 1'b1, ~floppy_ready, 1'b
 
 wire       fast_dir   =  pb_out[5];
 assign     iec_clk_o  = ~pb_out[3];
-assign     iec_data_o = ~pb_out[1] & ~(pb_out[4] & ~iec_atn) & (~fast_dir | sp_out);
+assign     iec_data_o = ~pb_out[1] & ~(pb_out[4] & ~iec_atn_i) & (~fast_dir | sp_out);
 assign     iec_fclk_o = ~fast_dir | cnt_out;
-wire [7:0] pb_in      = {~iec_atn, wps_n, 3'b111, ~(iec_clk & iec_clk_o), 1'b1, ~(iec_data & iec_data_o)};
+wire [7:0] pb_in      = {~iec_atn_i, wps_n, 3'b111, ~iec_clk_i, 1'b1, ~iec_data_i};
 
 wire [7:0] pa_out;
 wire [7:0] pb_out;
@@ -195,12 +133,12 @@ wire [7:0] pb_out;
 wire       sp_out;
 wire       cnt_out;
 
-c1581_mos8520 cia
+iecdrv_mos8520 cia
 (
 	.clk(clk),
-	.phi2_p(p2_h_r),
-	.phi2_n(p2_h_f),
-	.res_n(reset_n),
+	.phi2_p(ph2_r),
+	.phi2_n(ph2_f),
+	.res_n(~reset),
 	.cs_n(~cia_cs),
 	.rw(cpu_rw),
 
@@ -213,11 +151,11 @@ c1581_mos8520 cia
 	.pb_in(pb_in & pb_out),
 	.pb_out(pb_out),
 
-	.flag_n(iec_atn),
+	.flag_n(iec_atn_i),
 
-	.tod(p2_h_f),
+	.tod(ph2_f),
 
-	.sp_in(fast_dir | iec_data),
+	.sp_in(fast_dir | iec_data_i),
 	.sp_out(sp_out),
 
 	.cnt_in(fast_dir | iec_fclk_i),
@@ -243,12 +181,12 @@ wire       via_cb2_oe;
 assign     par_stb_o  = via_ca2_o | ~via_ca2_oe;
 assign     par_data_o = via_pa_o  | ~via_pa_oe;
 
-c1581_via6522 via
+iecdrv_via6522 via
 (
 	.clock(clk),
-	.rising(p2_h_f),
-	.falling(p2_h_r),
-	.reset(~reset_n),
+	.rising(ph2_f),
+	.falling(ph2_r),
+	.reset(reset),
 
 	.addr(cpu_a[3:0]),
 	.wen(~cpu_rw & via_cs),
@@ -284,7 +222,7 @@ c1581_via6522 via
 
 reg disk_chng_n;
 always @(posedge clk) begin
-	if(img_mounted | ~reset_n) disk_chng_n <=0;
+	if(img_mounted | reset) disk_chng_n <=0;
 	if(floppy_step) disk_chng_n <=1;
 end
 
@@ -300,14 +238,14 @@ fdc1772 #(.SECTOR_SIZE_CODE(2), .SECTOR_BASE(1), .EXT_MOTOR(1), .FD_NUM(1)) fdc
 
 	.floppy_drive(1'b0),
 	.floppy_side(~side), 
-	.floppy_reset(reset_n),
+	.floppy_reset(~reset),
 	.floppy_step(floppy_step),
 	.floppy_motor(~motor_n),
 	.floppy_ready(floppy_ready),
 
 	.cpu_addr(cpu_a[1:0]),
 	.cpu_sel(wd_cs),
-	.cpu_rw(cpu_rw | ~p2_h_f),
+	.cpu_rw(cpu_rw | ~ph2_f),
 	.cpu_din(cpu_do),
 	.cpu_dout(wd_do),
 
@@ -324,72 +262,5 @@ fdc1772 #(.SECTOR_SIZE_CODE(2), .SECTOR_BASE(1), .EXT_MOTOR(1), .FD_NUM(1)) fdc
 	.sd_din(sd_buff_din),
 	.sd_dout_strobe(sd_buff_wr)
 );
-
-endmodule
-
-module c1581mem #(parameter DATAWIDTH, ADDRWIDTH, INITFILE=" ")
-(
-	input	                     clock_a,
-	input	     [ADDRWIDTH-1:0] address_a,
-	input	     [DATAWIDTH-1:0] data_a,
-	input	                     wren_a,
-	output reg [DATAWIDTH-1:0] q_a,
-
-	input	                     clock_b,
-	input	     [ADDRWIDTH-1:0] address_b,
-	input	     [DATAWIDTH-1:0] data_b,
-	input	                     wren_b,
-	output reg [DATAWIDTH-1:0] q_b
-);
-
-(* ram_init_file = INITFILE *) reg [DATAWIDTH-1:0] ram[0:(1<<ADDRWIDTH)-1];
-
-reg                 wren_a_d;
-reg [ADDRWIDTH-1:0] address_a_d;
-always @(posedge clock_a) begin
-	wren_a_d    <= wren_a;
-	address_a_d <= address_a;
-end
-
-always @(posedge clock_a) begin
-	if(wren_a_d) begin
-		ram[address_a_d] <= data_a;
-		q_a <= data_a;
-	end else begin
-		q_a <= ram[address_a_d];
-	end
-end
-
-reg                 wren_b_d;
-reg [ADDRWIDTH-1:0] address_b_d;
-always @(posedge clock_b) begin
-	wren_b_d    <= wren_b;
-	address_b_d <= address_b;
-end
-
-always @(posedge clock_b) begin
-	if(wren_b_d) begin
-		ram[address_b_d] <= data_b;
-		q_b <= data_b;
-	end else begin
-		q_b <= ram[address_b_d];
-	end
-end
-
-endmodule
-
-module c1581_sync
-(
-	input      clk,
-	input      in,
-	output reg out
-);
-
-reg s1,s2;
-always @(posedge clk) begin
-	s1 <= in;
-	s2 <= s1;
-	if(s1 == s2) out <= s2;
-end
 
 endmodule

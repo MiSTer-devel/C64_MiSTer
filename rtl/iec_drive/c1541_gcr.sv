@@ -128,7 +128,7 @@ always @(posedge sd_clk) begin
 	end
 end
 
-c1541mem #(8,13) buffer
+iecdrv_mem #(8,13) buffer
 (
 	.clock_a(sd_clk),
 	.address_a(sd_buff_addr),
