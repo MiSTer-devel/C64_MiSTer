@@ -1212,7 +1212,7 @@ end
 
 wire ext_iec_en   = status[25];
 wire ext_iec_clk  = USER_IN[2] | ~ext_iec_en;
-wire ext_iec_data = USER_IN[3] | ~ext_iec_en;
+wire ext_iec_data = USER_IN[4] | ~ext_iec_en;
 
 assign USER_OUT[2] = (c64_iec_clk  & drive_8_iec_clk  & drive_9_iec_clk)  | ~ext_iec_en;
 assign USER_OUT[3] = (reset_n & ~status[6]) | ~ext_iec_en;
