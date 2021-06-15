@@ -1,7 +1,5 @@
 //-------------------------------------------------------------------------------
 //
-// Reworked and adapted to MiSTer by Sorgelig@MiSTer (07.09.2018)
-//
 // Commodore 1541 gcr floppy (read/write) by Dar (darfpga@aol.fr) 23-May-2017
 // http://darfpga.blogspot.fr
 //
@@ -10,6 +8,8 @@
 //
 // gets GCR data from c1541_logic, while producing byte(ready) signal. Data feed
 // track buffer ram after conversion
+//
+// Reworked and adapted to MiSTer by Alexey Melnikov
 //
 //-------------------------------------------------------------------------------
 

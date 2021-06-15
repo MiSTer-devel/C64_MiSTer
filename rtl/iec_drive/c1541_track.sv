@@ -22,6 +22,8 @@ module c1541_track
 (
 	input         clk,
 	input         reset,
+	
+	input         gcr_mode,
 
 	output [31:0] sd_lba,
 	output  [5:0] sd_blk_cnt,
@@ -31,17 +33,17 @@ module c1541_track
 
 	input         save_track,
 	input         change,
-	input   [5:0] track,
+	input   [6:0] track,
 	output reg    busy
 );
 
-assign sd_lba = lba;
-assign sd_blk_cnt = len[5:0];
+assign sd_lba     = lba;
+assign sd_blk_cnt = gcr_mode ? 6'h1F : len[5:0];
 
-wire [5:0] track_s;
+wire [6:0] track_s;
 wire       change_s, save_track_s, reset_s;
 
-iecdrv_sync #(6) track_sync  (clk, track,      track_s);
+iecdrv_sync #(7) track_sync  (clk, track,      track_s);
 iecdrv_sync #(1) change_sync (clk, change,     change_s);
 iecdrv_sync #(1) save_sync   (clk, save_track, save_track_s);
 iecdrv_sync #(1) reset_sync  (clk, reset,      reset_s);
@@ -56,15 +58,15 @@ reg [31:0] lba;
 reg  [9:0] len;
 
 always @(posedge clk) begin
-	reg  [5:0] cur_track = 0;
+	reg  [6:0] cur_track = 0;
+	reg  [6:0] track_new;
 	reg        old_change, update = 0;
 	reg        saving = 0, initing = 0;
 	reg        old_save_track = 0;
 	reg        old_ack;
-	reg  [5:0] track_new;
 
 	// delay track change after sync, so make sure save_track comes first.
-	track_new <= track_s ? (track_s - 1'd1) : 6'd0;
+	track_new <= gcr_mode ? track_s : track_s[6:1];
 
 	old_change <= change_s;
 	if(~old_change & change_s) update <= 1;
@@ -80,15 +82,14 @@ always @(posedge clk) begin
 		saving    <= 0;
 		update    <= 1;
 	end
-	else
-	if(busy) begin
+	else if(busy) begin
 		if(old_ack && ~sd_ack) begin
 			if((initing || saving) && (cur_track != track_new)) begin
 				saving    <= 0;
 				initing   <= 0;
 				cur_track <= track_new;
 				len       <= start_sectors[track_new+1'd1] - start_sectors[track_new] - 1'd1;
-				lba       <= start_sectors[track_new];
+				lba       <= gcr_mode ? track_new : start_sectors[track_new];
 				sd_rd     <= 1;
 			end
 			else begin
@@ -98,14 +99,14 @@ always @(posedge clk) begin
 	end
 	else begin
 		old_save_track <= save_track_s;
-		if((old_save_track ^ save_track_s) && ~&cur_track[5:1]) begin
+		if((old_save_track ^ save_track_s) && ~&cur_track[6:1]) begin
 			saving    <= 1;
 			len       <= start_sectors[cur_track+1'd1] - start_sectors[cur_track] - 1'd1;
-			lba       <= start_sectors[cur_track];
+			lba       <= gcr_mode ? cur_track : start_sectors[cur_track];
 			sd_wr     <= 1;
 			busy      <= 1;
 		end
-		else if(update) begin
+		else if(update & ~gcr_mode) begin
 			update    <= 0;
 			initing   <= 1;
 			cur_track <= 17;
@@ -114,12 +115,13 @@ always @(posedge clk) begin
 			sd_rd     <= 1;
 			busy      <= 1;
 		end
-		else if(cur_track != track_new) begin
+		else if(cur_track != track_new || (update & gcr_mode)) begin
 			cur_track <= track_new;
 			len       <= start_sectors[track_new+1'd1] - start_sectors[track_new] - 1'd1;
-			lba       <= start_sectors[track_new];
+			lba       <= gcr_mode ? track_new : start_sectors[track_new];
 			sd_rd     <= 1;
 			busy      <= 1;
+			update    <= 0;
 		end
 	end
 end

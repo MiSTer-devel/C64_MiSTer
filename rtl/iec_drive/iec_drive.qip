@@ -3,6 +3,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) i
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_multi.sv     ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_drv.sv       ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_gcr.sv       ]
+set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_direct_gcr.sv]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_track.sv     ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) c1541_logic.sv     ]
 

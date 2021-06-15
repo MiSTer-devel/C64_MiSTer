@@ -16,6 +16,7 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input         ce,
 
 	input         pause,
+	input   [N:0] gcr_mode,
 
 	input   [N:0] img_mounted,
 	input         img_readonly,
@@ -43,7 +44,7 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	output  [N:0] sd_rd,
 	output  [N:0] sd_wr,
 	input   [N:0] sd_ack,
-	input  [12:0] sd_buff_addr,
+	input  [13:0] sd_buff_addr,
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din[NDR],
 	input         sd_buff_wr,
@@ -185,6 +186,8 @@ generate
 		(
 			.clk(clk),
 			.reset(reset_drv[i]),
+
+			.gcr_mode(gcr_mode[i]),
 
 			.ce(ce),
 			.ph2_r(ph2_r),

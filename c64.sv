@@ -198,8 +198,8 @@ assign VGA_SCALER = 0;
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;UART9600:2400;",
-	"H7S0,D64T64D81,Mount Drive #8;",
-	"H0S1,D64T64D81,Mount Drive #9;",
+	"H7S0,D64G64T64D81,Mount #8;",
+	"H0S1,D64G64T64D81,Mount #9;",
 	"-;",
 	"F1,PRGCRTREUTAP;",
 	"h3-;",
@@ -403,7 +403,7 @@ wire  [5:0] sd_blk_cnt[2];
 wire  [1:0] sd_rd;
 wire  [1:0] sd_wr;
 wire  [1:0] sd_ack;
-wire [12:0] sd_buff_addr;
+wire [13:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din[2];
 wire        sd_buff_wr;
@@ -1091,7 +1091,7 @@ iec_drive iec_drive
 	.img_mounted(img_mounted),
 	.img_size(img_size),
 	.img_readonly(img_readonly),
-	.img_type(ioctl_index[7]),
+	.img_type(&ioctl_index[7:6] ? 2'b11 : 2'b01),
 
 	.led(drive_led),
 
@@ -1157,7 +1157,7 @@ end
 
 wire ext_iec_en   = status[25];
 wire ext_iec_clk  = USER_IN[2] | ~ext_iec_en;
-wire ext_iec_data = USER_IN[3] | ~ext_iec_en;
+wire ext_iec_data = USER_IN[4] | ~ext_iec_en;
 
 assign USER_OUT[2] = (c64_iec_clk & drive_iec_clk_o)  | ~ext_iec_en;
 assign USER_OUT[3] = (reset_n & ~status[6]) | ~ext_iec_en;

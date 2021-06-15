@@ -18,8 +18,10 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input         img_readonly,
 	input  [31:0] img_size,
 	
-	//By settings static 0 or 1 will result of only 1541 or 1581 compiled
-	input         img_type,
+	// 00 - 1541 emulated GCR(D64)
+	// 01 - 1541 real GCR mode (G64,D64)
+	// 10 - 1581 (D81)
+	input   [1:0] img_type,
 
 	output  [N:0] led,
 
@@ -43,7 +45,7 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	output  [N:0] sd_rd,
 	output  [N:0] sd_wr,
 	input   [N:0] sd_ack,
-	input  [12:0] sd_buff_addr,
+	input  [13:0] sd_buff_addr,
 	input   [7:0] sd_buff_dout,
 	output  [7:0] sd_buff_din[NDR],
 	input         sd_buff_wr,
@@ -57,8 +59,8 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 localparam NDR = (DRIVES < 1) ? 1 : (DRIVES > 4) ? 4 : DRIVES;
 localparam N   = NDR - 1;
 
-reg [N:0] dtype;
-always @(posedge clk_sys) for(int i=0; i<NDR; i=i+1) if(img_mounted[i] && img_size) dtype[i] <= img_type;
+reg [N:0] dtype[2];
+always @(posedge clk_sys) for(int i=0; i<NDR; i=i+1) if(img_mounted[i] && img_size) {dtype[1][i],dtype[0][i]} <= img_type;
 
 assign led          = c1581_led       | c1541_led;
 assign iec_data_o   = c1581_iec_data  & c1541_iec_data;
@@ -67,11 +69,11 @@ assign par_stb_o    = c1581_stb_o     & c1541_stb_o;
 assign par_data_o   = c1581_par_o     & c1541_par_o;
 
 always_comb for(int i=0; i<NDR; i=i+1) begin
-	sd_buff_din[i] = (dtype[i] ? c1581_sd_buff_dout[i] : c1541_sd_buff_dout[i] );
-	sd_lba[i]      = (dtype[i] ? c1581_sd_lba[i] << 1  : c1541_sd_lba[i]       );
-	sd_rd[i]       = (dtype[i] ? c1581_sd_rd[i]        : c1541_sd_rd[i]        );
-	sd_wr[i]       = (dtype[i] ? c1581_sd_wr[i]        : c1541_sd_wr[i]        );
-	sd_blk_cnt[i]  = (dtype[i] ? 6'd1                  : c1541_sd_blk_cnt[i]   );
+	sd_buff_din[i] = (dtype[1][i] ? c1581_sd_buff_dout[i] : c1541_sd_buff_dout[i] );
+	sd_lba[i]      = (dtype[1][i] ? c1581_sd_lba[i] << 1  : c1541_sd_lba[i]       );
+	sd_rd[i]       = (dtype[1][i] ? c1581_sd_rd[i]        : c1541_sd_rd[i]        );
+	sd_wr[i]       = (dtype[1][i] ? c1581_sd_wr[i]        : c1541_sd_wr[i]        );
+	sd_blk_cnt[i]  = (dtype[1][i] ? 6'd1                  : c1541_sd_blk_cnt[i]   );
 end
 
 wire        c1541_iec_data, c1541_iec_clk, c1541_stb_o;
@@ -85,8 +87,10 @@ wire  [5:0] c1541_sd_blk_cnt[NDR];
 c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 (
 	.clk(clk),
-	.reset(reset | dtype),
+	.reset(reset | dtype[1]),
 	.ce(ce),
+
+	.gcr_mode(dtype[0]),
 
 	.iec_atn_i (iec_atn_i),
 	.iec_data_i(iec_data_i & c1581_iec_data),
@@ -135,7 +139,7 @@ wire  [N:0] c1581_sd_rd, c1581_sd_wr;
 c1581_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1581
 (
 	.clk(clk),
-	.reset(reset | ~dtype),
+	.reset(reset | ~dtype[1]),
 	.ce(ce),
 
 	.iec_atn_i (iec_atn_i),

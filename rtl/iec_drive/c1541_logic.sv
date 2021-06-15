@@ -92,7 +92,7 @@ T65 cpu
 wire extram_cs = ext_en && (cpu_a[15:13] == 'b100);
 
 wire [7:0] extram_do;
-iecdrv_mem #(8,13,"rtl/iec_drive/c1541_extram.mif") extram
+iecdrv_mem #(8,13) extram
 (
 	.clock_a(clk),
 	.address_a(cpu_a[12:0]),
