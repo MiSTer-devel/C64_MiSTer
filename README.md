@@ -4,7 +4,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 
 ## Features
 - C64 and C64GS modes.
-- C1541 read/write support (*.D64)
+- C1541 read/write/format support in raw GCR mode (*.D64, *.G64)
 - C1581 read/write support (*.D81)
 - Parallel C1541 port for faster (~20x) loading time using DolphinDOS.
 - External IEC through USER_IO port.
@@ -113,3 +113,9 @@ All signals are 3.3V LVTTL and must be properly converted to required levels!
 
 RTC is PCF8583 connected to tape port.
 To get real time in GEOS, copy CP-CLOCK64-1.3 from supplied [disk](https://github.com/mister-devel/C64_MiSTer/blob/master/releases/CP-ClockF83_1.3.D64) to GEOS system disk.
+
+### Raw GCR mode
+
+C1541 implementation works in raw GCR mode (D64 format is converted to GCR and then back when saved), so some non-standard tracks are supported if G64 file format is used. Support formatting and some copiers using raw track copy. Speed zones aren't supported (yet), but system follows the speed setting, so variable speed within a track should work.
+Protected disk in most cases won't work yet and still require further tuning of access times to comply with different protections.
+
