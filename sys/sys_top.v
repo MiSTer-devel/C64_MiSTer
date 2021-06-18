@@ -292,7 +292,8 @@ reg        cfg_custom_t = 0;
 reg  [5:0] cfg_custom_p1;
 reg [31:0] cfg_custom_p2;
 
-reg  [4:0] vol_att = 0;
+reg  [4:0] vol_att;
+initial vol_att = 5'b11111;
 
 reg  [6:0] coef_addr;
 reg  [8:0] coef_data;
