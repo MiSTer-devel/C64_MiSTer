@@ -633,6 +633,19 @@ always @(posedge clk32) begin
 				end
 			end
 
+		// prophet64
+		43: begin
+				if(!init_n) begin
+					exrom_overide <= 0;
+					game_overide  <= 1;
+					bank_lo       <= 0;
+				end
+				else if(iof_wr) begin
+					bank_lo       <= data_in[4:0];
+					exrom_overide <= data_in[5];
+				end
+			end
+
 		// Kingsoft Business Basic
 		54: begin
 				game_overide  <= 0;
