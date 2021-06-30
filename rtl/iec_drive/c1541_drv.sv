@@ -234,7 +234,7 @@ always @(posedge clk) begin
 		track_modified <= 0;
 	end else begin
 		if (mtr & move[0]) begin
-			if (~move[1] && track_num < 80) track_num <= track_num + 1'b1;
+			if (~move[1] && track_num < 84) track_num <= track_num + 1'b1;
 			if ( move[1] && track_num > 0 ) track_num <= track_num - 1'b1;
 			if (track_modified) save_track <= ~save_track;
 			track_modified <= 0;
