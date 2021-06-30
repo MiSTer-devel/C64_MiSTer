@@ -92,7 +92,8 @@ port(
 	IOF			: out std_logic;
 	freeze_key  : out std_logic;
 	mod_key     : out std_logic;
-	
+	tape_play   : out std_logic;
+
 	-- dma access
 	dma_req     : in  std_logic := '0';
 	dma_cycle   : out std_logic;
@@ -855,6 +856,7 @@ port map (
 	pbo => cia1_pbi,
 
 	restore_key => freeze_key,
+	tape_play => tape_play,
 	mod_key => mod_key,
 	backwardsReadingEnabled => '1'
 );

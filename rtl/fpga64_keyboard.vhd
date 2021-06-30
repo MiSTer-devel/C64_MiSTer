@@ -49,6 +49,7 @@ entity fpga64_keyboard is
 		
 		restore_key : out std_logic;
 		mod_key     : out std_logic;
+		tape_play   : out std_logic;
 		
 		-- Config
 		-- backwardsReadingEnabled = 1 allows reversal of PIA registers to still work.
@@ -422,7 +423,7 @@ begin
 					when X"7A" => if extended then key_arrowup <= pressed; else key_3   <= pressed; end if;
 					when X"7B" => key_minus <= pressed; 
 					when X"7C" => key_star <= pressed; 
-					when X"7D" => if extended then restore_key <= pressed; else key_9   <= pressed; end if;
+					when X"7D" => if extended then tape_play <= pressed; else key_9   <= pressed; end if;
 					when others => null;
 				end case;
 			end if;
@@ -444,6 +445,7 @@ begin
 					key_commodore <= '0'; 
 					key_runstop   <= '0';
 					restore_key   <= '0';
+					tape_play     <= '0';
 					key_arrowup   <= '0';
 					key_equal     <= '0';
 					key_arrowleft <= '0';

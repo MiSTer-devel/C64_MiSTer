@@ -32,7 +32,8 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 * F9 - arrow-up key.
 * F10 - = key.
 * F11 - restore key. Also special key in AR/FC carts.
-* Alt - C= key.
+* Alt,Tab - C= key.
+* PgUp - Tape play/pause
 
 ![keyboard-mapping](https://github.com/mister-devel/C64_MiSTer/blob/master/keymap.gif)
 

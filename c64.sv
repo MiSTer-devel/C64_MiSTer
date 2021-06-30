@@ -191,7 +191,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXX XXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -247,6 +247,7 @@ localparam CONF_STR = {
 	"P2OO,Clear RAM on Reset,Yes,No;",
 	"P2oI,Reset & Run PRG,Yes,No;",
 	"P2oA,Pause When OSD is Open,No,Yes;",
+	"P2o7,Tape Autoplay,Yes,No;",
 	"P2-;",
 	"P2FC8,ROM,System ROM C64+C1541 ;",
 	"P2FC9,ROM,System ROM C1581     ;",
@@ -959,6 +960,7 @@ fpga64_sid_iec fpga64
 	.nmi_n(~nmi),
 	.nmi_ack(nmi_ack),
 	.freeze_key(freeze_key),
+	.tape_play(tape_play),
 	.mod_key(mod_key),
 	.roml(romL),
 	.romh(romH),
@@ -1398,7 +1400,8 @@ assign AUDIO_MIX = status[19:18];
 wire       tap_download = ioctl_download & load_tap;
 wire       tap_reset    = ~reset_n | tap_download | status[23] | !tap_last_addr | cass_finish;
 wire       tap_loaded   = (tap_play_addr < tap_last_addr);
-wire       tap_play_btn = status[7];
+wire       tap_play_btn = status[7] | tape_play;
+wire       tape_play;
 
 reg [24:0] tap_play_addr;
 reg [24:0] tap_last_addr;
@@ -1418,7 +1421,7 @@ always @(posedge clk_sys) begin
 		//C1530 module requires one more byte at the end due to fifo early check.
 		tap_last_addr <= tap_download ? ioctl_addr+2'd2 : 25'd0;
 		tap_play_addr <= 0;
-		tap_start     <= tap_download;
+		tap_start     <= ~status[39] & tap_download;
 		read_cyc      <= 0;
 	end
 	else begin
