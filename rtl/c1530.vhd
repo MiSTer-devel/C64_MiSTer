@@ -51,6 +51,7 @@ signal tap_fifo_rdreq : std_logic;
 signal tap_fifo_empty : std_logic;
 signal get_24bits_len : std_logic;
 signal start_bytes    : std_logic_vector(7 downto 0);
+signal initial_delay  : std_logic;
 signal skip_bytes     : std_logic;
 signal playing        : std_logic;  -- 1 = tap or wav file is playing
 
@@ -93,10 +94,11 @@ begin
 		skip_bytes <= '1';
 		tap_player_tick_cnt <= (others => '0');
 		wav_player_tick_cnt <= (others => '0');
-		wave_len <= (others => '0');
+		wave_len <= x"000004";
 		wave_cnt <= (others => '0');
 		get_24bits_len <= '0';
 		osd_play_stop_toggleD <= '0';
+		initial_delay <= '1';
 
 		tap_fifo_rdreq <='0';
 		tap_fifo_error <='0'; -- run out of data
@@ -178,9 +180,9 @@ begin
 
 		-- tap player
 
-		if (playing = '1') and (wav_mode = '0') then
+		tap_player_tick_cnt <= tap_player_tick_cnt + '1';
 
-			tap_player_tick_cnt <= tap_player_tick_cnt + '1';
+		if (playing = '1') and (wav_mode = '0') then
 
 --			if ((tap_player_tick_cnt = "100000") and (skip_bytes = '0')) then -- divide by 33
 			if ((tap_player_tick_cnt = "011111") and (skip_bytes = '0')) then -- divide by 32
@@ -211,6 +213,7 @@ begin
 							get_24bits_len <= tap_version(0) or tap_version(1);
 						else
 							wave_len <= '0'&x"000" & tap_fifo_do & "000";
+							initial_delay <= '0';
 						end if;
 					end if;
 				end if;
@@ -228,6 +231,9 @@ begin
 				else
 					tap_fifo_rdreq <= '1';
 					wave_len <= tap_fifo_do & wave_len(23 downto 8);
+					if initial_delay = '1' then
+						wave_len <= x"000004";
+					end if;
 				end if;
 
 				if tap_version(1) = '0' then
@@ -236,7 +242,7 @@ begin
 			end if;
 
 			-- skip tap header bytes
-			if (skip_bytes = '1' and tap_fifo_empty = '0') then
+			if (skip_bytes = '1' and tap_fifo_empty = '0' and tap_player_tick_cnt(0) = '1') then
 				tap_fifo_rdreq <= '1';
 				cass_read <= '1';
 				if start_bytes < X"14" then
