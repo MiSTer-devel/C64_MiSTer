@@ -177,8 +177,6 @@ module emu
 	input         OSD_STATUS
 );
 
-assign ADC_BUS  = 'Z;
-
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
@@ -716,7 +714,8 @@ always @(posedge clk_sys) begin
 		end
 		
 		if (load_tap) begin
-			if (ioctl_addr == 0) ioctl_load_addr <= TAP_ADDR;
+			if (ioctl_addr == 0)  ioctl_load_addr <= TAP_ADDR;
+			if (ioctl_addr == 12) tap_version <= ioctl_data[1:0];
 			ioctl_req_wr <= 1;
 		end
 
@@ -1029,8 +1028,8 @@ fpga64_sid_iec fpga64
 
 	.cass_write(cass_write),
 	.cass_motor(cass_motor),
-	.cass_sense(use_tape ? ~tap_play : cass_rtc),
-	.cass_in(cass_do)
+	.cass_sense(~tape_adc_act & (use_tape ? cass_sense : cass_rtc)),
+	.cass_read(tape_adc_act ? ~tape_adc : cass_read)
 );
 
 wire [7:0] mouse_x;
@@ -1396,39 +1395,34 @@ assign AUDIO_MIX = status[19:18];
 
 //------------- TAP -------------------
 
-reg [24:0] tap_play_addr;
-reg [24:0] tap_last_addr;
-wire       tap_reset = ~reset_n | tape_download | status[23] | (cass_motor & ((tap_last_addr - tap_play_addr) < 80));
-reg  [1:0] tap_wrreq;
-wire       tap_wrfull;
-wire       tap_finish;
-wire       tap_loaded = (tap_play_addr < tap_last_addr);
-reg        tap_play;
+wire       tap_download = ioctl_download & load_tap;
+wire       tap_reset    = ~reset_n | tap_download | status[23] | !tap_last_addr | cass_finish;
+wire       tap_loaded   = (tap_play_addr < tap_last_addr);
 wire       tap_play_btn = status[7];
 
-wire       tape_download = ioctl_download & load_tap;
+reg [24:0] tap_play_addr;
+reg [24:0] tap_last_addr;
+reg  [1:0] tap_wrreq;
+wire       tap_wrfull;
+reg  [1:0] tap_version;
+reg        tap_start;
 
 always @(posedge clk_sys) begin
-	reg io_cycleD, tap_finishD;
+	reg io_cycleD;
 	reg read_cyc;
-	reg tap_play_btnD;
 
-	tap_play_btnD <= tap_play_btn;
 	io_cycleD <= io_cycle;
-	tap_finishD <= tap_finish;
 	tap_wrreq <= tap_wrreq << 1;
 
 	if(tap_reset) begin
 		//C1530 module requires one more byte at the end due to fifo early check.
-		tap_last_addr <= tape_download ? ioctl_addr+2'd2 : 25'd0;
+		tap_last_addr <= tap_download ? ioctl_addr+2'd2 : 25'd0;
 		tap_play_addr <= 0;
-		tap_play <= tape_download;
-		read_cyc <= 0;
+		tap_start     <= tap_download;
+		read_cyc      <= 0;
 	end
 	else begin
-		if (~tap_play_btnD & tap_play_btn) tap_play <= ~tap_play;
-		if (~tap_finishD & tap_finish) tap_play <= 0;
-
+		tap_start <= 0;
 		if (~io_cycle & io_cycleD & ~tap_wrfull & tap_loaded) read_cyc <= 1;
 		if (io_cycle & io_cycleD & read_cyc) begin
 			tap_play_addr <= tap_play_addr + 1'd1;
@@ -1438,6 +1432,33 @@ always @(posedge clk_sys) begin
 	end
 end
 
+wire cass_write;
+wire cass_motor;
+wire cass_sense;
+wire cass_read;
+wire cass_run;
+wire cass_finish;
+wire cass_snd = cass_read & ~cass_run & status[11] & ~cass_finish;
+
+c1530 c1530
+(
+	.clk32(clk_sys),
+	.restart_tape(tap_reset),
+	.wav_mode(0),
+	.tap_version(tap_version),
+	.host_tap_in(sdram_data),
+	.host_tap_wrreq(tap_wrreq[1]),
+	.tap_fifo_wrfull(tap_wrfull),
+	.tap_fifo_error(cass_finish),
+	.cass_read(cass_read),
+	.cass_write(cass_write),
+	.cass_motor(cass_motor),
+	.cass_sense(cass_sense),
+	.cass_run(cass_run),
+	.osd_play_stop_toggle(tap_play_btn | tap_start),
+	.ear_input(0)
+);
+
 reg use_tape;
 always @(posedge clk_sys) begin
 	integer to = 0;
@@ -1445,38 +1466,23 @@ always @(posedge clk_sys) begin
 	if(to) to <= to - 1;
 	else use_tape <= status[36];
 
-	if(tap_loaded | tap_play) begin
+	if(tap_loaded | ~cass_sense) begin
 		use_tape <= 1;
 		to <= 128000000; //4s
 	end
 end
 
-
 reg [26:0] act_cnt;
-always @(posedge clk_sys) act_cnt <= act_cnt + (tap_play ? 4'd8 : 4'd1);
-wire tape_led = tap_loaded && (act_cnt[26] ? (~(tap_play & cass_motor) && act_cnt[25:18] > act_cnt[7:0]) : act_cnt[25:18] <= act_cnt[7:0]);
+always @(posedge clk_sys) act_cnt <= act_cnt + (cass_sense ? 4'd1 : 4'd8);
+wire tape_led = tap_loaded && (act_cnt[26] ? (~(~cass_sense & cass_motor) && act_cnt[25:18] > act_cnt[7:0]) : act_cnt[25:18] <= act_cnt[7:0]);
 
-wire cass_write;
-wire cass_motor;
-wire cass_run = ~cass_motor & tap_play;
-wire cass_snd = cass_run & status[11] & cass_do;
-wire cass_do;
-
-c1530 c1530
+wire tape_adc, tape_adc_act;
+ltc2308_tape #(.CLK_RATE(32000000)) ltc2308_tape
 (
-	.clk(clk_sys),
-	.restart(tap_reset),
-
-	.clk_freq(32000000),
-	.cpu_freq(1000000),
-
-	.din(sdram_data),
-	.wr(tap_wrreq[1]),
-	.full(tap_wrfull),
-	.empty(tap_finish),
-
-	.play(cass_run),
-	.dout(cass_do)
+  .clk(clk_sys),
+  .ADC_BUS(ADC_BUS),
+  .dout(tape_adc),
+  .active(tape_adc_act)
 );
 
 //------------- USER PORT -----------------

@@ -152,7 +152,7 @@ port(
 	cass_motor  : out std_logic;
 	cass_write  : out std_logic;
 	cass_sense  : in  std_logic;
-	cass_in     : in  std_logic
+	cass_read   : in  std_logic
 );
 end fpga64_sid_iec;
 
@@ -681,7 +681,7 @@ port map (
 	pb_in => cia1_pbi,
 	pb_out => cia1_pbo,
 
-	flag_n => cass_in,
+	flag_n => cass_read,
 	sp_in => sp1_i,
 	sp_out => sp1_o,
 	cnt_in => cnt1_i,
