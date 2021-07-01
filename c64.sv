@@ -1384,8 +1384,8 @@ always @(posedge clk_sys) begin
 	cin  <= opl_out - {{3{opl_out[15]}},opl_out[15:3]};
 	cout <= compr(cin);
 
-	alm <= {cout[15],cout} + {audio_l[17],audio_l[17:2]} + {2'b0,dac_l,6'd0} + {cass_snd, 10'd0};
-	arm <= {cout[15],cout} + {audio_r[17],audio_r[17:2]} + {2'b0,dac_r,6'd0} + {cass_snd, 10'd0};
+	alm <= {cout[15],cout} + {audio_l[17],audio_l[17:2]} + {2'b0,dac_l,6'd0} + {cass_snd, 9'd0};
+	arm <= {cout[15],cout} + {audio_r[17],audio_r[17:2]} + {2'b0,dac_r,6'd0} + {cass_snd, 9'd0};
 	alo <= ^alm[16:15] ? {alm[16], {15{alm[15]}}} : alm[15:0];
 	aro <= ^arm[16:15] ? {arm[16], {15{arm[15]}}} : arm[15:0];
 end
@@ -1398,8 +1398,8 @@ assign AUDIO_MIX = status[19:18];
 //------------- TAP -------------------
 
 wire       tap_download = ioctl_download & load_tap;
-wire       tap_reset    = ~reset_n | tap_download | status[23] | !tap_last_addr | cass_finish;
-wire       tap_loaded   = (tap_play_addr < tap_last_addr);
+wire       tap_reset    = ~reset_n | tap_download | status[23] | !tap_last_addr | cass_finish | (cass_motor & ((tap_last_addr - tap_play_addr) < 80));
+wire       tap_loaded   = (tap_play_addr < tap_last_addr);                                    // ^^ auto-unload if motor stopped at the very end ^^
 wire       tap_play_btn = status[7] | tape_play;
 wire       tape_play;
 
