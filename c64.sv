@@ -1568,6 +1568,16 @@ rtcF83 #(16000000, 0) rtcF83
 	.sda_o(rtcF83_sda)
 );
 
-wire cass_rtc = ~(rtcF83_sda & cass_motor);
+reg use_rtc = 0;
+always @(posedge clk_sys) begin
+	reg [20:0] to = 0;
+
+	if(to) to <= to - 1'd1;
+	use_rtc <= |to;
+
+	if(cass_write) to <= '1;
+end
+
+wire cass_rtc = ~(rtcF83_sda & use_rtc & cass_motor);
 
 endmodule

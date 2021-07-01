@@ -27,8 +27,6 @@ module rtcF83 #(parameter CLOCK_RATE, HAS_RAM = 1)
 
 	input [64:0] RTC,
 	
-	output reg   dbg,
-
 	input        scl_i,
 	input        sda_i,
 	output reg   sda_o
@@ -84,8 +82,6 @@ always @(posedge clk) begin
 		if(scl_sr[0] == scl_sr[1]) scl <= scl_sr[1];
 		old_scl <= scl;
 		scl_d <= (scl_d << 1) | scl;
-
-		dbg <= (|scl_d & ~&scl_d) | (old_scl ^ scl) | (|sda_d & ~&sda_d) | (old_sda ^ sda);
 
 		//start
 		if(old_scl & scl & old_sda & ~sda) begin
