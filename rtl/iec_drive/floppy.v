@@ -74,8 +74,8 @@ localparam BPTSD = RATESD*60/(8*RPM);
 localparam BPTDD = RATEDD*60/(8*RPM);
 localparam BPTHD = RATEHD*60/(8*RPM);
 
-// report disk ready if it spins at full speed and head is not moving
-assign ready = select && (rate == (fm ? RATESD : hd ? RATEHD : RATEDD)) && (step_busy == 0);
+// report disk ready if it spins at full speed
+assign ready = select && (rate == (fm ? RATESD : hd ? RATEHD : RATEDD));
 
 // ================================================================
 // ========================= INDEX PULSE ==========================
