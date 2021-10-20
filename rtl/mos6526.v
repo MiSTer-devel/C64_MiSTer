@@ -91,8 +91,11 @@ always @(posedge clk) begin
   if (!res_n) db_out <= 8'h00;
   else if (rd)
     case (rs)
-      4'h0: db_out <= pa_in;
-      4'h1: db_out <= pb_in;
+      // chip uses output driver for both 0 and 1
+      // thus, if pin assigned as output and other party also drives the bus 
+      // then assume this chip will always win, so ignore input on output pin
+      4'h0: db_out <= (pa_in & ~ddra) | (pa_out & ddra);
+      4'h1: db_out <= (pb_in & ~ddrb) | (pb_out & ddrb);
       4'h2: db_out <= ddra;
       4'h3: db_out <= ddrb;
       4'h4: db_out <= timer_a[ 7:0];
