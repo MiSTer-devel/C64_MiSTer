@@ -707,9 +707,9 @@ port map (
 	db_in => cpuDo,
 	db_out => cia2Do,
 
-	pa_in => cia2_pai,
+	pa_in => cia2_pai and cia2_pao,
 	pa_out => cia2_pao,
-	pb_in => pb_i,
+	pb_in => pb_i and cia2_pbo,
 	pb_out => cia2_pbo,
 
 	flag_n => flag2_n_i,
