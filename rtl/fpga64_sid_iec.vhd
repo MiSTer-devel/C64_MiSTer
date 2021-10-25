@@ -237,6 +237,7 @@ signal cia2_pai     : unsigned(7 downto 0);
 signal cia2_pao     : unsigned(7 downto 0);
 signal cia2_pbi     : unsigned(7 downto 0);
 signal cia2_pbo     : unsigned(7 downto 0);
+signal cia2_pbe     : unsigned(7 downto 0);
 
 signal todclk       : std_logic;
 
@@ -308,8 +309,10 @@ component mos6526
 		db_out        : out unsigned(7 downto 0);
 		pa_in         : in  unsigned(7 downto 0);
 		pa_out        : out unsigned(7 downto 0);
+		pa_oe         : out unsigned(7 downto 0);
 		pb_in         : in  unsigned(7 downto 0);
 		pb_out        : out unsigned(7 downto 0);
+		pb_oe         : out unsigned(7 downto 0);
 		flag_n        : in  std_logic;
 		pc_n          : out std_logic;
 		tod           : in  std_logic;
@@ -709,8 +712,9 @@ port map (
 
 	pa_in => cia2_pai and cia2_pao,
 	pa_out => cia2_pao,
-	pb_in => pb_i and cia2_pbo,
+	pb_in => (pb_i and not cia2_pbe) or (cia2_pbo and cia2_pbe),
 	pb_out => cia2_pbo,
+	pb_oe => cia2_pbe,
 
 	flag_n => flag2_n_i,
 	pc_n => pc2_n_o,

@@ -19,8 +19,11 @@ module mos6526 (
 
   input  wire [7:0] pa_in,
   output reg  [7:0] pa_out,
+  output      [7:0] pa_oe,
+
   input  wire [7:0] pb_in,
   output reg  [7:0] pb_out,
+  output      [7:0] pb_oe,
 
   input  wire       flag_n,
   output reg        pc_n,
@@ -109,6 +112,9 @@ always @(posedge clk) begin
       4'hf: db_out <= {crb[7:5], 1'b0, crb[3:0]};
     endcase
 end
+
+assign pa_oe = ddra;
+assign pb_oe = ddrb;
 
 // Port A Output
 always @(posedge clk) begin
