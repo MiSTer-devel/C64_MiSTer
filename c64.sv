@@ -1228,6 +1228,11 @@ always @(posedge CLK_VIDEO) begin
 		if(HDMI_HEIGHT == 1080) vcrop <= 10'd216;
 		if(HDMI_HEIGHT == 1200) vcrop <= 240;
 	end
+	else if(HDMI_WIDTH >= 1440 && !scandoubler) begin
+		// 1920x1440 is a 4:3 resolution and won't fit in the previous if statement ( width > height * 1.5 )
+		// probably a 1536 option is good too, but i did not test it yet
+		if(HDMI_HEIGHT == 1440) begin vcrop <= 204; wide <= vcrop_en; end
+	end
 end
 
 
