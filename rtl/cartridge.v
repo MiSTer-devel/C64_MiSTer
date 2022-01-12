@@ -466,7 +466,7 @@ always @(posedge clk32) begin
 				end
 
 				if(ioe_wr) begin
-					bank_lo <= data_in[6:0];
+					bank_lo <= data_in[6:0] & (bank_cnt - 1);
 					exrom_overide <= data_in[7];
 				end
 			end
