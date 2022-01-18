@@ -466,7 +466,10 @@ always @(posedge clk32) begin
 				end
 
 				if(ioe_wr) begin
-					bank_lo <= data_in[6:0] & (bank_cnt - 1);
+					if(bank_cnt <= 16) bank_lo <= data_in[3:0];
+					else if(bank_cnt <= 32) bank_lo <= data_in[4:0];
+					else if(bank_cnt <= 64) bank_lo <= data_in[5:0];
+					else bank_lo <= data_in[6:0];
 					exrom_overide <= data_in[7];
 				end
 			end
