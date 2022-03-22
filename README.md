@@ -38,9 +38,11 @@ Due to the nature of the original C64 keyboard being substantially different fro
 * Tab - CTRL key (CTRL keys also act as control keys)
 * PgUp - Tape play/pause
 * Scroll Lock - Toggle between keyboard mode acting as keyboard, mouse, Joy 1, or Joy 2
- 
+
+Original layout mapping:
 ![keyboard-mapping-original](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_orig.png)
 
+Symbolic layout mapping:
 ![keyboard-mapping-symbolic](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_sym.png)
 
 ### Using without keyboard
