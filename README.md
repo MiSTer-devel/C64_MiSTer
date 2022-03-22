@@ -39,9 +39,9 @@ Due to the nature of the original C64 keyboard being substantially different fro
 * PgUp - Tape play/pause
 * Scroll Lock - Toggle between keyboard mode acting as keyboard, mouse, Joy 1, or Joy 2
  
-![keyboard-mapping-orig](https://github.com/kgmossey/C64_MiSTer/blob/master/keymap_orig.png)
+![keyboard-mapping-original](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_orig.png)
 
-![keyboard-mapping-sym](https://github.com/kgmossey/C64_MiSTer/blob/master/keymap_sym.png)
+![keyboard-mapping-symbolic](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_sym.png)
 
 ### Using without keyboard
 If your joystick/gamepad has more than 4 buttons then you can have some limited usage of keybiard.
