@@ -864,7 +864,7 @@ port map (
 	tape_play => tape_play,
 	mod_key => mod_key,
 	backwardsReadingEnabled => '1',
-	originalLayout => kbdLayout    -- enable this for the original C64 keyboard layout
+	CommodoreLayout => kbdLayout    -- enable this for the original C64 keyboard layout
 );
 
 end architecture;

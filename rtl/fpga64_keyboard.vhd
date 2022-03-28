@@ -58,7 +58,7 @@ entity fpga64_keyboard is
 		backwardsReadingEnabled : in std_logic;
 		
 		-- Todo: Make this a parameter read from somewhere configurable
-		originalLayout : in std_logic
+		CommodoreLayout : in std_logic
 	);
 end fpga64_keyboard;
 
@@ -387,8 +387,8 @@ begin
 					when X"83" => key_F7 <= pressed;
 					when X"0A" => key_F8 <= pressed;
 					when X"01" => key_arrowup <= pressed;     -- F9
-					when X"09" => key_equal <= pressed and originalLayout;      -- F10
-								  key_plus <= pressed and not originalLayout;
+					when X"09" => key_equal <= pressed and CommodoreLayout;      -- F10
+								  key_plus <= pressed and not CommodoreLayout;
 					when X"0D" => key_ctrl <= pressed; 
 					when X"0E" => key_arrowleft <= pressed;
 					when X"11" => key_commodore <= pressed; 
@@ -401,7 +401,7 @@ begin
 					when X"1C" => key_A <= pressed; 
 					when X"1D" => key_W <= pressed; 
 					
-					when X"1E" => if (originalLayout='1' or key_shift='0') then
+					when X"1E" => if (CommodoreLayout='1' or key_shift='0') then
 									key_2 <= pressed; else key_2_is <= pressed; end if;	
 								  delay_cnt <= 300000;
 					
@@ -425,7 +425,7 @@ begin
 					when X"34" => key_G <= pressed; 
 					when X"35" => key_Y <= pressed; 
 
-					when X"36" => if (originalLayout='1' or key_shift='0') then
+					when X"36" => if (CommodoreLayout='1' or key_shift='0') then
 									key_6 <= pressed; else key_6_is <= pressed; end if;
 								  delay_cnt <= 300000;
 								  
@@ -433,10 +433,10 @@ begin
 					when X"3B" => key_J <= pressed; 
 					when X"3C" => key_U <= pressed; 
 					
-					when X"3D" => if (originalLayout='1' or key_shift='0') then
+					when X"3D" => if (CommodoreLayout='1' or key_shift='0') then
 									key_7 <= pressed; else key_6 <= pressed; end if;
 					
-					when X"3E" => if (originalLayout='1' or key_shift='0') then
+					when X"3E" => if (CommodoreLayout='1' or key_shift='0') then
 									key_8 <= pressed; else key_8_is <= pressed; end if;
 								  delay_cnt <= 300000;
 					
@@ -445,17 +445,17 @@ begin
 					when X"43" => key_I <= pressed; 
 					when X"44" => key_O <= pressed; 
 					
-					when X"45" => if (originalLayout='1' or key_shift='0') then
+					when X"45" => if (CommodoreLayout='1' or key_shift='0') then
 									key_0 <= pressed; else key_9 <= pressed; end if;
 					
-					when X"46" => if (originalLayout='1' or key_shift='0') then
+					when X"46" => if (CommodoreLayout='1' or key_shift='0') then
 									key_9 <= pressed; else key_8 <= pressed; end if;
 					
 					when X"49" => key_dot <= pressed; 
 					when X"4A" => key_slash <= pressed; 
 					when X"4B" => key_L <= pressed; 
 		
-					when X"4C" => if originalLayout='1' then
+					when X"4C" => if CommodoreLayout='1' then
 									key_colon <= pressed;
 									elsif key_shift='1' then
 									key_colon_is <= pressed;
@@ -465,11 +465,11 @@ begin
 		
 					when X"4D" => key_P <= pressed; 
 
-					when X"4E" => if originalLayout='1' then key_plus <= pressed;
+					when X"4E" => if CommodoreLayout='1' then key_plus <= pressed;
 									else key_minus <= pressed; end if;
 		
 					-- ' key is equal to shift+7, " character is equal to shift+2 but shift is already pressed so no need to force shift
-					when X"52" => if originalLayout='1' then
+					when X"52" => if CommodoreLayout='1' then
 									key_semicolon <= pressed;
 									elsif key_shift='1' then
 									key_2 <= pressed;
@@ -477,10 +477,10 @@ begin
 									key_7_fs <= pressed;
 								  end if;
 					
-					when X"54" => key_at       <= pressed and (originalLayout or key_shift or key_commodore);
-								  key_colon_fs <= pressed and not originalLayout and not key_shift and not key_commodore;
+					when X"54" => key_at       <= pressed and (CommodoreLayout or key_shift or key_commodore);
+								  key_colon_fs <= pressed and not CommodoreLayout and not key_shift and not key_commodore;
 					
-					when X"55" => if originalLayout='1' then key_minus <= pressed;
+					when X"55" => if CommodoreLayout='1' then key_minus <= pressed;
 									elsif key_shift='1' then
 									key_equal_is <= pressed;
 									else
@@ -491,8 +491,8 @@ begin
 					when X"59" => key_shiftr <= pressed;
 					when X"5A" => key_Return <= pressed; 
 
-					when X"5B" => key_star    <= pressed and (originalLayout or key_shift or key_commodore);
-								  key_star_fs <= pressed and not originalLayout and not key_shift and not key_commodore;
+					when X"5B" => key_star    <= pressed and (CommodoreLayout or key_shift or key_commodore);
+								  key_star_fs <= pressed and not CommodoreLayout and not key_shift and not key_commodore;
 					
 					when X"5D" => key_pound <= pressed;
 					when X"66" => key_del <= pressed; 
