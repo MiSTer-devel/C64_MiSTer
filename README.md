@@ -28,7 +28,7 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 ## Usage
 
 ### Keyboard
-Due to the nature of the original C64 keyboard being substantially different from a modern keyboard, there is an option in the OSD menu to change between the original, position based keyboard and a symbolic one which is probably more comfortable for modern users. Some keys are just different regardless of the keyboard selected:
+Due to the nature of the original C64 keyboard being substantially different from a modern keyboard, there is an option in the OSD menu to change between the original, position based keyboard ("Commodore") and a symbolic one ("PC") which is probably more comfortable for modern users. Some keys are just different regardless of the keyboard selected:
 * F2, F4, F6, F8, Left, and Up keys automatically activate Shift key.
 * F9  - arrow-up key (An actual character, does not move the cursor)
 * F10 - = key on the original, + key on the symbolic (numpad + also acts as a + key)
@@ -37,13 +37,13 @@ Due to the nature of the original C64 keyboard being substantially different fro
 * Alt - C= key.
 * Tab - CTRL key (CTRL keys also act as control keys)
 * PgUp - Tape play/pause
-* Scroll Lock - Toggle between keyboard mode acting as keyboard, mouse, Joy 1, or Joy 2
+* Scroll Lock - Toggle between emulating joysticks with keyboard or using as a keyboard
 
-Original layout mapping:
-![keyboard-mapping-original](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_orig.png)
+Commodore layout mapping:
+![keyboard-mapping-commodore](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_sym.png)
 
-Symbolic layout mapping:
-![keyboard-mapping-symbolic](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_sym.png)
+PC layout mapping:
+![keyboard-mapping-pc](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_pc.png)
 
 ### Using without keyboard
 If your joystick/gamepad has more than 4 buttons then you can have some limited usage of keybiard.
