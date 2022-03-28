@@ -257,7 +257,7 @@ localparam CONF_STR = {
 
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
-	"oR,Keyboard Layout,Original,Symbolic;",
+	"oR,Keyboard Layout,Commodore,PC;",
 	"-;",
 	"oEF,Turbo mode,Off,C128,Smart;",
 	"d6oGH,Turbo speed,2x,3x,4x;",
@@ -989,7 +989,7 @@ fpga64_sid_iec fpga64
 	.pot3(pd34_mode[1] ? paddle_3 : pd34_mode[0] ? mouse_x : {8{joyB_c64[5]}}),
 	.pot4(pd34_mode[1] ? paddle_4 : pd34_mode[0] ? mouse_y : {8{joyB_c64[6]}}),
 
-   .kbdLayout(~status[59]), // Setting 0 as positional to be default
+	.kbdLayout(~status[59]), // Setting 0 as commodore to be default
 	
 	.io_cycle(io_cycle),
 	.ext_cycle(ext_cycle),
