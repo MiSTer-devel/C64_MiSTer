@@ -40,7 +40,7 @@ Due to the nature of the original C64 keyboard being substantially different fro
 * Scroll Lock - Toggle between emulating joysticks with keyboard or using as a keyboard
 
 Commodore layout mapping:
-![keyboard-mapping-commodore](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_sym.png)
+![keyboard-mapping-commodore](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_commodore.png)
 
 PC layout mapping:
 ![keyboard-mapping-pc](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_pc.png)
