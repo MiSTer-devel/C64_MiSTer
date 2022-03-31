@@ -191,7 +191,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXX XXXXXXXXXXX XXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -257,7 +257,7 @@ localparam CONF_STR = {
 
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
-	"oR,Keyboard Layout,Commodore,PC;",
+	"oR,Keyboard Layout,Commodore,Modified;",
 	"-;",
 	"oEF,Turbo mode,Off,C128,Smart;",
 	"d6oGH,Turbo speed,2x,3x,4x;",
