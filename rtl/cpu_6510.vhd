@@ -94,7 +94,7 @@ begin
 			if reset = '1' then
 				ioDir <= (others => '0');
 				ioData <= (others => '1');
-				currentIO <= (others => '1');
+				currentIO <= "00111111";  -- upper two bits are unused; ensure that the KERNAL is able to set Zero Page address $01 to $37 by default
 			end if;
 		end if;
 	end process;
