@@ -93,7 +93,7 @@ always @(posedge clock) begin
 						end
 				endcase
 				
-				if(state != ST_ATTACK && envelope == 1) hold_zero = 1;
+				if(state != ST_ATTACK && envelope == 1) hold_zero <= 1;
 			end
 		end
 
