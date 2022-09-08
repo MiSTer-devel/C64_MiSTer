@@ -191,7 +191,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXX XXXXXXXXXXX XXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -257,6 +257,7 @@ localparam CONF_STR = {
 
 	"-;",
 	"O3,Swap Joysticks,No,Yes;",
+	"oR,Keyboard Layout,Commodore,Modified;",
 	"-;",
 	"oEF,Turbo mode,Off,C128,Smart;",
 	"d6oGH,Turbo speed,2x,3x,4x;",
@@ -988,6 +989,8 @@ fpga64_sid_iec fpga64
 	.pot3(pd34_mode[1] ? paddle_3 : pd34_mode[0] ? mouse_x : {8{joyB_c64[5]}}),
 	.pot4(pd34_mode[1] ? paddle_4 : pd34_mode[0] ? mouse_y : {8{joyB_c64[6]}}),
 
+	.kbdLayout(~status[59]), // Setting 0 as commodore to be default
+	
 	.io_cycle(io_cycle),
 	.ext_cycle(ext_cycle),
 	.refresh(refresh),

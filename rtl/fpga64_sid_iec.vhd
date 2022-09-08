@@ -103,13 +103,14 @@ port(
 	dma_we      : in  std_logic := '0';
 	irq_ext_n   : in  std_logic := '1';
 
-	-- joystick interface
+	-- joystick and keyboard interface
 	joyA        : in  std_logic_vector(6 downto 0);
 	joyB        : in  std_logic_vector(6 downto 0);
 	pot1        : in  std_logic_vector(7 downto 0);
 	pot2        : in  std_logic_vector(7 downto 0);
 	pot3        : in  std_logic_vector(7 downto 0);
 	pot4        : in  std_logic_vector(7 downto 0);
+	kbdLayout   : in  std_logic;
 
 	--SID
 	audio_l     : out std_logic_vector(17 downto 0);
@@ -862,7 +863,8 @@ port map (
 	restore_key => freeze_key,
 	tape_play => tape_play,
 	mod_key => mod_key,
-	backwardsReadingEnabled => '1'
+	backwardsReadingEnabled => '1',
+	CommodoreLayout => kbdLayout    -- enable this for the original C64 keyboard layout
 );
 
 end architecture;

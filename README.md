@@ -28,14 +28,22 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 ## Usage
 
 ### Keyboard
-* F2,F4,F6,F8,Left/Up keys automatically activate Shift key.
-* F9 - arrow-up key.
-* F10 - = key.
+Due to the nature of the original C64 keyboard being substantially different from a modern keyboard, there is an option in the OSD menu to change between the original, position based keyboard ("Commodore") and a symbolic one ("PC") which is probably more comfortable for modern users. Some keys are just different regardless of the keyboard selected:
+* F2, F4, F6, F8, Left, and Up keys automatically activate Shift key.
+* F9  - arrow-up key (An actual character, does not move the cursor)
+* F10 - = key on the original, + key on the symbolic (numpad + also acts as a + key)
 * F11 - restore key. Also special key in AR/FC carts.
-* Alt,Tab - C= key.
+* F12 - bring up OSD menu
+* Alt - C= key.
+* Tab - CTRL key (CTRL keys also act as control keys)
 * PgUp - Tape play/pause
+* Scroll Lock - Toggle between emulating joysticks with keyboard or using as a keyboard
 
-![keyboard-mapping](https://github.com/mister-devel/C64_MiSTer/blob/master/keymap.gif)
+Commodore layout mapping:
+![keyboard-mapping-commodore](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_commodore.png)
+
+PC layout mapping:
+![keyboard-mapping-pc](https://github.com/kgmossey/C64_MiSTer/blob/master/misc/keymap_pc.png)
 
 ### Using without keyboard
 If your joystick/gamepad has more than 4 buttons then you can have some limited usage of keybiard.
