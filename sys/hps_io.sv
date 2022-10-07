@@ -55,6 +55,13 @@ module hps_io #(parameter CONF_STR, CONF_STR_BRAM=1, PS2DIV=0, WIDE=0, VDNUM=1, 
 	output reg [15:0] joystick_r_analog_4,
 	output reg [15:0] joystick_r_analog_5,
 
+	input      [15:0] joystick_0_rumble, // 15:8 - 'large' rumble motor magnitude, 7:0 'small' rumble motor magnitude
+	input      [15:0] joystick_1_rumble,
+	input      [15:0] joystick_2_rumble,
+	input      [15:0] joystick_3_rumble,
+	input      [15:0] joystick_4_rumble,
+	input      [15:0] joystick_5_rumble,
+
 	// paddle 0..255
 	output reg  [7:0] paddle_0,
 	output reg  [7:0] paddle_1,
@@ -71,20 +78,46 @@ module hps_io #(parameter CONF_STR, CONF_STR_BRAM=1, PS2DIV=0, WIDE=0, VDNUM=1, 
 	output reg  [8:0] spinner_4,
 	output reg  [8:0] spinner_5,
 
+	// ps2 keyboard emulation
+	output            ps2_kbd_clk_out,
+	output            ps2_kbd_data_out,
+	input             ps2_kbd_clk_in,
+	input             ps2_kbd_data_in,
+
+	input       [2:0] ps2_kbd_led_status,
+	input       [2:0] ps2_kbd_led_use,
+
+	output            ps2_mouse_clk_out,
+	output            ps2_mouse_data_out,
+	input             ps2_mouse_clk_in,
+	input             ps2_mouse_data_in,
+
+	// ps2 alternative interface.
+
+	// [8] - extended, [9] - pressed, [10] - toggles with every press/release
+	output reg [10:0] ps2_key = 0,
+
+	// [24] - toggles with every event
+	output reg [24:0] ps2_mouse = 0,
+	output reg [15:0] ps2_mouse_ext = 0, // 15:8 - reserved(additional buttons), 7:0 - wheel movements
+
 	output      [1:0] buttons,
 	output            forced_scandoubler,
 	output            direct_video,
-
-	output reg [63:0] status,
-	input      [63:0] status_in,
-	input             status_set,
-	input      [15:0] status_menumask,
-
-	input             info_req,
-	input       [7:0] info,
+	input             video_rotated,
 
 	//toggle to force notify of video mode change
 	input             new_vmode,
+
+	inout      [21:0] gamma_bus,
+
+	output reg [127:0] status,
+	input      [127:0] status_in,
+	input              status_set,
+	input       [15:0] status_menumask,
+
+	input             info_req,
+	input       [7:0] info,
 
 	// SD config
 	output reg [VD:0] img_mounted,  // signaling that new image has been mounted
@@ -131,31 +164,6 @@ module hps_io #(parameter CONF_STR, CONF_STR_BRAM=1, PS2DIV=0, WIDE=0, VDNUM=1, 
 	// UART flags
 	output reg  [7:0] uart_mode,
 	output reg [31:0] uart_speed,
-
-	// ps2 keyboard emulation
-	output            ps2_kbd_clk_out,
-	output            ps2_kbd_data_out,
-	input             ps2_kbd_clk_in,
-	input             ps2_kbd_data_in,
-
-	input       [2:0] ps2_kbd_led_status,
-	input       [2:0] ps2_kbd_led_use,
-
-	output            ps2_mouse_clk_out,
-	output            ps2_mouse_data_out,
-	input             ps2_mouse_clk_in,
-	input             ps2_mouse_data_in,
-
-	// ps2 alternative interface.
-
-	// [8] - extended, [9] - pressed, [10] - toggles with every press/release
-	output reg [10:0] ps2_key = 0,
-
-	// [24] - toggles with every event
-	output reg [24:0] ps2_mouse = 0,
-	output reg [15:0] ps2_mouse_ext = 0, // 15:8 - reserved(additional buttons), 7:0 - wheel movements
-
-	inout      [21:0] gamma_bus,
 
 	// for core-specific extensions
 	inout      [35:0] EXT_BUS
@@ -216,6 +224,7 @@ video_calc video_calc
 	.vs_hdmi(HPS_BUS[44]),
 	.f1(HPS_BUS[45]),
 	.new_vmode(new_vmode),
+	.video_rotated(video_rotated),
 
 	.par_num(byte_cnt[3:0]),
 	.dout(vc_dout)
@@ -257,7 +266,7 @@ always@(posedge clk_sys) begin : uio_block
 	reg  [3:0] pdsp_idx;
 	reg        ps2skip = 0;
 	reg  [3:0] stflg = 0;
-	reg [63:0] status_req;
+	reg[127:0] status_req;
 	reg        old_status_set = 0;
 	reg        old_upload_req = 0;
 	reg        upload_req = 0;
@@ -318,9 +327,9 @@ always@(posedge clk_sys) begin : uio_block
 				'h0X18: begin sd_ack <= disk[VD:0]; sdn_ack <= io_din[11:8]; end
 				  'h29: io_dout <= {4'hA, stflg};
 `ifdef MISTER_DISABLE_ADAPTIVE
-				  'h2B: io_dout <= {HPS_BUS[48:46],4'b0010};
+				  'h2B: io_dout <= {HPS_BUS[48:46],4'b0110};
 `else
-				  'h2B: io_dout <= {HPS_BUS[48:46],4'b0011};
+				  'h2B: io_dout <= {HPS_BUS[48:46],4'b0111};
 `endif
 				  'h2F: io_dout <= 1;
 				  'h32: io_dout <= gamma_bus[21];
@@ -328,6 +337,12 @@ always@(posedge clk_sys) begin : uio_block
 				  'h39: io_dout <= 1;
 				  'h3C: if(upload_req) begin io_dout <= {ioctl_upload_index, 8'd1}; upload_req <= 0; end
 				  'h3E: io_dout <= 1; // shadow mask
+				'h003F: io_dout <= joystick_0_rumble;
+				'h013F: io_dout <= joystick_1_rumble;
+				'h023F: io_dout <= joystick_2_rumble;
+				'h033F: io_dout <= joystick_3_rumble;
+				'h043F: io_dout <= joystick_4_rumble;
+				'h053F: io_dout <= joystick_5_rumble;
 			endcase
 
 			sd_buff_addr <= 0;
@@ -453,13 +468,17 @@ always@(posedge clk_sys) begin : uio_block
 				// send image info
 				'h1d: if(byte_cnt<5) img_size[{byte_cnt-1'b1, 4'b0000} +:16] <= io_din;
 
-				// status, 64bit version
-				'h1e: if(!byte_cnt[MAX_W:3]) begin
-							case(byte_cnt[2:0])
-								1: status[15:00] <= io_din;
-								2: status[31:16] <= io_din;
-								3: status[47:32] <= io_din;
-								4: status[63:48] <= io_din;
+				// status, 128bit version
+				'h1e: if(!byte_cnt[MAX_W:4]) begin
+							case(byte_cnt[3:0])
+								1: status[15:00]   <= io_din;
+								2: status[31:16]   <= io_din;
+								3: status[47:32]   <= io_din;
+								4: status[63:48]   <= io_din;
+								5: status[79:64]   <= io_din;
+								6: status[95:80]   <= io_din;
+								7: status[111:96]  <= io_din;
+								8: status[127:112] <= io_din;
 							endcase
 						end
 
@@ -489,12 +508,16 @@ always@(posedge clk_sys) begin : uio_block
 				'h24: TIMESTAMP[(byte_cnt-6'd1)<<4 +:16] <= io_din;
 
 				//status set
-				'h29: if(!byte_cnt[MAX_W:3]) begin
-							case(byte_cnt[2:0])
+				'h29: if(!byte_cnt[MAX_W:4]) begin
+							case(byte_cnt[3:0])
 								1: io_dout <= status_req[15:00];
 								2: io_dout <= status_req[31:16];
 								3: io_dout <= status_req[47:32];
 								4: io_dout <= status_req[63:48];
+								5: io_dout <= status_req[79:64];
+								6: io_dout <= status_req[95:80];
+								7: io_dout <= status_req[111:96];
+								8: io_dout <= status_req[127:112];
 							endcase
 						end
 
@@ -847,6 +870,7 @@ module video_calc
 	input vs_hdmi,
 	input f1,
 	input new_vmode,
+	input video_rotated,
 
 	input       [3:0] par_num,
 	output reg [15:0] dout
@@ -854,7 +878,7 @@ module video_calc
 
 always @(posedge clk_sys) begin
 	case(par_num)
-		1: dout <= {|vid_int, vid_nres};
+		1: dout <= {video_rotated, |vid_int, vid_nres};
 		2: dout <= vid_hcnt[15:0];
 		3: dout <= vid_hcnt[31:16];
 		4: dout <= vid_vcnt[15:0];
