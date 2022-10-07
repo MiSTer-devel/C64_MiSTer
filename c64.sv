@@ -191,7 +191,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -242,6 +242,8 @@ localparam CONF_STR = {
 	"P2-;",
 	"P2OQR,Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
 	"P2OST,Pot 3/4,Joy 2 Fire 2/3,Mouse,Paddles 3/4;",
+	"P2-;",
+	"P2oRS,Key modifier,L+R Shift,L Shift,R Shift;",
 	"P2-;",
 	"P2O1,Release Keys on Reset,Yes,No;",
 	"P2OO,Clear RAM on Reset,Yes,No;",
@@ -939,6 +941,7 @@ fpga64_sid_iec fpga64
 
 	.ps2_key(key),
 	.kbd_reset((~reset_n & ~status[1]) | reset_keys),
+	.shift_mod(~status[60:59]),
 
 	.ramAddr(c64_addr),
 	.ramDout(c64_data_out),

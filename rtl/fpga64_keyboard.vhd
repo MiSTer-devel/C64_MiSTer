@@ -41,6 +41,8 @@ entity fpga64_keyboard is
 		ps2_key : in std_logic_vector(10 downto 0);
 		joyA    : in unsigned(6 downto 0);
 		joyB    : in unsigned(6 downto 0);
+		
+		shift_mod: in std_logic_vector(1 downto 0);
 
 		pai     : in unsigned(7 downto 0);
 		pbi     : in unsigned(7 downto 0);
@@ -196,7 +198,7 @@ begin
 				(pbi(4) or not key_Z) and
 				(pbi(5) or not key_S) and
 				(pbi(6) or not key_E) and
-				(pbi(7) or not (key_left or key_up or (key_shiftl and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8))));
+				(pbi(7) or not (((key_left or key_up or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8) and shift_mod(1)) or (key_shiftl and not key_8s)))));
 			pao(2) <= pai(2) and joyB(2) and
 				((not backwardsReadingEnabled) or
 				((pbi(0) or not key_5) and
@@ -243,7 +245,7 @@ begin
 				(pbi(1) or not (key_star or (key_8s and delay_end))) and
 				(pbi(2) or not key_semicolon) and
 				(pbi(3) or not key_home) and
-				(pbi(4) or not (key_left or key_up or (key_shiftr and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8)) and
+				(pbi(4) or not (((key_left or key_up or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8) and shift_mod(0)) or (key_shiftr and not key_8s))) and
 				(pbi(5) or not key_equal) and
 				(pbi(6) or not key_arrowup) and
 				(pbi(7) or not key_slash)));
@@ -302,7 +304,7 @@ begin
 				(pai(3) or not key_B) and
 				(pai(4) or not key_M) and
 				(pai(5) or not key_dot) and
-				(pai(6) or not (key_left or key_up or (key_shiftr and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8)) and
+				(pai(6) or not (((key_left or key_up or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8) and shift_mod(0)) or (key_shiftr and not key_8s))) and
 				(pai(7) or not (key_space or not joyA(5) or not joyB(5)));
 			pbo(5) <= pbi(5) and
 				(pai(0) or not (key_F3 or key_F4)) and
@@ -324,7 +326,7 @@ begin
 				(pai(7) or not key_Q);
 			pbo(7) <= pbi(7) and
 				(pai(0) or not (key_up or key_down)) and
-				(pai(1) or not (key_left or key_up or (key_shiftl and not key_8s) or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8)) and
+				(pai(1) or not (((key_left or key_up or key_caps or key_inst or key_F2 or key_F4 or key_F6 or key_F8) and shift_mod(1)) or (key_shiftl and not key_8s))) and
 				(pai(2) or not key_X) and
 				(pai(3) or not key_V) and
 				(pai(4) or not key_N) and

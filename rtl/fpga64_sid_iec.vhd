@@ -52,6 +52,7 @@ port(
 	-- keyboard interface (use any ordinairy PS2 keyboard)
 	ps2_key     : in  std_logic_vector(10 downto 0);
 	kbd_reset   : in  std_logic := '0';
+	shift_mod   : in  std_logic_vector(1 downto 0);
 
 	-- external memory
 	ramAddr     : out unsigned(15 downto 0);
@@ -858,6 +859,8 @@ port map (
 	pbi => cia1_pbo,
 	pao => cia1_pai,
 	pbo => cia1_pbi,
+	
+	shift_mod => shift_mod,
 
 	restore_key => freeze_key,
 	tape_play => tape_play,
