@@ -163,7 +163,6 @@ architecture rtl of video_vicii_656x is
 	signal vBlanking : std_logic;
 	signal hBlanking : std_logic;
 	signal xscroll: unsigned(2 downto 0);
-	signal xscroll_r: unsigned(2 downto 0);
 	signal yscroll: unsigned(2 downto 0);
 	signal rasterCmp : unsigned(8 downto 0);
 
@@ -987,12 +986,10 @@ calcBitmap: process(clk)
 					waitingPixels_r <= waitingPixels;
 				end if;
 				
-				xscroll_r <= xscroll;
-
 				--
 				-- Reload shift register when xscroll=rasterX
 				-- otherwise shift pixels
-				if shiftLoadEna and xscroll_r = rasterXDelay(2 downto 0) then
+				if shiftLoadEna and xscroll = rasterXDelay(2 downto 0) then
 					shifting_ff <= '0';
 					shiftingChar <= waitingChar_r;
 					shiftingPixels <= waitingPixels_r;
@@ -1557,7 +1554,6 @@ writeRegisters: process(clk)
 					when "101100" => spriteColors(5) <= diRegisters(3 downto 0);
 					when "101101" => spriteColors(6) <= diRegisters(3 downto 0);
 					when "101110" => spriteColors(7) <= diRegisters(3 downto 0);
-					when "110000" => turbo_reg <= diRegisters(0);
 					when others => null;
 					end case;
 				end if;
@@ -1579,7 +1575,6 @@ writeRegisters: process(clk)
 						RES <= di_r(5);
 						MCM <= di_r(4);
 						CSEL <= di_r(3);
-						xscroll <= di_r(2 downto 0);
 					when "010111" => MYE <= di_r;
 					when "011000" =>
 						VM <= di_r(7 downto 4);
@@ -1619,6 +1614,7 @@ writeRegisters: process(clk)
 					when "001101" => MY(6) <= di_r;
 					when "001110" => MX(7)(7 downto 0) <= di_r;
 					when "001111" => MY(7) <= di_r;
+					when "010110" => xscroll <= di_r(2 downto 0);
 					when "010000" =>
 						MX(0)(8) <= di_r(0);
 						MX(1)(8) <= di_r(1);
@@ -1628,6 +1624,7 @@ writeRegisters: process(clk)
 						MX(5)(8) <= di_r(5);
 						MX(6)(8) <= di_r(6);
 						MX(7)(8) <= di_r(7);
+					when "110000" => turbo_reg <= diRegisters(0);
 					when others => null;
 					end case;
 				end if;
