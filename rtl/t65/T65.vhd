@@ -194,6 +194,8 @@ architecture rtl of T65 is
   signal RstCycle           : std_logic;
   signal IRQCycle           : std_logic;
   signal NMICycle           : std_logic;
+  signal IRQReq             : std_logic;
+  signal NMIReq             : std_logic;
 
   signal SO_n_o             : std_logic;
   signal IRQ_n_o            : std_logic;
@@ -354,6 +356,9 @@ begin
       MF_i <= '1';
       XF_i <= '1';
 
+      NMICycle <= '0';
+      IRQCycle <= '0';
+
     elsif Clk'event and Clk = '1' then  
       if (Enable = '1') then
         -- some instructions behavior changed by the Rdy line. Detect this at the correct cycles.
@@ -376,14 +381,22 @@ begin
             Mode_r <= Mode;
             BCD_en_r <= BCD_en;
 
-            if IRQCycle = '0' and NMICycle = '0' then
+            if IRQReq = '0' and NMIReq = '0' then
               PC <= PC + 1;
             end if;
 
-            if IRQCycle = '1' or NMICycle = '1' then
+            if IRQReq = '1' or NMIReq = '1' then
               IR <= "00000000";
             else
               IR <= DI;
+            end if;
+
+            IRQCycle <= '0';
+            NMICycle <= '0';
+            if NMIReq = '1' then
+              NMICycle <= '1';
+            elsif IRQReq = '1' then
+              IRQCycle <= '1';
             end if;
 
             if LDS = '1' then -- LAS won't work properly if not limited to machine cycle 0
@@ -402,7 +415,7 @@ begin
           if Inc_S = '1' then
             S <= S + 1;
           end if;
-          if Dec_S = '1' and RstCycle = '0' then
+          if Dec_S = '1' and (RstCycle = '0' or Mode = "00") then -- Decrement during reset - 6502 only?
             S <= S - 1;
           end if;
 
@@ -499,20 +512,12 @@ begin
 
         end if;
 
-        -- detect irq even if not rdy
-        if IR(4 downto 0)/="10000" or Jump/="01" or really_rdy = '0' then -- delay interrupts during branches (checked with Lorenz test and real 6510), not best way yet, though - but works...
-          IRQ_n_o <= IRQ_n;
-        end if;
-        -- detect nmi even if not rdy
-        if IR(4 downto 0)/="10000" or Jump/="01" then -- delay interrupts during branches (checked with Lorenz test and real 6510) not best way yet, though - but works...
-          NMI_n_o <= NMI_n;
-        end if;
       end if;
       -- act immediately on SO pin change
       -- The signal is sampled on the trailing edge of phi1 and must be externally synchronized (from datasheet)
       SO_n_o <= SO_n;
-		if SO_n_o = '1' and SO_n = '0' then
-          P(Flag_V) <= '1';
+      if SO_n_o = '1' and SO_n = '0' then
+        P(Flag_V) <= '1';
       end if;
 
     end if;
@@ -671,29 +676,38 @@ begin
     if Res_n_i = '0' then
       MCycle <= "001";
       RstCycle <= '1';
-      IRQCycle <= '0';
-      NMICycle <= '0';
       NMIAct <= '0';
+      IRQReq <= '0';
+      NMIReq <= '0';
     elsif Clk'event and Clk = '1' then
       if (Enable = '1') then
         if (really_rdy = '1') then
           if MCycle = LCycle or Break = '1' then
             MCycle <= "000";
             RstCycle <= '0';
-            IRQCycle <= '0';
-            NMICycle <= '0';
-            if NMIAct = '1' and IR/=x"00" then -- delay NMI further if we just executed a BRK
-              NMICycle <= '1';
-              NMIAct <= '0'; -- reset NMI edge detector if we start processing the NMI
-            elsif IRQ_n_o = '0' and P(Flag_I) = '0' then
-              IRQCycle <= '1';
-            end if;
           else
             MCycle <= std_logic_vector(unsigned(MCycle) + 1);
           end if;
+
+          if (IR(4 downto 0)/="10000" or Jump/="11") then -- taken branches delay the interrupts
+            if NMIAct = '1' and IR/=x"00" then
+              NMIReq <= '1';
+            else
+              NMIReq <= '0';
+            end if;
+            if IRQ_n_o = '0' and P(Flag_I) = '0' then
+              IRQReq <= '1';
+            else
+              IRQReq <= '0';
+            end if;
+          end if;
         end if;
+
+        IRQ_n_o <= IRQ_n;
+        NMI_n_o <= NMI_n;
+
         --detect NMI even if not rdy    
-        if NMI_n_o = '1' and (NMI_n = '0' and (IR(4 downto 0)/="10000" or Jump/="01")) then -- branches have influence on NMI start (not best way yet, though - but works...)
+        if NMI_n_o = '1' and NMI_n = '0' then
           NMIAct <= '1';
         end if;
         -- we entered NMI during BRK instruction
