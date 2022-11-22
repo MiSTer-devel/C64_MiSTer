@@ -75,6 +75,8 @@ assign acc_t = {oscillator[23], oscillator[22:12] ^ {11{~control[5] & ((ringmod_
 
 // Waveform Generator
 always @(posedge clock) begin
+	reg clk, clk_d;
+
 	if (reset) begin
 		saw_tri    <= 0;
 		pulse      <= 0;
@@ -82,13 +84,18 @@ always @(posedge clock) begin
 		osc_edge   <= 0;
 		lfsr_noise <= 23'h7fffff;
 	end
-	else if(ce_1m) begin
+	else begin
 		saw_tri    <= acc_t;
-		pulse      <= (test_ctrl || (oscillator[23:12] >= pw));
-		noise      <= {lfsr_noise[20], lfsr_noise[18], lfsr_noise[14], lfsr_noise[11], lfsr_noise[9], lfsr_noise[5], lfsr_noise[2], lfsr_noise[0], 4'b0000};
-		osc_edge   <= oscillator[19];
-		lfsr_noise <= (oscillator[19] & ~osc_edge) ? {lfsr_noise[21:0], (reset | test_ctrl | lfsr_noise[22]) ^ lfsr_noise[17]} : lfsr_noise;
-    end
+
+		if(ce_1m) begin
+			osc_edge   <= oscillator[19];
+			clk        <= ~(reset || test_ctrl || (~osc_edge & oscillator[19]));
+			clk_d      <= clk;
+			pulse      <= (test_ctrl || (oscillator[23:12] >= pw));
+			noise      <= {lfsr_noise[20], lfsr_noise[18], lfsr_noise[14], lfsr_noise[11], lfsr_noise[9], lfsr_noise[5], lfsr_noise[2], lfsr_noise[0], 4'b0000};
+			lfsr_noise <= (clk & ~clk_d) ? {lfsr_noise[21:0], (reset | test_ctrl | lfsr_noise[22]) ^ lfsr_noise[17]} : lfsr_noise;
+		 end
+	end
 end
 
 reg  [11:0] norm;

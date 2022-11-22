@@ -285,6 +285,9 @@ component sid_top
 		audio_l       : out std_logic_vector(17 downto 0);
 		audio_r       : out std_logic_vector(17 downto 0);
 
+		ext_in_l      : in  std_logic_vector(17 downto 0);
+		ext_in_r      : in  std_logic_vector(17 downto 0);
+
 		filter_en     : in  std_logic_vector(1 downto 0);
 		mode          : in  std_logic_vector(1 downto 0);
 		cfg           : in  std_logic_vector(3 downto 0);
@@ -653,6 +656,12 @@ port map (
 
 	audio_l => audio_l,
 	audio_r => audio_r,
+
+	ext_in_l(17) => sid_ver(0),
+	ext_in_l(16 downto 0) => (others => '0'),
+
+	ext_in_r(17) => sid_ver(1),
+	ext_in_r(16 downto 0) => (others => '0'),
 
 	filter_en => sid_filter,
 	mode    => sid_ver,

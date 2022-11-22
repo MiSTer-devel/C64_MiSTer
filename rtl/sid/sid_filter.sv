@@ -34,9 +34,7 @@ module sid_filter
 	output       [17:0] audio
 );
 
-// The 6581 DC offset is approximately -1/18 of the dynamic range of one voice.
-localparam signed MIXER_DC_6581 = 24'(-(1 << 20)/18);
-localparam signed MIXER_DC_8580 = 24'(0);
+localparam signed [23:0] MIXER_DC_6581 = 24'(-1 << 21);
 
 // Clamp to 16 bits.
 function signed [15:0] clamp(wire signed [16:0] x);
@@ -91,23 +89,22 @@ always @(posedge clk) begin
 
 				// Mux for filter path.
 				// Each voice is 22 bits, i.e. the sum of four voices is 24 bits.
-				vi <= 16'((((Res_Filt[0]) ? 24'(voice1) : '0) +
-							  ((Res_Filt[1]) ? 24'(voice2) : '0) +
-							  ((Res_Filt[2]) ? 24'(voice3) : '0) +
-							  ((Res_Filt[3]) ? 24'(ext_in) : '0)) >>> 7);
-				
+				vi <= 16'(((Res_Filt[0] ? 24'(voice1) : '0) +
+							  (Res_Filt[1] ? 24'(voice2) : '0) +
+							  (Res_Filt[2] ? 24'(voice3) : '0) +
+							  (Res_Filt[3] ? 24'(ext_in) : '0)) >>> 7);
+
 				// Mux for direct audio path.
 				// 3 OFF (mode[3]) disconnects voice 3 from the direct audio path.
 				// We add in the mixer DC here, to save time in calculation of
 				// the final audio sum.
-				vd <= 16'((((mode == 0) ?
-								MIXER_DC_6581 :
-								MIXER_DC_8580) +
-							(Res_Filt[0] ? '0 : 24'(voice1)) +
-							(Res_Filt[1] ? '0 : 24'(voice2)) +
-							(Res_Filt[2] | Mode_Vol[7] ? '0 : 24'(voice3)) +
-							(Res_Filt[3] ? '0 : 24'(ext_in))) >>> 7);
-				
+				vd <= 16'(((mode        ? '0 : MIXER_DC_6581) +
+							  (Res_Filt[0] ? '0 : 24'(voice1)) +
+							  (Res_Filt[1] ? '0 : 24'(voice2)) +
+							  (Res_Filt[2] |
+							   Mode_Vol[7] ? '0 : 24'(voice3)) +
+							  (Res_Filt[3] ? '0 : 24'(ext_in))) >>> 7);
+
 				// vlp = vlp - w0*vbp
 				// We first calculate -w0*vbp
 				c <= 0;
@@ -133,8 +130,8 @@ always @(posedge clk) begin
 				// vhp = 1/Q*vbp - vlp - vi
 				c <= -(32'(vlp2) + 32'(vi)) << 10;
 				s <= 0;
-				a <= 16'(_1_Q_lsl10); // 1/Q << 10
-				b <= vbp_next;        // vbp
+				a <= _1_Q_lsl10; // 1/Q << 10
+				b <= vbp_next;   // vbp
 			end
 		5: begin
 				// Result for vbp ready. See calculation of vhp_next above.
@@ -145,8 +142,8 @@ always @(posedge clk) begin
 				// op-amp, and then again in the volume control op-amp.
 				c <= 0;
 				s <= 0;
-				a <= {12'b0, Mode_Vol[3:0]};    // Master volume
-				b <= clamp(17'(vd) +   // Audio mixer / master volume input
+				a <= {12'b0, Mode_Vol[3:0]}; // Master volume
+				b <= clamp(17'(vd) +         // Audio mixer / master volume input
 						(Mode_Vol[4] ? 17'(vlp2)     : '0) +
 						(Mode_Vol[5] ? 17'(vbp2)     : '0) +
 						(Mode_Vol[6] ? 17'(vhp_next) : '0));
