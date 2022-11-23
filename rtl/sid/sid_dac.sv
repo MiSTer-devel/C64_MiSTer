@@ -79,13 +79,34 @@ module sid_dac #(
     end
 
     initial begin
-        // FIXME: Currently the tables must be precalculated for Yosys,
-        // which doesn't support variables of data type real.
         if (_2R_DIV_R == 2.20 && TERM == 0 && SCALEBITS == 4) begin
             case (BITS)
-              12: $readmemh("dac_6581_waveform.hex", bitval);
-              11: $readmemh("dac_6581_cutoff.hex",   bitval);
-               8: $readmemh("dac_6581_envelope.hex", bitval);
+              12: begin
+							//$readmemh("dac_6581_waveform.hex", bitval);
+							bitval[0]  = 'h21;
+							bitval[1]  = 'h30;
+							bitval[2]  = 'h55;
+							bitval[3]  = 'ha0;
+							bitval[4]  = 'h135;
+							bitval[5]  = 'h256;
+							bitval[6]  = 'h486;
+							bitval[7]  = 'h8c6;
+							bitval[8]  = 'h1102;
+							bitval[9]  = 'h20f8;
+							bitval[10] = 'h3fec;
+							bitval[11] = 'h7bed;
+						end
+               8: begin
+							//$readmemh("dac_6581_envelope.hex", bitval);
+							bitval[0]  = 'h1d;
+							bitval[1]  = 'h2a;
+							bitval[2]  = 'h4b;
+							bitval[3]  = 'h8d;
+							bitval[4]  = 'h110;
+							bitval[5]  = 'h20e;
+							bitval[6]  = 'h3fb;
+							bitval[7]  = 'h7b8;
+						end
             endcase
         end
     end
