@@ -10,7 +10,7 @@ module sid_top
 	input         clk,
 	input         ce_1m,
 
-	input [N-1:0] cs,       // not used if DUAL is 0
+	input [N-1:0] cs,
 	input         we,
 	input   [4:0] addr,
 	input   [7:0] data_in,
@@ -80,7 +80,7 @@ wire [11:0] acc_t[N*3];
 
 reg  [17:0] audio[N];
 
-reg   [7:0] last_wr[N];
+reg   [7:0] bus_data[N];
 
 generate
 	genvar i;
@@ -173,9 +173,9 @@ generate
 				Filter_Res_Filt[i] <= 0;
 				Filter_Mode_Vol[i] <= 0;
 			end
-			else begin
-				if (we && (!DUAL || cs[i])) begin
-					last_wr[i] <= data_in;
+			else if(cs[i]) begin
+				if (we) begin
+					bus_data[i] <= data_in;
 					case (addr)
 						5'h00: Voice_1_Freq[i][7:0] <= data_in;
 						5'h01: Voice_1_Freq[i][15:8]<= data_in;
@@ -202,6 +202,14 @@ generate
 						5'h16: Filter_Fc[i][10:3]   <= data_in;
 						5'h17: Filter_Res_Filt[i]   <= data_in;
 						5'h18: Filter_Mode_Vol[i]   <= data_in;
+					endcase
+				end
+				else begin
+					case (addr)
+						5'h19: bus_data[i] = i ? pot_x_r : pot_x_l;
+						5'h1a: bus_data[i] = i ? pot_y_r : pot_y_l;
+						5'h1b: bus_data[i] = Misc_Osc3[i];
+						5'h1c: bus_data[i] = Misc_Env3[i];
 					endcase
 				end
 			end
@@ -267,16 +275,6 @@ always @(posedge clk) begin
 	endcase
 end
 
-always_comb begin
-	case (addr)
-		  5'h19: data_out = (!DUAL || cs[0]) ? pot_x_l : pot_x_r;
-		  5'h1a: data_out = (!DUAL || cs[0]) ? pot_y_l : pot_y_r;
-		  5'h1b: data_out = Misc_Osc3[|DUAL & ~cs[0]];
-		  5'h1c: data_out = Misc_Env3[|DUAL & ~cs[0]];
-		default: data_out = last_wr[|DUAL & ~cs[0]];
-	endcase
-end
-
 wire [17:0] faudio;
 
 sid_filter sid_filter
@@ -291,7 +289,7 @@ sid_filter sid_filter
 	.voice1(voice_1[n]),
 	.voice2(voice_2[n]),
 	.voice3(voice_3[n]),
-	.ext_in({n ? ext_in_r : ext_in_l, 4'b0000}),
+	.ext_in(22'(signed'({n ? ext_in_r : ext_in_l, 3'b000}))),
 
 	.audio(faudio)
 );
@@ -304,6 +302,8 @@ always @(posedge clk) begin
 		audio[0] <= audio0;
 	end
 end
+
+assign data_out = cs[0] ? bus_data[0] : bus_data[N-1];
 
 assign audio_l = audio[0];
 assign audio_r = audio[N-1];

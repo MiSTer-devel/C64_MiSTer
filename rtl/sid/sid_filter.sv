@@ -34,7 +34,7 @@ module sid_filter
 	output       [17:0] audio
 );
 
-localparam signed [23:0] MIXER_DC_6581 = 24'(-1 << 21);
+localparam signed [23:0] MIXER_DC_6581 = 24'((-1 << 20)/18);
 
 // Clamp to 16 bits.
 function signed [15:0] clamp(wire signed [16:0] x);
@@ -95,7 +95,7 @@ always @(posedge clk) begin
 							  (Res_Filt[3] ? 24'(ext_in) : '0)) >>> 7);
 
 				// Mux for direct audio path.
-				// 3 OFF (mode[3]) disconnects voice 3 from the direct audio path.
+				// 3 OFF (Mode_Vol[7]) disconnects voice 3 from the direct audio path.
 				// We add in the mixer DC here, to save time in calculation of
 				// the final audio sum.
 				vd <= 16'(((mode        ? '0 : MIXER_DC_6581) +
