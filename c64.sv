@@ -193,7 +193,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XX  X  XXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -216,9 +216,11 @@ localparam CONF_STR = {
 	"P1OUV,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"P1-;",
 	"P1OD,Left SID,6581,8580;",
-	"D4P1o23,Left Filter,Default,Custom 1,Custom 2,Custom 3;",
 	"P1OG,Right SID,6581,8580;",
-	"D5P1o56,Right Filter,Default,Custom 1,Custom 2,Custom 3;",
+	"D4P1O[66:64],Left Filter,Default,Custom 1,Custom 2,Custom 3,Adjustable;",
+	"D5P1O[69:67],Right Filter,Default,Custom 1,Custom 2,Custom 3,Adjustable;",
+	"D4D8P1O[72:70],Left Fc Offset,0,1,2,3,4,5;",
+	"D5D9P1O[75:73],Right Fc Offset,0,1,2,3,4,5;",
 	"P1OKM,Right SID Port,Same,DE00,D420,D500,DF00;",
 	"P1FC7,FLT,Load Custom Filters;",
 	"P1-;",
@@ -392,7 +394,7 @@ end
 wire [15:0] joyA,joyB,joyC,joyD;
 wire [15:0] joy = joyA | joyB | joyC | joyD;
 
-wire [63:0] status;
+wire [127:0] status;
 wire        forced_scandoubler;
 
 wire        ioctl_wr;
@@ -439,7 +441,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.paddle_3(pd4),
 
 	.status(status),
-	.status_menumask({status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
+	.status_menumask({~status[69], ~status[66], status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -1004,7 +1006,9 @@ fpga64_sid_iec fpga64
 	.sid_mode(status[22:20]),
 	.sid_filter(2'b11),
 	.sid_ver({status[16],status[13]}),
-	.sid_cfg({status[38:37],status[35:34]}),
+	.sid_cfg({status[68:67],status[65:64]}),
+	.sid_fc_off_l(status[66] ? (13'h600 - {status[72:70],7'd0}) : 13'd0),
+	.sid_fc_off_r(status[69] ? (13'h600 - {status[75:73],7'd0}) : 13'd0),
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 

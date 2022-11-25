@@ -119,6 +119,8 @@ port(
 	sid_ver     : in  std_logic_vector(1 downto 0);
 	sid_mode    : in  unsigned(2 downto 0);
 	sid_cfg     : in  std_logic_vector(3 downto 0);
+	sid_fc_off_l: in  std_logic_vector(12 downto 0);
+	sid_fc_off_r: in  std_logic_vector(12 downto 0);
 	sid_ld_clk  : in  std_logic;
 	sid_ld_addr : in  std_logic_vector(11 downto 0);
 	sid_ld_data : in  std_logic_vector(15 downto 0);
@@ -287,6 +289,9 @@ component sid_top
 
 		ext_in_l      : in  std_logic_vector(17 downto 0);
 		ext_in_r      : in  std_logic_vector(17 downto 0);
+
+		fc_offset_l   : in  std_logic_vector(12 downto 0);
+		fc_offset_r   : in  std_logic_vector(12 downto 0);
 
 		filter_en     : in  std_logic_vector(1 downto 0);
 		mode          : in  std_logic_vector(1 downto 0);
@@ -666,6 +671,9 @@ port map (
 	filter_en => sid_filter,
 	mode    => sid_ver,
 	cfg     => sid_cfg,
+	
+	fc_offset_l => sid_fc_off_l,
+	fc_offset_r => sid_fc_off_r,
 
 	ld_clk  => sid_ld_clk,
 	ld_addr => sid_ld_addr,

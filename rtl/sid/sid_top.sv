@@ -16,14 +16,16 @@ module sid_top
 	input   [7:0] data_in,
 	output  [7:0] data_out,
 
+	input  [12:0] fc_offset_l,
 	input   [7:0] pot_x_l,
 	input   [7:0] pot_y_l,
 	input  [17:0] ext_in_l,
 	output [17:0] audio_l,
 
-	input   [7:0] pot_x_r,  // not used if DUAL is 0
-	input   [7:0] pot_y_r,  // not used if DUAL is 0
-	input  [17:0] ext_in_r, // not used if DUAL is 0
+	input  [12:0] fc_offset_r, // not used if DUAL is 0
+	input   [7:0] pot_x_r,     // not used if DUAL is 0
+	input   [7:0] pot_y_r,     // not used if DUAL is 0
+	input  [17:0] ext_in_r,    // not used if DUAL is 0
 	output [17:0] audio_r,
 
 	input [N-1:0] filter_en,
@@ -81,6 +83,7 @@ wire [11:0] acc_t[N*3];
 reg  [17:0] audio[N];
 
 reg   [7:0] bus_data[N];
+reg  [12:0] Fc_offset[N];
 
 generate
 	genvar i;
@@ -151,6 +154,8 @@ generate
 			.acc_t(acc_t[i*3+2])
 		);
 		
+		always @(posedge clk) Fc_offset[i] <= i ? fc_offset_r : fc_offset_l;
+
 		// Register Decoding
 		always @(posedge clk) begin
 			if (reset) begin
@@ -233,6 +238,7 @@ sid_tables #(MULTI_FILTERS) sid_tables
 	
 	.cfg(cfg[n*2 +:2]),
 	.Fc(Filter_Fc[n]),
+	.Fc_offset(Fc_offset[n]),
 	.F0(F0),
 	.ld_clk(ld_clk),
 	.ld_addr(ld_addr),

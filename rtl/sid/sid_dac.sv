@@ -107,6 +107,20 @@ module sid_dac #(
 							bitval[6]  = 'h3fb;
 							bitval[7]  = 'h7b8;
 						end
+              11: begin
+							//$readmemh("dac_6581_cutoff.hex", bitval);
+							bitval[0]  = 'h20;
+							bitval[1]  = 'h2f;
+							bitval[2]  = 'h52;
+							bitval[3]  = 'h9c;
+							bitval[4]  = 'h12b;
+							bitval[5]  = 'h243;
+							bitval[6]  = 'h463;
+							bitval[7]  = 'h880;
+							bitval[8]  = 'h107b;
+							bitval[9]  = 'h1ff4;
+							bitval[10] = 'h3df3;
+						end
             endcase
         end
     end
