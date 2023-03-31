@@ -77,7 +77,7 @@ end entity;
 architecture rtl of video_vicii_656x is
 	type vicCycles is (
 		cycleRefresh1, cycleRefresh2, cycleRefresh3, cycleRefresh4, cycleRefresh5,
-		cycleIdle1,
+		cycleIdle1, cycleIdle2,
 		cycleChar,
 		cycleCalcSprites, cycleSpriteBa1, cycleSpriteBa2, cycleSpriteBa3,
 		cycleSpriteA, cycleSpriteB
@@ -366,23 +366,27 @@ vicStateMachine: process(clk)
 			and baSync = '0' then
 				if phi = '0' then
 					case vicCycle is
-					when cycleRefresh1 =>
-						vicCycle <= cycleRefresh2;
-						if ((mode6567old or mode6567R8) = '1') then
-							vicCycle <= cycleIdle1;
-						end if;
-					when cycleIdle1    => vicCycle <= cycleRefresh2;
+					when cycleRefresh1 => vicCycle <= cycleRefresh2;
 					when cycleRefresh2 => vicCycle <= cycleRefresh3;
 					when cycleRefresh3 => vicCycle <= cycleRefresh4;  -- X=0..7 on this cycle
 					when cycleRefresh4 => vicCycle <= cycleRefresh5;
 					when cycleRefresh5 => vicCycle <= cycleChar;
 					when cycleChar =>
-						if ((mode6569  = '1') and rasterX(9 downto 3) = "0101000") -- PAL
-						or ((mode6567old  = '1') and rasterX(9 downto 3) = "0101000") -- Old NTSC
-						or ((mode6567R8  = '1') and rasterX(9 downto 3) = "0101001") -- New NTSC
-						or ((mode6572  = '1') and rasterX(9 downto 3) = "0101001") then -- PAL-N
+						if rasterX(9 downto 3) = "0101000" then
+							if mode6569 = '1' or mode6572 = '1' then -- PAL/PAL-N
 							vicCycle <= cycleCalcSprites;
 						end if;
+							if mode6567R8  = '1' or mode6567old = '1' then -- New/Old NTSC
+								vicCycle <= cycleIdle1;
+							end if;
+						end if;
+					when cycleIdle1 =>
+						if mode6567R8  = '1' then
+							vicCycle <= cycleIdle2; -- New NTSC - 2 extra idle cycles (65 cycles/line)
+						else
+							vicCycle <= cycleCalcSprites; -- Old NTSC - 1 extra idle cycle (64 cycles/line)
+						end if;
+					when cycleIdle2 => vicCycle <= cycleCalcSprites;
 					when cycleCalcSprites => vicCycle <= cycleSpriteBa1;
 					when cycleSpriteBa1   => vicCycle <= cycleSpriteBa2;
 					when cycleSpriteBa2   => vicCycle <= cycleSpriteBa3;
