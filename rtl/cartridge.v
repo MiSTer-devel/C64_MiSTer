@@ -678,6 +678,20 @@ always @(posedge clk32) begin
 				end
 			end
 
+		// GMod2
+		60: begin
+				if(!init_n) begin
+					exrom_overide <= 0;
+					game_overide  <= 1;
+					bank_lo       <= 0;
+				end
+				else if(ioe_wr) begin
+					bank_lo       <= data_in[5:0];
+					exrom_overide <= data_in[6];
+				end
+			end
+
+
 		// GeoRAM
 		99: begin
 				IOE_ena    <= 1;
