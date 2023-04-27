@@ -278,6 +278,13 @@ always @(posedge clk32) begin
 					bank_lo <= data_in[5:0];
 					bank_hi <= data_in[5:0];
 				end
+				// Autodetect Ocean Type B (512k)
+				// Only $8000 is used, while $A000 is RAM
+				if(cart_bank_wr) begin
+					if(cart_bank_num>=32) begin
+						game_overide <= 1;
+					end
+				end
 			end
 
 		// PowerPlay, FunPlay
