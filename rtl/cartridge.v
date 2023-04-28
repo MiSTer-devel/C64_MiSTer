@@ -272,11 +272,20 @@ always @(posedge clk32) begin
 		// BANK is written to lower 6 bits of $DE00 - bit 8 is always set
 		// best to mirror banks at $8000 and $A000
 		5:	begin
-				exrom_overide <= 0;
-				game_overide  <= 0;
+				if(!init_n) begin
+					exrom_overide <= 0;
+					game_overide  <= 0;
+				end
 				if(ioe_wr) begin
 					bank_lo <= data_in[5:0];
 					bank_hi <= data_in[5:0];
+				end
+				// Autodetect Ocean Type B (512k)
+				// Only $8000 is used, while $A000 is RAM
+				if(cart_bank_wr) begin
+					if(cart_bank_num>=32) begin
+						game_overide <= 1;
+					end
 				end
 			end
 
