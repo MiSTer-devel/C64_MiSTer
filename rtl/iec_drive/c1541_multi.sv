@@ -89,19 +89,11 @@ end
 initial begin
 	rom_32k_i = 1;
 	rom_16k_i = 1;
-	empty8k   = 1;
 end
 
 reg rom_32k_i;
 reg rom_16k_i;
-reg empty8k;
-always @(posedge clk_sys) begin
-	if (rom_wr & !rom_addr) empty8k = 1;
-	if (rom_wr & |rom_data & ~&rom_data) begin
-		{rom_32k_i,rom_16k_i} <= rom_addr[14:13];
-		if(rom_addr[14:8] && !rom_addr[14:13]) empty8k = 0;
-	end
-end
+always @(posedge clk_sys) if (rom_wr & |rom_data & ~&rom_data) {rom_32k_i,rom_16k_i} <= rom_addr[14:13];
 
 reg [1:0] rom_sz;
 always @(posedge clk) rom_sz <= {rom_32k_i,rom_32k_i|rom_16k_i}; // support for 8K/16K/32K ROM
@@ -175,7 +167,7 @@ wire [N:0] iec_data_d, iec_clk_d;
 assign     iec_clk_o  = &{iec_clk_d  | reset_drv};
 assign     iec_data_o = &{iec_data_d | reset_drv};
 
-wire [N:0] ext_en = {NDR{rom_sz[1] & empty8k & ~stdrom & |PARPORT}} & ~reset_drv;
+wire [N:0] ext_en = {NDR{rom_sz[1] & ~stdrom & |PARPORT}} & ~reset_drv;
 wire [7:0] par_data_d[NDR];
 wire [N:0] par_stb_d;
 assign     par_stb_o = &{par_stb_d | ~ext_en};
