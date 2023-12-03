@@ -93,7 +93,7 @@ architecture rtl of video_vicii_656x is
 	type spriteColorsDef is array(7 downto 0) of unsigned(3 downto 0);
 	type pixelColorStoreDef is array(7 downto 0) of unsigned(3 downto 0);
 
-	constant PIX_DELAY : integer := 5;
+	constant PIX_DELAY : integer := 6;
 
 -- State machine
 	signal lastLineFlag : boolean; -- True for on last line of the frame.
@@ -243,7 +243,8 @@ architecture rtl of video_vicii_656x is
 	signal MYE_ff : unsigned(7 downto 0); -- Sprite Y expansion flipflop
 	signal MYE_ff_next : unsigned(7 downto 0); -- Sprite Y expansion flipflop combinatorial
 	signal MC_ff : unsigned(7 downto 0); -- controls sprite shift-register in multicolor
-	signal MShift : MFlags; -- Sprite is shifting
+	signal MShift_stop : MFlags; -- Stop sprite shifting flag
+	signal MCurrentPixel_r : MCurrentPixelDef;
 	signal MCurrentPixel : MCurrentPixelDef;
 
 -- Current colors and pixels
@@ -290,10 +291,10 @@ begin
 	end process;
 
 	myWr_a <= cs and phi and we;
-	myWr_b <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "011" else '0';
-	myWr_c <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "100" else '0';
+	myWr_b <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "100" else '0';
+	myWr_c <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "101" else '0';
 	-- timing of the read is only important for the collision register reads
-	myRd   <= '1' when cs = '1' and phi = '1' and we = '0' and enaPixel = '1' and rasterX(1 downto 0) = "00" else '0';
+	myRd   <= '1' when cs = '1' and phi = '1' and we = '0' and enaPixel = '1' and rasterX(1 downto 0) = "01" else '0';
 
 -- -----------------------------------------------------------------------
 -- debug signals
@@ -917,7 +918,7 @@ calcBorders: process(clk)
 				newTBBorder := TBBorder;
 				-- 1. If the X coordinate reaches the right comparison value, the main border
 				--   flip flop is set (comparison values are from VIC II datasheet).
-				if (rasterX = 339 + 2 and CSEL = '0') or (rasterX = 348 + 2 and CSEL = '1')  then
+				if (rasterX = 339 + 3 and CSEL = '0') or (rasterX = 348 + 3 and CSEL = '1')  then
 					MainBorder <= '1';
 				end if;
 				-- 2. If the Y coordinate reaches the bottom comparison value in cycle 63, the
@@ -937,7 +938,7 @@ calcBorders: process(clk)
 						setTBBorder <= false;
 					end if;
 				end if;
-				if (rasterX = 35 + 2 and CSEL = '0') or (rasterX = 28 + 2 and CSEL = '1') then
+				if (rasterX = 35 + 3 and CSEL = '0') or (rasterX = 28 + 3 and CSEL = '1') then
 					-- 4. If the X coordinate reaches the left comparison value and the Y
 					-- coordinate reaches the bottom one, the vertical border flip flop is set.
 					-- FIX: act on the already triggered condition
@@ -1217,6 +1218,7 @@ calcBitmap: process(clk)
 -- Sprite pixel Shift register
 -- -----------------------------------------------------------------------
 	process(clk)
+	variable MShift : MFlags; -- Sprite is shifting
 	begin
 
 		if rising_edge(clk) then
@@ -1224,11 +1226,15 @@ calcBitmap: process(clk)
 				for i in 0 to 7 loop
 					-- Enable sprites on the correct X position
 					if MActive(i) and rasterXDelay = MX(i) then
-						MShift(i) <= true;
+						MShift(i) := true;
 					end if;
 					-- Stop shifting in the third s cycle
+					MShift_stop(i) <= false;
 					if sprite = i and phi = '1' and vicCycle = cycleSpriteB then
-						MShift(i) <= false;
+						MShift_stop(i) <= true;
+					end if;
+					if MShift_stop(i) then
+						MShift(i) := false;
 					end if;
 				end loop;
 
@@ -1239,9 +1245,9 @@ calcBitmap: process(clk)
 						if MXE_ff(i) = '0' then
 							MC_ff(i) <= (not MC_ff(i)) and MC(i);
 							if MC_ff(i) = '0' then
-								MCurrentPixel(i) <= MPixels(i)(23 downto 22);
+								MCurrentPixel_r(i) <= MPixels(i)(23 downto 22);
 								if MPixels(i) = 0 then
-									MShift(i) <= false;
+									MShift(i) := false;
 								end if;
 							end if;
 							-- Don't shift in the s cycles (sprite0move.prg, demusinterruptus.prg)
@@ -1252,8 +1258,9 @@ calcBitmap: process(clk)
 					else
 						MXE_ff(i) <= '0';
 						MC_ff(i) <= '0';
-						MCurrentPixel(i) <= "00";
+						MCurrentPixel_r(i) <= "00";
 					end if;
+					MCurrentPixel(i) <= MCurrentPixel_r(i);
 				end loop;
 
 				-- Changing the MC register directly affects the MC flip-flop
@@ -1375,10 +1382,10 @@ collisionClearFlag: process(clk)
 	begin
 		if rising_edge(clk) then
 			-- spritevssprite.prg
-			if phi = '1' and cs = '1' and we = '0' and aRegisters = "011110" then
+			if myRd = '1' and aRegisters = "011110" then
 				M2MClr <= '1';
 			end if;
-			if phi = '0' and not (addr_r = "011110" and rd_r = '1') then
+			if phi = '0' and enaPixel = '1' and not (addr_r = "011110" and rd_r = '1') then
 				M2MClr <= '0';
 			end if;
 		end if;
