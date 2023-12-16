@@ -257,6 +257,7 @@ architecture rtl of video_vicii_656x is
 	signal addr_r: unsigned(5 downto 0);
 	signal di_r: unsigned(7 downto 0);
 
+	signal myWr_phi1 : std_logic;
 	signal myWr_a : std_logic;
 	signal myWr_b : std_logic;
 	signal myWr_c : std_logic;
@@ -290,7 +291,8 @@ begin
 		end if;
 	end process;
 
-	myWr_a <= cs and phi and we;
+	myWr_phi1 <= cs and phi and we;
+	myWr_a <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "011" else '0';
 	myWr_b <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "100" else '0';
 	myWr_c <= '1' when we_r = '1' and enaPixel = '1' and rasterX(2 downto 0) = "101" else '0';
 	-- timing of the read is only important for the collision register reads
@@ -1543,7 +1545,7 @@ writeRegisters: process(clk)
 				turbo_reg <= '0';
 			else
 
-				if (myWr_a = '1') then
+				if (myWr_phi1 = '1') then
 					-- assumption: color registers are latched during the whole PHI high cycle
 					case aRegisters is
 					when "100000" => EC <= diRegisters(3 downto 0);
@@ -1565,6 +1567,13 @@ writeRegisters: process(clk)
 					end case;
 				end if;
 
+				if (myWr_a = '1') then
+					case addr_r is
+					when "010001" =>
+						RSEL <= di_r(3);
+					when others => null;
+					end case;
+				end if;
 				if (myWr_b = '1') then
 					case addr_r is
 					when "010001" =>
@@ -1572,7 +1581,6 @@ writeRegisters: process(clk)
 						ECM <= di_r(6);
 						BMM <= di_r(5);
 						DEN <= di_r(4);
-						RSEL <= di_r(3);
 						yscroll <= di_r(2 downto 0);
 					when "010010" =>
 						rasterCmp(7 downto 0) <= di_r;
