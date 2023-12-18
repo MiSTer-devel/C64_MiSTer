@@ -1571,6 +1571,11 @@ writeRegisters: process(clk)
 					case addr_r is
 					when "010001" =>
 						RSEL <= di_r(3);
+					when "011001" =>
+						resetLightPenIrq <= di_r(3);
+						resetIMMC <= di_r(2);
+						resetIMBC <= di_r(1);
+						resetRasterIrq <= di_r(0);
 					when others => null;
 					end case;
 				end if;
@@ -1594,11 +1599,6 @@ writeRegisters: process(clk)
 					when "011000" =>
 						VM <= di_r(7 downto 4);
 						CB <= di_r(3 downto 1);
-					when "011001" =>
-						resetLightPenIrq <= di_r(3);
-						resetIMMC <= di_r(2);
-						resetIMBC <= di_r(1);
-						resetRasterIrq <= di_r(0);
 					when "011010" =>
 						ELP <= di_r(3);
 						EMMC <= di_r(2);
