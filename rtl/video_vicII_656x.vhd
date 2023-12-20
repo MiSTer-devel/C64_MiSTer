@@ -200,6 +200,7 @@ architecture rtl of video_vicii_656x is
 	signal rasterY : unsigned(8 downto 0) := (others => '0');
 	signal rasterY_next : unsigned(8 downto 0);
 	signal cycleLast : boolean;
+	signal cycleLastDelay : boolean;
 	signal rasterXDelay : unsigned(9 downto 0);
 
 -- Light pen
@@ -800,7 +801,9 @@ rasterCounters: process(clk, rasterX, rasterXDelay)
 			if phi = '1'
 			and enaData = '1'
 			and baSync = '0' then
-				if cycleLast then
+				cycleLastDelay <= false;
+				if (lastLineFlag) then cycleLastDelay <= cycleLast; end if;
+				if (lastLineFlag and cycleLastDelay) or (not lastLineFlag and cycleLast) then
 					rasterY <= rasterY_next;
 				end if;
 			end if;
@@ -816,8 +819,7 @@ rasterCounters: process(clk, rasterX, rasterXDelay)
 			if phi = '1'
 			and enaData = '1'
 			and baSync = '0'
-			and (vicCycle = cycleSpriteB)
-			and (sprite = 2) then
+			and ((lastLineFlag and cycleLastDelay) or (not lastLineFlag and cycleLast)) then
 				rasterIrqDone <= '0';
 			end if;
 			if resetRasterIrq = '1' then
