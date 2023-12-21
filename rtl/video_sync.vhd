@@ -98,8 +98,8 @@ process(clk32)
 				if line_count = 028 then vblank <= '0'; end if;
 
 				if wide = '0' then
-					if dot_count  = 490 then hblank <= '1'; end if;
-					if dot_count  = 106 then hblank <= '0'; end if;
+					if dot_count  = 489 then hblank <= '1'; end if;
+					if dot_count  = 107 then hblank <= '0'; end if;
 				else
 					if dot_count  = 463 then hblank <= '1'; end if;
 					if dot_count  = 133 then hblank <= '0'; end if;
