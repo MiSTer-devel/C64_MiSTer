@@ -1582,6 +1582,7 @@ writeRegisters: process(clk)
 						resetIMMC <= di_r(2);
 						resetIMBC <= di_r(1);
 						resetRasterIrq <= di_r(0);
+					when "011101" => MXE <= di_r;
 					when others => null;
 					end case;
 				end if;
@@ -1614,7 +1615,6 @@ writeRegisters: process(clk)
 					when "011100" =>
 						-- MC <= di_r;
 						MCDelay <= di_r; -- !!! Krestage 3 hack
-					when "011101" => MXE <= di_r;
 					when others => null;
 					end case;
 				elsif (myWr_c = '1') then
