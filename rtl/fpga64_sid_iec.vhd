@@ -70,6 +70,7 @@ port(
 	turbo_speed : in  std_logic_vector(1 downto 0);
 
 	-- VGA/SCART interface
+	vic_variant : in  std_logic_vector(1 downto 0);
 	ntscMode    : in  std_logic;
 	hsync       : out std_logic;
 	vsync       : out std_logic;
@@ -552,7 +553,8 @@ port map (
 	mode6567old => '0',
 	mode6567R8 => ntscMode,
 	mode6572 => '0',
-	
+	variant => vic_variant,
+
 	turbo_en => turbo_en,
 	turbo_state => turbo_state,
 	

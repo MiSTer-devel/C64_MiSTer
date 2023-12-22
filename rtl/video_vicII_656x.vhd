@@ -46,6 +46,7 @@ entity video_vicii_656x is
 		turbo_en   : in  std_logic;
 		turbo_state: out std_logic;
 
+		variant : in std_logic_vector(1 downto 0); -- 00 - NMOS, 01 - HMOS, 10 - old HMOS
 		reset : in std_logic;
 		cs : in std_logic;
 		we : in std_logic;
@@ -1566,7 +1567,29 @@ writeRegisters: process(clk)
 				turbo_reg <= '0';
 			else
 
-				if (myWr_phi1 = '1' and enaPixel = '1') then
+				if (myWr_phi1 = '1' and (rasterX(1 downto 0) = "00" and enaPixel = '0' and variant = "01")) then
+					-- HMOS versions seems to use the color registers too fast, before they latch the proper value from the bus
+					case aRegisters is
+					when "100000" => EC <= x"F";
+					when "100001" => B0C <= x"F";
+					when "100010" => B1C <= x"F";
+					when "100011" => B2C <= x"F";
+					when "100100" => B3C <= x"F";
+					when "100101" => MM0 <= x"F";
+					when "100110" => MM1 <= x"F";
+					when "100111" => spriteColors(0) <= x"F";
+					when "101000" => spriteColors(1) <= x"F";
+					when "101001" => spriteColors(2) <= x"F";
+					when "101010" => spriteColors(3) <= x"F";
+					when "101011" => spriteColors(4) <= x"F";
+					when "101100" => spriteColors(5) <= x"F";
+					when "101101" => spriteColors(6) <= x"F";
+					when "101110" => spriteColors(7) <= x"F";
+					when others => null;
+					end case;
+				end if;
+
+				if (myWr_phi1 = '1' and (enaPixel = '1' or variant = "10")) then
 					-- assumption: color registers are latched during the whole PHI high cycle
 					case aRegisters is
 					when "100000" => EC <= diRegisters(3 downto 0);

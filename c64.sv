@@ -193,7 +193,7 @@ assign VGA_SCALER = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XX  X  XXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXX  XXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -209,7 +209,8 @@ localparam CONF_STR = {
 	"-;",
 
 	"P1,Audio & Video;", 
-	"P1O[2],Video Standard,PAL,NTSC;",
+	"P1O[35:34],VIC-II variant,NMOS,HMOS,Old HMOS;",
+ 	"P1O[2],Video Standard,PAL,NTSC;",
 	"P1O[5:4],Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O[10:8],Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
 	"d1P1O[32],Vertical Crop,No,Yes;",
@@ -953,6 +954,7 @@ fpga64_sid_iec fpga64
 	.ramCE(ram_ce),
 	.ramWE(ram_we),
 
+	.vic_variant(status[35:34]),
 	.ntscmode(ntsc),
 	.hsync(hsync),
 	.vsync(vsync),
