@@ -1008,12 +1008,11 @@ calcBitmap: process(clk)
 					shiftingChar <= waitingChar_r;
 					shiftingPixels <= waitingPixels_r;
 					currentPixels <= waitingPixels_r(7 downto 6);
-				elsif multiColor = '0' then
+				else
 					shiftingPixels <= shiftingPixels(6 downto 0) & '0';
-					currentPixels <= shiftingPixels(6 downto 5);
-				elsif shifting_ff = '1' then
-					shiftingPixels <= shiftingPixels(5 downto 0) & "00";
-					currentPixels <= shiftingPixels(5 downto 4);
+					if multiColor = '0' or shifting_ff = '1' then
+						currentPixels <= shiftingPixels(6 downto 5);
+					end if;
 				end if;
 
 				--
