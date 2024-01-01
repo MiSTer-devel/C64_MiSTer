@@ -483,7 +483,7 @@ always @(posedge clk32) begin
 				end
 			end
 
-		// Super Snapshot v5 -(64k rom 8*8k banks/4*16k banks, 32k ram 4*8k banks)
+		// Super Snapshot v5 -(64k/128K rom 8*8k banks/4*16k banks, 32k ram 4*8k banks)
 		20: begin
 				if(!init_n || freeze_crt) begin
 					romL_we <= 1;
@@ -499,9 +499,9 @@ always @(posedge clk32) begin
 				if(~cart_disable & ioe_wr) begin
 					game_overide <=  data_in[0] | data_in[3];
 					exrom_overide<= ~data_in[1] | data_in[3];
-					bank_lo <= {data_in[4], data_in[2], 1'b0};
-					bank_hi <= {data_in[4], data_in[2], 1'b1};
-					IOE_bank<= {data_in[4], data_in[2], 1'b0};
+					bank_lo <= {data_in[5] & bank_cnt[3], data_in[4], data_in[2], 1'b0};
+					bank_hi <= {data_in[5] & bank_cnt[3], data_in[4], data_in[2], 1'b1};
+					IOE_bank<= {data_in[5] & bank_cnt[3], data_in[4], data_in[2], 1'b0};
 					cart_disable <= data_in[3];
 					IOE_ena <= ~data_in[3];
 
