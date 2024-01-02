@@ -70,17 +70,20 @@ assign led = act | sd_busy;
 
 reg        readonly = 0;
 reg        disk_present = 0;
-reg [23:0] ch_timeout;
+reg [24:0] ch_timeout;
 always @(posedge clk) begin
 	reg old_mounted;
+	reg present = 0;
 
 	if(ce && ch_timeout > 0) ch_timeout <= ch_timeout - 1'd1;
+	if(!ch_timeout) disk_present <= present;
 
 	old_mounted <= img_mounted;
 	if (~old_mounted & img_mounted) begin
 		ch_timeout <= '1;
 		readonly <= img_readonly;
-		disk_present <= |img_size;
+		present <= |img_size;
+		disk_present <= 0;
 	end
 end
 
@@ -126,7 +129,7 @@ c1541_logic c1541_logic
 	.freq(freq),
 	.sync_n(gcr_mode ? dgcr_sync_n : gcr_sync_n),
 	.byte_n(gcr_mode ? dgcr_byte_n : gcr_byte_n),
-	.wps_n(~readonly ^ ch_timeout[22]),
+	.wps_n(~readonly ^ ch_timeout[23]),
 	.tr00_sense_n(|track),
 	.act(act)
 );
