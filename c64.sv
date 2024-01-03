@@ -209,8 +209,8 @@ localparam CONF_STR = {
 	"-;",
 
 	"P1,Audio & Video;", 
-	"P1O[35:34],VIC-II variant,NMOS,HMOS,Old HMOS;",
  	"P1O[2],Video Standard,PAL,NTSC;",
+	"P1O[35:34],VIC-II,656x,856x,Early 856x;",
 	"P1O[5:4],Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O[10:8],Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
 	"d1P1O[32],Vertical Crop,No,Yes;",
@@ -243,7 +243,7 @@ localparam CONF_STR = {
 	"P2O[51],RS232 mode,UP9600,VIC-1011;",
 	"P2O[33],RS232 connection,Internal,External;",
 	"P2O[36],Real-Time Clock,Auto,Disabled;",
-	"P2O[45],CIA Model,6526,8521;",
+	"P2O[45],CIA,6526,8521;",
 	"P2-;",
 	"P2O[27:26],Pot 1/2,Joy 1 Fire 2/3,Mouse,Paddles 1/2;",
 	"P2O[29:28],Pot 3/4,Joy 2 Fire 2/3,Mouse,Paddles 3/4;",
