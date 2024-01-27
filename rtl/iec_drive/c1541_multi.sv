@@ -23,6 +23,7 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input  [31:0] img_size,
 
 	output  [N:0] led,
+	output        disk_ready,
 
 	input         iec_atn_i,
 	input         iec_data_i,
@@ -179,6 +180,9 @@ end
 wire [N:0] led_drv;
 assign     led = led_drv & ~reset_drv;
 
+wire [N:0] i_disk_ready;
+assign     disk_ready = &(i_disk_ready | reset_drv);
+
 generate
 	genvar i;
 	for(i=0; i<NDR; i=i+1) begin :drives
@@ -199,6 +203,7 @@ generate
 
 			.drive_num(i),
 			.led(led_drv[i]),
+			.disk_ready(i_disk_ready[i]),
 
 			.iec_atn_i(iec_atn),
 			.iec_data_i(iec_data & iec_data_o),

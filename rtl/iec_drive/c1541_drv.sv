@@ -32,6 +32,7 @@ module c1541_drv
 	input         img_mounted,
 	input         img_readonly,
 	input  [31:0] img_size,
+	output reg    disk_ready,
 
 	input   [1:0] drive_num,
 	output        led,
@@ -77,6 +78,7 @@ always @(posedge clk) begin
 
 	if(ce && ch_timeout > 0) ch_timeout <= ch_timeout - 1'd1;
 	if(!ch_timeout) disk_present <= present;
+	disk_ready <= !ch_timeout;
 
 	old_mounted <= img_mounted;
 	if (~old_mounted & img_mounted) begin

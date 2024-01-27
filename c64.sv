@@ -183,7 +183,7 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_DISK   = 0;
 assign LED_POWER  = 0;
-assign LED_USER   = |drive_led | ioctl_download | tape_led;
+assign LED_USER   = |drive_led | ioctl_download | tape_led | ~disk_ready;
 assign BUTTONS    = 0;
 assign VGA_DISABLE = 0;
 assign VGA_SCALER = 0;
@@ -879,7 +879,7 @@ always @(posedge clk_sys) begin
 	end
 	else begin
 		to <= 0;
-		key <= ps2_key;
+		key <= {ps2_key[10], ps2_key[9] & disk_ready, ps2_key[8:0]};
 	end
 	if(start_strk & ~status[50]) begin
 		act <= 1;
@@ -1077,6 +1077,7 @@ wire       drive_iec_data_o;
 wire       drive_reset = ~reset_n | status[6] | (load_c1581 & ioctl_download);
 
 wire [1:0] drive_led;
+wire       disk_ready;
 
 reg [1:0] drive_mounted = 0;
 always @(posedge clk_sys) begin 
@@ -1106,6 +1107,7 @@ iec_drive iec_drive
 	.img_type(&ioctl_index[7:6] ? 2'b11 : 2'b01),
 
 	.led(drive_led),
+	.disk_ready(disk_ready),
 
 	.par_data_i(drive_par_i),
 	.par_stb_i(drive_stb_i),

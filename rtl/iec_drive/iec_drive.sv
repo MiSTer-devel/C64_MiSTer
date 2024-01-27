@@ -24,6 +24,7 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input   [1:0] img_type,
 
 	output  [N:0] led,
+	output        disk_ready,
 
 	input         iec_atn_i,
 	input         iec_data_i,
@@ -99,6 +100,7 @@ c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 	.iec_clk_o (c1541_iec_clk),
 
 	.led(c1541_led),
+	.disk_ready(disk_ready),
 
 	.par_data_i(par_data_i),
 	.par_stb_i(par_stb_i),
