@@ -223,6 +223,7 @@ localparam CONF_STR = {
 	"D4D8P1O[72:70],Left Fc Offset,0,1,2,3,4,5;",
 	"D5D9P1O[75:73],Right Fc Offset,0,1,2,3,4,5;",
 	"P1O[22:20],Right SID Port,Same,DE00,D420,D500,DF00;",
+	"P1O[37],8580 Digifix,On,Off",
 	"P1FC7,FLT,Load Custom Filters;",
 	"P1-;",
 	"P1O[12],Sound Expander,Disabled,OPL2;",
@@ -1011,6 +1012,7 @@ fpga64_sid_iec fpga64
 	.sid_cfg({status[68:67],status[65:64]}),
 	.sid_fc_off_l(status[66] ? (13'h600 - {status[72:70],7'd0}) : 13'd0),
 	.sid_fc_off_r(status[69] ? (13'h600 - {status[75:73],7'd0}) : 13'd0),
+	.sid_digifix(~status[37]),
 	.audio_l(audio_l),
 	.audio_r(audio_r),
 
