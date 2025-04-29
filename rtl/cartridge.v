@@ -543,6 +543,20 @@ always @(posedge clk32) begin
 				end
 			end
 
+		// Waterloo Structured BASIC (game=1, exrom=0, two 8k banks)
+		22: begin
+				if(!init_n) begin
+					game_overide  <= 1;
+					exrom_overide <= 0;
+					bank_lo       <= 0;
+					bank_hi       <= 0;
+				end
+				else if(stb_ioe) begin
+					bank_lo       <= addr_in[1];
+					exrom_overide <= addr_in[0];
+				end
+			end
+
 		// Mikro Assembler - (game=1, exrom=0, 8k)
 		28: begin
 				game_overide  <= 1;
@@ -697,6 +711,20 @@ always @(posedge clk32) begin
 				else if(ioe_wr) begin
 					bank_lo       <= data_in[5:0];
 					exrom_overide <= data_in[6];
+				end
+			end
+
+		// BMP-Data Turbo 2000, (game=0, exrom=0, one 16k bank)
+		83: begin
+				bank_lo <= 0;
+				bank_hi <= 0;
+				if(!init_n || ioe_wr) begin
+					game_overide   <= 0;
+					exrom_overide  <= 0;
+				end
+				else if(iof_wr) begin
+					 game_overide  <= 1;
+					 exrom_overide <= 1;
 				end
 			end
 
