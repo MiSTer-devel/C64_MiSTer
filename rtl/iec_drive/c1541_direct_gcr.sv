@@ -32,7 +32,7 @@ module c1541_direct_gcr
 assign sync_n      = ~mtr | busy | ~&shcur | ~mode;
 assign byte_n      = ~mtr | busy | ~&bit_cnt | bt_n[1];
 assign we          = buff_we;
-assign sd_buff_din = (sd_buff_addr > track_len) ? 8'hFF : sd_buff_do;
+assign sd_buff_din = (sd_buff_addr >= track_len+2 ) ? 8'hFF : sd_buff_do;
 assign dout        = shcur[7:0];
 
 reg [13:0] track_len;
@@ -87,14 +87,14 @@ always @(posedge clk) begin
 	else if(ce) begin
 		bt_n <= {bt_n[0],~&bit_cnt};
 
-		if(buff_addr[15:3] > track_len) buff_addr <= 16;
+		if(buff_addr[15:3] >= track_len +2) buff_addr <= 16;
 
 		if (bit_clk_cnt == 'b110000) buff_we <= ~mode;
 
 		bit_clk_cnt <= bit_clk_cnt + 1'b1;
 		if (&bit_clk_cnt) begin
 			buff_addr   <= buff_addr + 1'd1;
-			if(buff_addr >= {track_len,3'b111}) buff_addr <= 16;
+			if(buff_addr[15:3] >= track_len +2) buff_addr <= 16;
 
 			bit_clk_cnt <= {2'b00,freq,2'b00};
 			bit_cnt     <= bit_cnt + 1'b1;
