@@ -120,6 +120,8 @@ assign dout = bt ? dout_r[15:8] : dout_r[7:0];
 
 always @(posedge clk) begin
 	reg [8:0] caddr;
+	reg [7:0] wrdata;
+	reg       wr;
 
 	sd_cmd  <= CMD_NOP;
 	sd_data <= 16'bZ;
@@ -148,11 +150,13 @@ always @(posedge clk) begin
 			sd_addr <= addr[20:8];
 			caddr   <= {addr[23], addr[7:0]};
 			bt      <= addr[24];
+			wr      <= we;
+			wrdata  <= din;
 		end
 		if(q == STATE_CMD_CONT) begin
-			if(we) sd_data <= {din, din};
-			sd_cmd  <= we ? CMD_WRITE : CMD_READ;
-			sd_addr <= {~bt & we, bt & we, 2'b10, caddr};
+			if(wr) sd_data <= {wrdata, wrdata};
+			sd_cmd  <= wr ? CMD_WRITE : CMD_READ;
+			sd_addr <= {~bt & wr, bt & wr, 2'b10, caddr};
 		end
 	end
 end
