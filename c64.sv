@@ -185,7 +185,7 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_DISK   = 0;
 assign LED_POWER  = 0;
-assign LED_USER   = |drive_led | ioctl_download | ioctl_upload | tape_led | ~disk_ready;
+assign LED_USER   = |drive_led | ioctl_download | ioctl_upload | ezfl_mod | tape_led | ~disk_ready;
 assign BUTTONS    = 0;
 assign VGA_DISABLE = 0;
 assign VGA_SCALER = 0;
@@ -197,7 +197,7 @@ assign HDMI_BOB_DEINT = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -207,6 +207,7 @@ localparam CONF_STR = {
 	"-;",
 	"F1,PRGCRTREUTAP;",
 	"hAdBR[61],Save cartridge;",
+	"hAO[62],Autosave,Off,On;",
 	"h3-;",
 	"h3R[7],Tape Play/Pause;",
 	"h3R[23],Tape Unload;",
@@ -413,6 +414,7 @@ wire  [7:0] ioctl_din;
 wire  [7:0] ioctl_index;
 wire        ioctl_download;
 wire        ioctl_upload;
+wire [31:0] ioctl_file_ext;
 
 wire [31:0] sd_lba[2];
 wire  [5:0] sd_blk_cnt[2];
@@ -452,7 +454,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.paddle_3(pd4),
 
 	.status(status),
-	.status_menumask({ezfl_mod, cart_ezfl, ~status[69], ~status[66], status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
+	.status_menumask({ezfl_mod || ezfl_save_en, cart_ezfl, ~status[69], ~status[66], status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -478,10 +480,12 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
+	.ioctl_file_ext(ioctl_file_ext),
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_data),
-	.ioctl_upload_req(status[61]),
+	.ioctl_upload_req(ezfl_save),
+	.ioctl_upload_index(ezfl_idx),
 	.ioctl_upload(ioctl_upload),
 	.ioctl_din(ioctl_din),
 	.ioctl_rd(ioctl_rd),
@@ -556,11 +560,23 @@ cartridge cartridge
 	.nmi_ack(nmi_ack)
 );
 
-reg ezfl_mod = 0;
+wire ezfl_save = status[61] | (status[62] & OSD_STATUS & ezfl_mod);
+reg  ezfl_mod = 0;
+reg  ezfl_idx = 0;
+reg  ezfl_save_en = 0;
 always @(posedge clk_sys) begin
+	reg save_old = 0;
+	reg ext_old = 0;
+
 	if(cart_mem_req) ezfl_mod <= 1;
 	if(ioctl_download && load_crt) ezfl_mod <= 0;
-	if(ioctl_upload) ezfl_mod <= 0;
+	if(ioctl_upload) {ezfl_mod, ezfl_save_en} <= 0;
+	
+	save_old <= ezfl_save;
+	if(~save_old & ezfl_save) ezfl_idx <= ~status[61];
+	
+	ext_old <= ext_crt;
+	if(~ext_old & ext_crt) ezfl_save_en <= 1;
 end
 
 wire        dma_req;
@@ -669,6 +685,7 @@ localparam REU_ADDR = 25'h1000000;
 localparam CRT_ADDR = 25'h0100000;
 
 wire cart_ezfl = cart_attached && (cart_id == 32 || cart_id ==33);
+reg ext_crt = 0;
 
 always @(posedge clk_sys) begin
 	reg  [4:0] erase_to;
@@ -789,6 +806,7 @@ always @(posedge clk_sys) begin
 	if (old_download != ioctl_download && load_crt) begin
 		cart_attached <= old_download;
 		erase_cram <= 1;
+		ext_crt <= ioctl_download && (ioctl_file_ext == ".CRT");
 	end 
 
 	// meminit for RAM injection
