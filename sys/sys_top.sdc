@@ -60,6 +60,7 @@ set_false_path -from {vol_att[*] scaler_flt[*] led_overtake[*] led_state[*]}
 set_false_path -from {aflt_* acx* acy* areset* arc*}
 set_false_path -from {arx* ary*}
 set_false_path -from {vs_line*}
+set_false_path -from {ColorBurst_Range* PhaseInc* pal_en cvbs yc_en}
 
 set_false_path -from {ascal|o_ihsize*}
 set_false_path -from {ascal|o_ivsize*}
@@ -73,4 +74,4 @@ set_false_path -from {ascal|o_hsstart* ascal|o_vsstart* ascal|o_hsend* ascal|o_v
 set_false_path -from {ascal|o_hsize* ascal|o_vsize*}
 
 set_false_path -from {mcp23009|flg_*}
-set_false_path -to   {sysmem|fpga_interfaces|clocks_resets*}
+set_false_path -to   {sysmem|fpga_interfaces|clocks_resets|f2h*}
