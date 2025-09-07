@@ -15,3 +15,4 @@ set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) f
 set_global_assignment -name VHDL_FILE          [file join $::quartus(qip_path) iecdrv_via6522.vhd ]
 set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) iecdrv_mos8520.v   ]
 set_global_assignment -name SYSTEMVERILOG_FILE [file join $::quartus(qip_path) iecdrv_misc.sv     ]
+set_global_assignment -name VERILOG_FILE       [file join $::quartus(qip_path) lfsr.v             ]

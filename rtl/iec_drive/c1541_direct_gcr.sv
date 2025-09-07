@@ -53,7 +53,7 @@ iecdrv_bitmem #(13) buffer
 
 	.clock_b(clk),
 	.address_b({buff_addr[15:3], ~buff_addr[2:0]}),
-	.data_b(buff_di[~bit_cnt]),
+	.data_b(ht),
 	.wren_b(buff_we),
 	.q_b(buff_do)
 );
@@ -65,8 +65,18 @@ reg  [7:0] buff_di;
 reg        buff_we;
 
 reg  [9:0] shreg;
-wire [9:0] shcur = {shreg[8:0], buff_do};
+wire [9:0] shcur = {shreg[8:0], hf};
 reg  [1:0] bt_n;
+
+wire [30:0] random_data;
+reg			hf; // data from head
+reg			ht; // data to head
+
+random lfsr(
+   .clock(clk),
+   .lfsr(random_data)
+);
+
 
 always @(posedge clk) begin
 	reg [5:0] bit_clk_cnt;
@@ -78,23 +88,44 @@ always @(posedge clk) begin
 		bit_clk_cnt <= 0;
 		bit_cnt     <= 0;
 		shreg       <= 0;
+		hf          <= 0;
+		ht          <= 0;
 	end
 	else if(busy | ~mtr) begin
 		shreg       <= 0;
 		bit_cnt     <= 0;
 		bit_clk_cnt <= 0;
+		hf          <= 0;
+		ht          <= 0;
 	end
 	else if(ce) begin
 		bt_n <= {bt_n[0],~&bit_cnt};
 
 		if(buff_addr[15:3] >= track_len +2) buff_addr <= 16;
 
-		if (bit_clk_cnt == 'b110000) buff_we <= ~mode;
+		if (bit_clk_cnt == 'b110000)
+		begin
+			buff_we	<= ~mode;
+			ht			<= buff_di[~bit_cnt];
+		end
 
+		if (bit_clk_cnt == 'b111100) begin
+			buff_addr   <= buff_addr + 1'd1;
+			if(buff_addr >= {track_len + 1'd1, 3'b111}) buff_addr <= 16;
+      end
+		
 		bit_clk_cnt <= bit_clk_cnt + 1'b1;
 		if (&bit_clk_cnt) begin
-			buff_addr   <= buff_addr + 1'd1;
-			if(buff_addr[15:3] >= track_len +2) buff_addr <= 16;
+			// induce a random flux reversal for weak-bits/bad-gcr read
+			// also simulate a random loss of framing by skipping a bit
+			if ((shcur[3:0] == 4'b0000) && (random_data[0]) && mode) begin
+				hf	<= 1;
+				if(random_data[14]) begin
+					buff_addr <= buff_addr + 1'd1;
+					if(buff_addr >= {track_len + 1'd1, 3'b111}) buff_addr <= 16;
+				end
+			end else
+				hf <= buff_do;
 
 			bit_clk_cnt <= {2'b00,freq,2'b00};
 			bit_cnt     <= bit_cnt + 1'b1;
