@@ -32,6 +32,9 @@ module c1541_drv
 	input         img_mounted,
 	input         img_readonly,
 	input  [31:0] img_size,
+	input   [2:0] drive_rpm,
+	input         drive_wobble,
+
 	output reg    disk_ready,
 
 	input   [1:0] drive_num,
@@ -94,6 +97,7 @@ wire [1:0] stp;
 wire       mtr;
 wire       act;
 wire [1:0] freq;
+wire       wps_n = ~readonly ^ ch_timeout[23];
 
 c1541_logic c1541_logic
 (
@@ -131,7 +135,7 @@ c1541_logic c1541_logic
 	.freq(freq),
 	.sync_n(gcr_mode ? dgcr_sync_n : gcr_sync_n),
 	.byte_n(gcr_mode ? dgcr_byte_n : gcr_byte_n),
-	.wps_n(~readonly ^ ch_timeout[23]),
+	.wps_n(wps_n),
 	.tr00_sense_n(|track),
 	.act(act)
 );
@@ -180,11 +184,15 @@ c1541_direct_gcr c1541_direct_gcr
 	.ce(ce & gcr_mode),
 	.reset(reset),
 	
+	.drive_rpm(drive_rpm),
+	.drive_wobble(drive_wobble),
+	
 	.dout(dgcr_do),
 	.din(gcr_di),
 	.mode(mode),
 	.mtr(mtr),
 	.freq(freq),
+	.wps_n(wps_n),
 	.sync_n(dgcr_sync_n),
 	.byte_n(dgcr_byte_n),
 

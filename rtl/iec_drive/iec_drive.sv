@@ -22,6 +22,8 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	// 01 - 1541 real GCR mode (G64,D64)
 	// 10 - 1581 (D81)
 	input   [1:0] img_type,
+	input   [2:0] drive_rpm,
+	input         drive_wobble,
 
 	output  [N:0] led,
 	output        disk_ready,
@@ -118,6 +120,8 @@ c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 	.img_mounted(img_mounted),
 	.img_size(img_size),
 	.img_readonly(img_readonly),
+	.drive_rpm(drive_rpm),
+	.drive_wobble(drive_wobble),
 
 	.sd_lba(c1541_sd_lba),
 	.sd_blk_cnt(c1541_sd_blk_cnt),

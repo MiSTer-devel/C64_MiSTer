@@ -112,14 +112,13 @@ GeoRAM and REU don't conflict each other and can be both enabled.
 |   5     |    RX-       | IEC /ATN    |
 
 All signals are 3.3V LVTTL and must be properly converted to required levels!
+With a level converter this allows connecting the MisterFPGA for example to a real 1541 or printer!
 
 ### Real-time clock
 
 RTC is PCF8583 connected to tape port.
 To get real time in GEOS, copy CP-CLOCK64-1.3 from supplied [disk](https://github.com/mister-devel/C64_MiSTer/blob/master/releases/CP-ClockF83_1.3.D64) to GEOS system disk.
 
-### Raw GCR mode
+### 1541 Drive
 
-C1541 implementation works in raw GCR mode (D64 format is converted to GCR and then back when saved), so some non-standard tracks are supported if G64 file format is used. Support formatting and some copiers using raw track copy. Speed zones aren't supported (yet), but system follows the speed setting, so variable speed within a track should work.
-Protected disk in most cases won't work yet and still require further tuning of access times to comply with different protections.
-
+C1541 implementation supports D64, T64, G64 and G81 images. Use supplied empty disks for saving or copying to. Images mounted from inside zip files are read only. You can force mounting an image (outside of zip) write protected through the menu or by changing the file attribute. The 1541 simulation for G64 images has (limited) support for protected disks. For best results try on original kernal, try PAL and NTSC (reset after changing!), try alternate images (alts), try multiple times (some protections are unreliable even on original hardware), be patient (some titles take very long to load), try with write protect on and off. If all else fails you can try the drive speed and drive wobble settings. Protected disk in some cases won't work yet and still require further tuning of access times.

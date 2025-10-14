@@ -197,13 +197,18 @@ assign HDMI_BOB_DEINT = 0;
 // 0         1         2         3          4         5         6
 // 01234567890123456789012345678901 23456789012345678901234567890123
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV
-// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+//
+// 6     7         8         9         10        11        12
+// 45678901234567890123456789012345 67890123456789012345678901234567
+// XXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
 	"C64;UART9600:2400;",
 	"H7S0,D64G64T64D81,Mount #8;",
 	"H0S1,D64G64T64D81,Mount #9;",
+	"O[77:76],Mount Write Protected,Off,#8,#9,#8 & #9;",
 	"-;",
 	"F1,PRGCRTREUTAP;",
 	"hAdBR[61],Save cartridge;",
@@ -237,11 +242,6 @@ localparam CONF_STR = {
 	"P1O[19:18],Stereo Mix,None,25%,50%,100%;",
 
 	"P2,Hardware;", 
-	"P2O[58:57],Enable Drive #8,If Mounted,Always,Never;",
-	"P2O[56:55],Enable Drive #9,If Mounted,Always,Never;",
-	"P2O[44],Parallel port,Enabled,Disabled;",
-	"P2R[6],Reset Disk Drives;",
-	"P2-;",
 	"P2O[52],GeoRAM,Disabled,4MB;",
 	"P2O[54:53],REU,Disabled,512KB,2MB (512KB wrap),16MB;",
 	"P2-;",
@@ -270,6 +270,16 @@ localparam CONF_STR = {
 	"P2-;",
 	"P2O[15:14],System ROM,Loadable C64,Standard C64,C64GS,Japanese;",
 
+	"P3,Drives;",
+	"P3O[58:57],Enable Drive #8,If Mounted,Always,Never;",
+	"P3O[56:55],Enable Drive #9,If Mounted,Always,Never;",
+	"P3O[44],Parallel port,Enabled,Disabled;",
+	"P3-;",
+	"P3O[80:78],Drive RPM    (G64),300,301,302,305,310,295,298,299;",
+	"P3O[81],Drive Wobble (G64),Off,On;",
+	"P3-;",
+	"P3R[6],Reset Disk Drives;",
+
 	"-;",
 	"O[3],Swap Joysticks,No,Yes;",
 	"-;",
@@ -283,7 +293,6 @@ localparam CONF_STR = {
 	"jp,A,B,Y,X|P,R,L;",
 	"V,v",`BUILD_DATE
 };
-
 
 wire pll_locked;
 wire clk_sys;
@@ -1153,10 +1162,17 @@ wire [1:0] drive_led;
 wire       disk_ready;
 
 reg [1:0] drive_mounted = 0;
+reg [1:0] old_img_mounted;
+
 always @(posedge clk_sys) begin 
+	old_img_mounted <= img_mounted;
 	if(img_mounted[0]) drive_mounted[0] <= |img_size;
 	if(img_mounted[1]) drive_mounted[1] <= |img_size;
 end
+
+wire mounted_0 = ~old_img_mounted[0] & img_mounted[0];
+wire mounted_1 = ~old_img_mounted[1] & img_mounted[1];
+wire img_readonly_wp = img_readonly | (mounted_0 & status[76]) | (mounted_1 & status[77]);
 
 iec_drive iec_drive
 (
@@ -1176,8 +1192,10 @@ iec_drive iec_drive
 
 	.img_mounted(img_mounted),
 	.img_size(img_size),
-	.img_readonly(img_readonly),
+	.img_readonly(img_readonly_wp),
 	.img_type(&ioctl_index[7:6] ? 2'b11 : 2'b01),
+	.drive_rpm(status[80:78]),
+	.drive_wobble(status[81]),
 
 	.led(drive_led),
 	.disk_ready(disk_ready),

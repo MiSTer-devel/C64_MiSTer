@@ -21,6 +21,8 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input   [N:0] img_mounted,
 	input         img_readonly,
 	input  [31:0] img_size,
+	input   [2:0] drive_rpm,
+	input         drive_wobble,
 
 	output  [N:0] led,
 	output        disk_ready,
@@ -200,6 +202,8 @@ generate
 			.img_mounted(img_mounted[i]),
 			.img_readonly(img_readonly),
 			.img_size(img_size),
+			.drive_rpm(drive_rpm),
+			.drive_wobble(drive_wobble),
 
 			.drive_num(i),
 			.led(led_drv[i]),
