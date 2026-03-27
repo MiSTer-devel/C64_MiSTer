@@ -201,7 +201,7 @@ assign HDMI_BOB_DEINT = 0;
 //
 // 6     7         8         9         10        11        12
 // 45678901234567890123456789012345 67890123456789012345678901234567
-// XXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -222,6 +222,7 @@ localparam CONF_STR = {
 	"P1,Audio & Video;", 
  	"P1O[2],Video Standard,PAL,NTSC;",
 	"P1O[35:34],VIC-II,656x,856x,Early 856x;",
+	"P1O[84:82],Palette,Colodore,Ultimate,Pepto-PAL,Vice,Vice6569R1,Vice6569R5,Vice8565R2,Lemon64;",
 	"P1O[5:4],Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O[10:8],Scandoubler Fx,None,HQ2x-320,HQ2x-160,CRT 25%,CRT 50%,CRT 75%;",
 	"d1P1O[32],Vertical Crop,No,Yes;",
@@ -1039,6 +1040,7 @@ fpga64_sid_iec fpga64
 	.ntscmode(ntsc),
 	.hsync(hsync),
 	.vsync(vsync),
+	.palette(status[84:82]),
 	.r(r),
 	.g(g),
 	.b(b),

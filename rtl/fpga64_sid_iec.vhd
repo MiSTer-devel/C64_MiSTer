@@ -74,6 +74,7 @@ port(
 	ntscMode    : in  std_logic;
 	hsync       : out std_logic;
 	vsync       : out std_logic;
+	palette     : in  unsigned(2 downto 0);
 	r           : out unsigned(7 downto 0);
 	g           : out unsigned(7 downto 0);
 	b           : out unsigned(7 downto 0);
@@ -583,6 +584,7 @@ port map (
 
 c64colors: entity work.fpga64_rgbcolor
 port map (
+	palette => palette,
 	index => vicColorIndex,
 	r => r,
 	g => g,
