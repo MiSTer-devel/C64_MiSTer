@@ -100,13 +100,13 @@ always @(posedge clk) begin
 			if(cpu_we) begin
 				case(cpu_addr[4:0])
 					 1:       cmd             <= cpu_dout;
-					 2: begin addr_c64[7:0]   <= cpu_dout; addr_c64_r[7:0]   <= cpu_dout; end
-					 3: begin addr_c64[15:8]  <= cpu_dout; addr_c64_r[15:8]  <= cpu_dout; end
-					 4: begin addr_ram[7:0]   <= cpu_dout; addr_ram_r[7:0]   <= cpu_dout; end
-					 5: begin addr_ram[15:8]  <= cpu_dout; addr_ram_r[15:8]  <= cpu_dout; end
-					 6: begin addr_ram[23:16] <= cpu_dout; addr_ram_r[23:16] <= cpu_dout; end
-					 7: begin length[7:0]     <= cpu_dout; length_r[7:0]     <= cpu_dout; end
-					 8: begin length[15:8]    <= cpu_dout; length_r[15:8]    <= cpu_dout; end
+					 2: begin addr_c64        <= {addr_c64_r[15:8], cpu_dout}; addr_c64_r[7:0]   <= cpu_dout; end
+					 3: begin addr_c64        <= {cpu_dout, addr_c64_r[7:0]};  addr_c64_r[15:8]  <= cpu_dout; end
+					 4: begin addr_ram[15:0]  <= {addr_ram_r[15:8], cpu_dout}; addr_ram_r[7:0]   <= cpu_dout; end
+					 5: begin addr_ram[15:0]  <= {cpu_dout, addr_ram_r[7:0]};  addr_ram_r[15:8]  <= cpu_dout; end
+					 6: begin addr_ram[23:16] <= cpu_dout;                     addr_ram_r[23:16] <= cpu_dout; end
+					 7: begin length          <= {length_r[15:8], cpu_dout};   length_r[7:0]     <= cpu_dout; end
+					 8: begin length          <= {cpu_dout, length_r[7:0]};    length_r[15:8]    <= cpu_dout; end
 					 9:       intr            <= cpu_dout;
 					10:       ctl             <= cpu_dout;
 				endcase
