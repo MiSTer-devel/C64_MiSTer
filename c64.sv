@@ -244,7 +244,8 @@ localparam CONF_STR = {
 
 	"P2,Hardware;", 
 	"P2O[52],GeoRAM,Disabled,4MB;",
-	"P2O[54:53],REU,Disabled,512KB,2MB (512KB wrap),16MB;",
+	"P2O[54:53],REU,Disabled,512KB,2MB,16MB;",
+	"hCP2O[63],REU wrap,512KB,None;",
 	"P2-;",
 	"P2O[25],External IEC,Disabled,Enabled;",
 	"P2O[43],Expansion,Joysticks,RS232;",
@@ -464,7 +465,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.paddle_3(pd4),
 
 	.status(status),
-	.status_menumask({ezfl_mod || ezfl_save_en, cart_ezfl, ~status[69], ~status[66], status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
+	.status_menumask({status[54], ezfl_mod || ezfl_save_en, cart_ezfl, ~status[69], ~status[66], status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
 	.buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
@@ -606,12 +607,14 @@ wire        reu_irq;
 
 wire        reu_oe  = IOF && reu_cfg;
 wire  [1:0] reu_cfg = status[54:53];
+wire        reu_wrap = ~status[63] & status[54];
 
 reu reu
 (
 	.clk(clk_sys),
 	.reset(~reset_n),
 	.cfg(reu_cfg),
+	.wrap(reu_wrap),
 
 	.dma_req(dma_req),
 
