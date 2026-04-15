@@ -533,11 +533,10 @@ cartridge cartridge
 	.cart_id(cart_attached ? cart_id : status[52] ? 8'd99 : 8'd255),
 	.cart_exrom(cart_exrom),
 	.cart_game(cart_game),
-	.cart_bank_laddr(cart_bank_laddr),
-	.cart_bank_size(cart_bank_size),
+	.cart_bank_hi(cart_bank_hi),
+	.cart_bank_16k(cart_bank_16k),
 	.cart_bank_num(cart_bank_num),
-	.cart_bank_type(cart_bank_type),
-	.cart_bank_raddr(ioctl_load_addr),
+	.cart_bank_addr(ioctl_load_addr[20:13]),
 	.cart_bank_wr(cart_hdr_wr),
 	.cart_boot(~status[38]),
 
@@ -670,17 +669,14 @@ reg [24:0] ioctl_load_addr;
 reg        ioctl_req_wr;
 reg        ioctl_req_rd;
 
-reg [15:0] cart_id;
-reg [15:0] cart_bank_laddr;
-reg [15:0] cart_bank_size;
-reg [15:0] cart_bank_num;
-reg  [7:0] cart_bank_type;
-reg  [7:0] cart_exrom;
-reg  [7:0] cart_game;
+reg  [7:0] cart_id;
+reg        cart_bank_hi;
+reg        cart_bank_16k;
+reg  [7:0] cart_bank_num;
+reg        cart_exrom;
+reg        cart_game;
 reg        cart_attached = 0;
-reg  [3:0] cart_hdr_cnt;
 reg        cart_hdr_wr;
-reg [31:0] cart_blk_len;
 
 reg        force_erase;
 reg        erasing;
@@ -693,9 +689,9 @@ reg        io_cycle_we;
 reg [24:0] io_cycle_addr;
 reg  [7:0] io_cycle_data;
 
-localparam TAP_ADDR = 25'h0200000;
+localparam TAP_ADDR = 25'h0400000;
 localparam REU_ADDR = 25'h1000000;
-localparam CRT_ADDR = 25'h0100000;
+localparam CRT_ADDR = 25'h0200000;
 
 wire cart_ezfl = cart_attached && (cart_id == 32 || cart_id ==33);
 reg ext_crt = 0;
@@ -711,6 +707,9 @@ always @(posedge clk_sys) begin
 	reg  [7:0] inj_meminit_data;
 	reg  [2:0] rd_cyc;
 	reg        ioctl_rd_en;
+	reg [15:0] cart_blk_len;
+	reg  [3:0] cart_hdr_cnt;
+	reg  [7:0] cart_id_hi;
 
 	old_download <= ioctl_download;
 	io_cycleD <= io_cycle;
@@ -766,36 +765,21 @@ always @(posedge clk_sys) begin
 				ioctl_load_addr <= CRT_ADDR;
 				cart_blk_len <= 0;
 				cart_hdr_cnt <= 0;
-			end 
+			end
 
-			if (ioctl_addr == 8'h16) cart_id[15:8]   <= ioctl_data;
-			if (ioctl_addr == 8'h17) cart_id[7:0]    <= ioctl_data;
-			if (ioctl_addr == 8'h18) cart_exrom[7:0] <= ioctl_data;
-			if (ioctl_addr == 8'h19) cart_game[7:0]  <= ioctl_data;
+			if (ioctl_addr == 8'h16) cart_id_hi <= ioctl_data;
+			if (ioctl_addr == 8'h17) cart_id    <= cart_id_hi ? 8'd255 : ioctl_data;
+			if (ioctl_addr == 8'h18) cart_exrom <= ioctl_data[0];
+			if (ioctl_addr == 8'h19) cart_game  <= ioctl_data[0];
 
 			if (ioctl_addr >= 8'h40) begin
-				if (cart_blk_len == 0 & cart_hdr_cnt == 0) begin
-					cart_hdr_cnt <= 1;
-					if (ioctl_load_addr[12:0] != 0) begin
-						// align to 8KB boundary
-						ioctl_load_addr[12:0] <= 0;
-						ioctl_load_addr[24:13] <= ioctl_load_addr[24:13] + 1'b1;
-					end
-				end else if (cart_hdr_cnt != 0) begin
+				if (!cart_blk_len || cart_hdr_cnt) begin
 					cart_hdr_cnt <= cart_hdr_cnt + 1'b1;
-					if (cart_hdr_cnt == 4)  cart_blk_len[31:24]  <= ioctl_data;
-					if (cart_hdr_cnt == 5)  cart_blk_len[23:16]  <= ioctl_data;
-					if (cart_hdr_cnt == 6)  cart_blk_len[15:8]   <= ioctl_data;
-					if (cart_hdr_cnt == 7)  cart_blk_len[7:0]    <= ioctl_data;
-					if (cart_hdr_cnt == 8)  cart_blk_len         <= cart_blk_len - 8'h10;
-					if (cart_hdr_cnt == 9)  cart_bank_type       <= ioctl_data;
-					if (cart_hdr_cnt == 10) cart_bank_num[15:8]  <= ioctl_data;
-					if (cart_hdr_cnt == 11) cart_bank_num[7:0]   <= ioctl_data;
-					if (cart_hdr_cnt == 12) cart_bank_laddr[15:8]<= ioctl_data;
-					if (cart_hdr_cnt == 13) cart_bank_laddr[7:0] <= ioctl_data;
-					if (cart_hdr_cnt == 14) cart_bank_size[15:8] <= ioctl_data;
-					if (cart_hdr_cnt == 15) cart_bank_size[7:0]  <= ioctl_data;
-					if (cart_hdr_cnt == 15) cart_hdr_wr <= 1;
+					if (cart_hdr_cnt == 6)  cart_blk_len  <= {ioctl_data, 8'h00};
+					if (cart_hdr_cnt == 11) cart_bank_num <= ioctl_data;
+					if (cart_hdr_cnt == 12) cart_bank_hi  <= ioctl_data > 8'h80;
+					if (cart_hdr_cnt == 14) cart_bank_16k <= ioctl_data > 8'h20;
+					if (cart_hdr_cnt == 15) cart_hdr_wr   <= 1;
 				end
 				else begin
 					cart_blk_len <= cart_blk_len - 1'b1;

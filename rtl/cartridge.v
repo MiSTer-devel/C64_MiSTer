@@ -10,14 +10,13 @@ module cartridge
 	input             reset_n,					// reset signal
 
 	input             cart_loading,
-	input      [15:0] cart_id,					// cart ID or cart type
-	input       [7:0] cart_exrom,				// CRT file EXROM status
-	input       [7:0] cart_game,				// CRT file GAME status
-	input      [15:0] cart_bank_laddr,		// bank loading address
-	input      [15:0] cart_bank_size,		// length of each bank
-	input      [15:0] cart_bank_num,
-	input       [7:0] cart_bank_type,
-	input      [24:0] cart_bank_raddr,		// chip packet address
+	input       [7:0] cart_id,					// cart ID or cart type
+	input             cart_exrom,				// CRT file EXROM status
+	input             cart_game,				// CRT file GAME status
+	input             cart_bank_hi,		   // bank is high
+	input             cart_bank_16k,
+	input       [7:0] cart_bank_num,
+	input       [7:0] cart_bank_addr,		// chip packet address
 	input             cart_bank_wr,
 	input             cart_boot,
 
@@ -53,14 +52,14 @@ module cartridge
 	input             nmi_ack
 );
 
-reg  [6:0] bank_lo;
-reg  [6:0] bank_hi;
+reg  [7:0] bank_lo;
+reg  [7:0] bank_hi;
 reg [12:0] mask_lo;
 reg  [5:0] bank_no;
 
 reg [13:0] geo_bank;
-reg  [6:0] IOE_bank;
-reg  [6:0] IOF_bank;
+reg  [7:0] IOE_bank;
+reg  [7:0] IOF_bank;
 reg        IOE_wr_ena;
 reg        IOF_wr_ena;
 
@@ -86,13 +85,13 @@ always @(posedge clk32) begin
 	if(cart_bank_wr) begin
 		bank_cnt <= bank_cnt + 1'd1;
 		if(cart_bank_num<64) begin
-			if(cart_bank_laddr <= 'h8000) begin
-				lobanks[cart_bank_num[5:0]] <= cart_bank_raddr[19:13];
+			if(!cart_bank_hi) begin
+				lobanks[cart_bank_num[5:0]] <= cart_bank_addr[6:0];
 				lobanks_map[cart_bank_num[5:0]] <= 1;
-				if(cart_bank_size > 'h2000) hibanks[cart_bank_num[5:0]] <= cart_bank_raddr[19:13]+1'd1;
+				if(cart_bank_16k) hibanks[cart_bank_num[5:0]] <= cart_bank_addr[6:0]+1'd1;
 			end
 			else begin
-				hibanks[cart_bank_num[5:0]] <= cart_bank_raddr[19:13];
+				hibanks[cart_bank_num[5:0]] <= cart_bank_addr[6:0];
 				hibanks_map[cart_bank_num[5:0]] <= 1;
 			end
 		end
@@ -185,8 +184,8 @@ always @(posedge clk32) begin
 
 		// Generic 8k(exrom=0,game=1), 16k(exrom=0,game=0), ULTIMAX(exrom=1,game=0)
 		0:	begin
-				exrom_overide <= cart_exrom[0];
-				game_overide <= cart_game[0];
+				exrom_overide <= cart_exrom;
+				game_overide <= cart_game;
 				bank_lo <= lobanks[0];
 				bank_hi <= hibanks[0];
 			end
@@ -751,6 +750,21 @@ always @(posedge clk32) begin
 				end
 			end
 
+		// Magic Desk 2, (game=0, exrom=0, up to 128 16k banks)
+		85: begin
+				if(!init_n) begin
+					game_overide  <= 0;
+					exrom_overide <= 0;
+					bank_lo       <= 0;
+					bank_hi       <= 1;
+				end
+				else if(ioe_wr) begin
+					bank_lo       <= {data_in[6:0], 1'b0};
+					bank_hi       <= {data_in[6:0], 1'b1};
+					game_overide  <= data_in[7];
+					exrom_overide <= data_in[7];
+				end
+			end
 
 		// GeoRAM
 		99: begin
@@ -810,12 +824,12 @@ wire cs_iof = IOF && (mem_write ? IOF_wr_ena : IOF_ena);
 assign mem_ce_out = mem_ce | (cs_ioe & stb_ioe) | (cs_iof & stb_iof) | ezrom_ce;
 
 //RAM banks are mapped to 0x010000 (64K max)
-//ROM banks are mapped to 0x100000 (1MB max)
-function [7:0] get_bank;
-	input [6:0] bank;
+//ROM banks are mapped to 0x200000 (2MB max)
+function [8:0] get_bank;
+	input [7:0] bank;
 	input       ram;
 begin
-	get_bank = ram ? {5'b00001, bank[2:0]} : {1'b1, bank[6:0]};
+	get_bank = ram ? {6'b000001, bank[2:0]} : {1'b1, bank[7:0]};
 end
 endfunction
 
