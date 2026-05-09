@@ -180,13 +180,27 @@ module emu
 	input         OSD_STATUS
 );
 
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
+wire [7:0]  drv_ddram_burstcnt;
+wire [28:0] drv_ddram_addr;
+wire        drv_ddram_rd;
+wire        drv_ddram_we;
+wire [63:0] drv_ddram_din;
+wire [7:0]  drv_ddram_be;
+
+assign DDRAM_CLK      = clk_sys;
+assign DDRAM_BURSTCNT = drv_ddram_burstcnt;
+assign DDRAM_ADDR     = drv_ddram_addr;
+assign DDRAM_RD       = drv_ddram_rd;
+assign DDRAM_WE       = drv_ddram_we;
+assign DDRAM_DIN      = drv_ddram_din;
+assign DDRAM_BE       = drv_ddram_be;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 
 assign LED_DISK   = 0;
 assign LED_POWER  = 0;
 assign LED_USER   = |drive_led | ioctl_download | ioctl_upload | ezfl_mod | tape_led | ~disk_ready;
-assign BUTTONS    = 0;
+reg    close_osd  = 0;
+assign BUTTONS    = {1'b0, close_osd};
 assign VGA_DISABLE = 0;
 assign VGA_SCALER = 0;
 assign HDMI_BLACKOUT = 0;
@@ -276,8 +290,9 @@ localparam CONF_STR = {
 	"P3O[58:57],Enable Drive #8,If Mounted,Always,Never;",
 	"P3O[56:55],Enable Drive #9,If Mounted,Always,Never;",
 	"P3O[44],Parallel port,Enabled,Disabled;",
+	"P3O[86:85],Drives OSD,Activity Only,If Mounted,Debug,Off;",
 	"P3-;",
-	"P3O[80:78],Drive RPM    (G64),300,301,302,305,310,295,298,299;",
+	"P3O[80:78],Drive RPM    (G64),300.0,300.1,300.5,301.0,302.0,299.0,299.5,299.9;",
 	"P3O[81],Drive Wobble (G64),Off,On;",
 	"P3-;",
 	"P3R[6],Reset Disk Drives;",
@@ -333,18 +348,38 @@ pll_cfg pll_cfg
 	.reconfig_from_pll(reconfig_from_pll)
 );
 
+reg ntsc_r = 0;
 always @(posedge CLK_50M) begin
 	reg ntscd = 0, ntscd2 = 0;
 	reg [2:0] state = 0;
-	reg ntsc_r;
+	reg [23:0] delay = 0;
+	reg osd_s1 = 0, osd_s2 = 0;
 
-	ntscd <= ntsc;
+	osd_s1 <= OSD_STATUS;
+	osd_s2 <= osd_s1;
+
+	// bringing ntsc_req into the CLK_50M domain
+	ntscd  <= ntsc_req;
 	ntscd2 <= ntscd;
 
 	cfg_write <= 0;
-	if(ntscd2 == ntscd && ntscd2 != ntsc_r) begin
-		state <= 1;
-		ntsc_r <= ntscd2;
+	close_osd <= 0;
+
+	if(ntscd2 != ntsc_r) begin
+	if(osd_s2 && delay < 24'd2500000) begin // 50ms pulse to close OSD
+	// Close OSD so that PAL/NTSC switch induced reset does not
+	// blank screen, if PAUSE when in OSD is enabled
+			close_osd <= 1;
+			delay <= delay + 1'd1;
+			end else if (delay < 24'd7500000) begin // 150ms total delay
+			delay <= delay + 1'd1;
+			end else begin
+			state <= 1;
+			ntsc_r <= ntscd2;
+			delay <= 0;
+			end
+	end else begin
+	delay <= 0;
 	end
 
 	if(!cfg_waitrequest) begin
@@ -376,17 +411,26 @@ always @(posedge CLK_50M) begin
 	end
 end
 
+reg ntsc_sys1 = 0, ntsc = 0;
 reg reset_n;
 reg reset_wait = 0;
+reg ntsc_prev = 0;
+
 always @(posedge clk_sys) begin
 	integer reset_counter;
 	reg old_download;
 	reg do_erase = 1;
 
+	// Bringing ntsc_r back into clk_sys domain
+	ntsc_sys1 <= ntsc_r;
+	ntsc <= ntsc_sys1;
+	// Detect pal/ntsc switch
+	ntsc_prev <= ntsc;
+
 	reset_n <= !reset_counter;
 	old_download <= ioctl_download;
 
-	if (RESET | status[0] | status[17] | buttons[1] | !pll_locked) begin
+	if (RESET | status[0] | status[17] | buttons[1] | !pll_locked | (ntsc_prev != ntsc)) begin
 		if(RESET) do_erase <= 1;
 		reset_counter <= 100000;
 	end
@@ -465,8 +509,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.paddle_3(pd4),
 
 	.status(status),
-	.status_menumask({status[54], ezfl_mod || ezfl_save_en, cart_ezfl, ~status[69], ~status[66], status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}),
-	.buttons(buttons),
+	.status_menumask({status[54], ezfl_mod || ezfl_save_en, cart_ezfl, ~status[69], ~status[66], status[58], |status[47:46], status[16], status[13], tap_loaded, 1'b0, |vcrop, status[56]}), .buttons(buttons),
 	.forced_scandoubler(forced_scandoubler),
 	.gamma_bus(gamma_bus),
 
@@ -1000,7 +1043,7 @@ wire        UMAXromH;
 wire [17:0] audio_l,audio_r;
 wire  [7:0] r,g,b;
 
-wire        ntsc = status[2];
+wire        ntsc_req = status[2];
 
 fpga64_sid_iec fpga64
 (
@@ -1148,6 +1191,8 @@ wire       drive_iec_data_o;
 wire       drive_reset = ~reset_n | status[6] | (load_c1581 & ioctl_download);
 
 wire [1:0] drive_led;
+wire [6:0] drive_track[2];
+wire [1:0] drive_we;
 wire       disk_ready;
 
 reg [1:0] drive_mounted = 0;
@@ -1187,6 +1232,8 @@ iec_drive iec_drive
 	.drive_wobble(status[81]),
 
 	.led(drive_led),
+	.out_track(drive_track),
+	.out_we(drive_we),
 	.disk_ready(disk_ready),
 
 	.par_data_i(drive_par_i),
@@ -1209,8 +1256,18 @@ iec_drive iec_drive
 	.rom_addr(load_rom ? (ioctl_addr[15:0] - 16'h4000) : {1'b1,ioctl_addr[14:0]}),
 	.rom_data(ioctl_data),
 	.rom_wr(((load_rom && ioctl_addr[16:14]) || load_c1581) && ioctl_download && ioctl_wr),
-	.rom_std(status[14])
-);
+	.rom_std(status[14]),
+
+	.DDRAM_BUSY(DDRAM_BUSY),
+	.DDRAM_BURSTCNT(drv_ddram_burstcnt),
+	.DDRAM_ADDR(drv_ddram_addr),
+	.DDRAM_DOUT(DDRAM_DOUT),
+	.DDRAM_DOUT_READY(DDRAM_DOUT_READY),
+	.DDRAM_RD(drv_ddram_rd),
+	.DDRAM_WE(drv_ddram_we),
+	.DDRAM_DIN(drv_ddram_din),
+	.DDRAM_BE(drv_ddram_be)
+	);
 
 reg drive_ce;
 always @(posedge clk_sys) begin
@@ -1354,6 +1411,172 @@ end
 
 assign HDMI_FREEZE = freeze;
 
+// Snoop DDRAM reads and writes for debug overlay
+reg [63:0] dbg_ddram_data = 0;
+reg [31:0] dbg_ddram_addr = 0;
+reg [31:0] dbg_out_addr   = 0;
+reg        dbg_wait_data  = 0;
+reg        dbg_valid      = 0;
+reg  [7:0] dbg_burst_cnt  = 0;
+
+reg [63:0] dbg_wr_data    = 0;
+reg [31:0] dbg_wr_addr    = 0;
+reg        dbg_wr_valid   = 0;
+
+always @(posedge clk_sys) begin
+    reg old_rd, old_we;
+
+    old_rd <= drv_ddram_rd;
+    old_we <= drv_ddram_we;
+
+    dbg_valid <= 0;
+    if (~old_rd & drv_ddram_rd) begin
+		dbg_ddram_addr <= {3'b0, drv_ddram_addr};
+        dbg_burst_cnt <= drv_ddram_burstcnt;
+        dbg_wait_data <= 1;
+		end
+
+		if (DDRAM_DOUT_READY && dbg_wait_data) begin
+			dbg_ddram_data <= DDRAM_DOUT;
+			dbg_out_addr   <= dbg_ddram_addr;
+			dbg_valid      <= 1;
+
+			if (dbg_burst_cnt <= 8'd1) begin
+				dbg_wait_data  <= 0;
+			end else begin
+				dbg_burst_cnt  <= dbg_burst_cnt - 8'd1;
+				dbg_ddram_addr <= dbg_ddram_addr + 1'd1;
+			end
+		end
+
+    dbg_wr_valid <= 0;
+    if (~old_we & drv_ddram_we) begin
+		dbg_wr_addr <= {3'b0, drv_ddram_addr};
+        dbg_wr_data <= drv_ddram_din;
+        dbg_wr_valid <= 1;
+	end
+end
+
+// Allow cursor keys to change debug base addr for overlay
+// addr stepsize h008 for cursor up & down
+// addr stepsize h100 for cursor left & right
+// timed autorepeat and debounce
+
+reg [31:0] dbg_base_addr = 32'h06000000;
+reg old_ps2_stb;
+reg [23:0] repeat_timer;
+reg repeat_active;
+reg dir_up;
+reg dir_down;
+reg dir_left;
+reg dir_right;
+
+always @(posedge clk_sys) begin
+    old_ps2_stb <= ps2_key[10];
+
+    if (old_ps2_stb != ps2_key[10]) begin
+        if (ps2_key[9]) begin
+            if (ps2_key[8] && ps2_key[7:0] == 8'h75) begin // Up Arrow
+                dbg_base_addr <= dbg_base_addr - 8;
+                dir_up <= 1; dir_down <= 0; dir_left <= 0; dir_right <= 0;
+                repeat_timer <= 24'd15000000; // ~0.3s delay
+                repeat_active <= 1;
+            end else if (ps2_key[8] && ps2_key[7:0] == 8'h72) begin // Down Arrow
+                dbg_base_addr <= dbg_base_addr + 8;
+                dir_up <= 0; dir_down <= 1; dir_left <= 0; dir_right <= 0;
+                repeat_timer <= 24'd15000000;
+                repeat_active <= 1;
+            end else if (ps2_key[8] && ps2_key[7:0] == 8'h6B) begin // Left Arrow
+                dbg_base_addr <= dbg_base_addr - 32'h100;
+                dir_up <= 0; dir_down <= 0; dir_left <= 1; dir_right <= 0;
+                repeat_timer <= 24'd15000000;
+                repeat_active <= 1;
+            end else if (ps2_key[8] && ps2_key[7:0] == 8'h74) begin // Right Arrow
+                dbg_base_addr <= dbg_base_addr + 32'h100;
+                dir_up <= 0; dir_down <= 0; dir_left <= 0; dir_right <= 1;
+                repeat_timer <= 24'd15000000;
+                repeat_active <= 1;
+            end else begin
+                repeat_active <= 0;
+            end
+        end else begin
+            if ((ps2_key[8] && ps2_key[7:0] == 8'h75 && dir_up) ||
+                (ps2_key[8] && ps2_key[7:0] == 8'h72 && dir_down) ||
+                (ps2_key[8] && ps2_key[7:0] == 8'h6B && dir_left) ||
+                (ps2_key[8] && ps2_key[7:0] == 8'h74 && dir_right)) begin
+                repeat_active <= 0;
+                dir_up <= 0;
+                dir_down <= 0;
+                dir_left <= 0;
+                dir_right <= 0;
+            end
+        end
+    end else if (repeat_active) begin
+        if (repeat_timer == 0) begin
+            if (dir_up) dbg_base_addr <= dbg_base_addr - 8;
+            if (dir_down) dbg_base_addr <= dbg_base_addr + 8;
+            if (dir_left) dbg_base_addr <= dbg_base_addr - 32'h100;
+            if (dir_right) dbg_base_addr <= dbg_base_addr + 32'h100;
+            repeat_timer <= 24'd2000000; // ~0.04s repeat
+        end else begin
+            repeat_timer <= repeat_timer - 1'd1;
+        end
+    end
+end
+
+// Drive Overlay display:
+//  - three modes: on activity (default), if enabled, debug and off
+//  - color coded: green for idle (only shows in "if enabled" and "debug" mode)
+//                 yellow for (read) activity (via drive led)
+//                 red for write activity (covers writes to disk & flushing to sd)
+//  - track number: Full tracks and half tracks (e.g. 33.5)
+//  - drive number: (#8, #9)
+//  - auto adjusts for pal/ntsc
+//
+// debug mode captures DDRAM reads/writes:
+//  - reads displayed on the left (green), writes on the right (yellow)
+//  - rolling buffer (top 8 lines) shows the last 8 reads/writes and addresses
+//  - base address captures (botoom 8 lines) shows 8 read/writes starting at base address
+//  - base address can be changed in real time with cursor keys (left, right, up, down)
+//  - captures live read/writes not memory content, so set address before you expect read/writes (!)
+//
+//
+wire [1:0] ovl_color;
+
+reg [1:0] ce_sys_div = 0;
+wire ce_sys = (ce_sys_div == 0);
+always @(posedge clk_sys) ce_sys_div <= ce_sys_div + 1'd1;
+
+drv_overlay drv_ovl (
+	.clk(clk_sys),
+	.ce(ce_sys),
+	.hblank(hblank),
+	.vblank(vblank),
+
+	.drive_osd_mode(status[86:85]),
+	.ntsc(ntsc),
+	.drive_led(drive_led),
+	.drive_mounted(drive_mounted),
+	.drive_track_0(drive_track[0]),
+	.drive_track_1(drive_track[1]),
+	.drive_we(drive_we),
+
+	.valid(dbg_valid),
+	.addr(dbg_out_addr),
+	.data(dbg_ddram_data),
+	.wr_valid(dbg_wr_valid),
+	.wr_addr(dbg_wr_addr),
+	.wr_data(dbg_wr_data),
+	.base_addr(dbg_base_addr),
+
+	.pixel_color(ovl_color)
+);
+
+reg [1:0] ovl_color_sync;
+always @(posedge CLK_VIDEO) begin
+    ovl_color_sync <= ovl_color;
+end
+
 video_mixer #(.GAMMA(1)) video_mixer
 (
 	.CLK_VIDEO(CLK_VIDEO),
@@ -1363,9 +1586,10 @@ video_mixer #(.GAMMA(1)) video_mixer
 	.gamma_bus(gamma_bus),
 
 	.ce_pix(ce_pix),
-	.R(r),
-	.G(g),
-	.B(b),
+	 // overlay colors: 0=Transparent, 1=Green, 2=Yellow, 3=Red
+	.R((ovl_color_sync == 2 || ovl_color_sync == 3) ? 8'hFF : (ovl_color_sync == 1 ? 8'h00 : r)),
+	.G((ovl_color_sync == 1 || ovl_color_sync == 2) ? 8'hFF : (ovl_color_sync == 3 ? 8'h00 : g)),
+	.B((ovl_color_sync != 0) ? 8'h00 : b),
 	.HSync(hsync_out),
 	.VSync(vsync_out),
 	.HBlank(hblank),

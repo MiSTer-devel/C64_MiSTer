@@ -18,14 +18,16 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input         img_readonly,
 	input  [31:0] img_size,
 	
-	// 00 - 1541 emulated GCR(D64)
 	// 01 - 1541 real GCR mode (G64,D64)
 	// 10 - 1581 (D81)
+	// 00 - Unused (formerly 1541 emulated GCR D64)
 	input   [1:0] img_type,
 	input   [2:0] drive_rpm,
 	input         drive_wobble,
 
 	output  [N:0] led,
+	output wire [6:0] out_track[NDR],
+	output wire [N:0] out_we,
 	output        disk_ready,
 
 	input         iec_atn_i,
@@ -56,8 +58,18 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input  [15:0] rom_addr,
 	input   [7:0] rom_data,
 	input         rom_wr,
-	input         rom_std
-);
+	input         rom_std,
+
+	input         DDRAM_BUSY,
+	output  [7:0] DDRAM_BURSTCNT,
+	output [28:0] DDRAM_ADDR,
+	input  [63:0] DDRAM_DOUT,
+	input         DDRAM_DOUT_READY,
+	output        DDRAM_RD,
+	output        DDRAM_WE,
+	output [63:0] DDRAM_DIN,
+	output  [7:0] DDRAM_BE
+	);
 
 localparam NDR = (DRIVES < 1) ? 1 : (DRIVES > 4) ? 4 : DRIVES;
 localparam N   = NDR - 1;
@@ -102,6 +114,8 @@ c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 	.iec_clk_o (c1541_iec_clk),
 
 	.led(c1541_led),
+	.out_track(out_track),
+	.out_we(out_we),
 	.disk_ready(disk_ready),
 
 	.par_data_i(par_data_i),
@@ -131,8 +145,18 @@ c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 	.sd_buff_addr(sd_buff_addr),
 	.sd_buff_dout(sd_buff_dout),
 	.sd_buff_din(c1541_sd_buff_dout),
-	.sd_buff_wr(sd_buff_wr)
-);
+	.sd_buff_wr(sd_buff_wr),
+
+	.DDRAM_BUSY(DDRAM_BUSY),
+	.DDRAM_BURSTCNT(DDRAM_BURSTCNT),
+	.DDRAM_ADDR(DDRAM_ADDR),
+	.DDRAM_DOUT(DDRAM_DOUT),
+	.DDRAM_DOUT_READY(DDRAM_DOUT_READY),
+	.DDRAM_RD(DDRAM_RD),
+	.DDRAM_WE(DDRAM_WE),
+	.DDRAM_DIN(DDRAM_DIN),
+	.DDRAM_BE(DDRAM_BE)
+	);
 
 
 wire        c1581_iec_data, c1581_iec_clk, c1581_stb_o;
