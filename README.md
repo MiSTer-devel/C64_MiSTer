@@ -21,6 +21,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - Special reduced border mode for 16:9 display
 - C128/Smart Turbo mode up to 4x
 - Real-time clock
+- Drive OSD showing mount status, read/write activity and current track
 
 ## Installation
 Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
@@ -68,17 +69,25 @@ To use JiffyDOS or another alternative kernel, replace the filenames with the na
 
 To confirm you have the correct image, the BOOT.ROM created must be exactly 32768 or 49152 (in case of 32KB C1541 ROM) bytes long. 
 
-Two loadable ROM sets are provided: **DolphinDOS v2.0** and **SpeedDOS v2.7**. Both ROMs support parallel Disk Port. DolphinDOS is the faster of the two.
+Two loadable ROM sets are provided: **DolphinDOS v2.0** and **SpeedDOS v2.7**. Both ROMs support the parallel Disk Port (more info below). DolphinDOS is the faster of the two.
 
 For **C1581** you can use separate ROM with size up to 32768 bytes.
 
 ### Autoload the cartridge
 In OSD->Hardware page you can choose Boot Cartridge, so every time a core is loaded, this cartridge will be loaded too.
 
-### Parallel port for disks.
+### Parallel port
 Are you tired of long loading times and fast loaders aren't really fast when comparing to other systems? 
-In OSD->System choose **Expansion: Fast Disks**. Then load [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom). You will get about **20x times faster** loading from disks!
 
+In OSD->Hardware set **System ROM: Loadable**. Then load the provided [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom) via OSD->Hardware->**System ROM: C64+C1541**. Also make sure that OSD-Drives->**Parallel Port: Enabled**. You will get about **20x times faster** loading from disks!
+
+The C64 User Port is a historical bottleneck because the Parallel Disk cable, RS232 modems, and 4-Player Joystick adapters all require exclusive access to it. The MiSTer tries to be smart about this:
+* If the core detects activity on the disk serial lines, it assumes a fast loader is engaging and instantly grants the User Port to the Parallel Disk drive.
+* Once disk activity stops for exactly 0.5 seconds, the User Port is automatically handed back to the RS232 module or the 4-Player Joystick adapter. 
+
+Caution: The parallel port for disk drives is only enabled if you load a C64+Drive ROM where the Drive ROM portion is exactly **32KB** (like with the provided Dolphin DOS or Speed DOS). The standard kernal and e.g. JiffyDOS do not have special Drive ROMs (16KB), and thus the parallel port will be disabled (regardless of setting in drives).
+
+JiffyDOS is a fast-serial replacement for standard kernal and achieves fast loading without the parallel port.
 ### Turbo modes
 
 **C128 mode:** this is C128 compatible turbo mode available in C64 mode on Commodore 128 and can be controlled from software, so games written with this turbo mode support will take advantage of this.
@@ -121,4 +130,22 @@ To get real time in GEOS, copy CP-CLOCK64-1.3 from supplied [disk](https://githu
 
 ### 1541 Drive
 
-C1541 implementation supports D64, T64, G64 and G81 images. Use supplied empty disks for saving or copying to. Images mounted from inside zip files are read only. You can force mounting an image (outside of zip) write protected through the menu or by changing the file attribute. The 1541 simulation for G64 images has (limited) support for protected disks. For best results try on original kernal, try PAL and NTSC (reset after changing!), try alternate images (alts), try multiple times (some protections are unreliable even on original hardware), be patient (some titles take very long to load), try with write protect on and off. If all else fails you can try the drive speed and drive wobble settings. Protected disk in some cases won't work yet and still require further tuning of access times.
+The C64 core supports both C1541 and C1581 drives with D64, T64, G64 and D81 disk images. Up to two drives #8 and #9 can be enabled and used simultaneously. A simulated C1541 drive is auto-enabled for D64, T64 and G64 images, while the C1581 is enabled for D81 images.
+
+Advanced C1541 features:
+* Accurate low-level read logic based on original schematics
+* Physical disk rotation simulation
+* AGC flux events (weak bits)
+* Drive Overlay: an optional OSD showing current track and read/write activity
+
+Images mounted from inside zip files are strictly read only. For regular files, you can force write protection via the menu or by changing the file's read-only attribute. Caution: Changing the write-protect option for a drive only takes effect the next time you mount an image. Use the supplied empty disks for saving or copying to. Saving to a mounted (and writeable) image is done seamlessly in the background, there is no need to open the F12 Menu to force a save. You can monitor drive activity directly on-screen for both disk drives. The available modes are configurable via the drives menu: **Activity Only** (pops up only on activity), **If Mounted** (always visible if a disk is inserted),  and **Off**. The overlay shows the current track number and uses color coding to indicate reads (yellow), writes (red) and no activity (green).
+
+The G64 format can accurately represent over 90% of original copy-protected software. However, getting protected software to load can sometimes be tricky. Always mount write protected, as some devious protections try to format your disk if they detect a copy and others even require being write protected to load. If a game fails to load, try the following steps:
+* Use the standard C64 kernal (disable fast loaders).
+* Toggle between PAL and NTSC modes via menu.
+* Try alternate dumps of the disk (alts).
+* Be patient! Some titles take a very long time to load.
+* Try multiple times (some protections are unreliable even on original hardware).
+* If all else fails, experiment with the drive speed and drive wobble settings.
+
+Note: In some cases protected disk will not work yet, or fall outside the scope of what the G64 format can accurately capture.

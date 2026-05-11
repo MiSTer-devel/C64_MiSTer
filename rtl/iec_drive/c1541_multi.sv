@@ -5,6 +5,8 @@
 //
 // Input clock/ce 16MHz
 //
+//
+// DDRAM arbiter by Robin Wünderlich
 //-------------------------------------------------------------------------------
 
 
@@ -25,6 +27,8 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input         drive_wobble,
 
 	output  [N:0] led,
+	output wire [6:0] out_track[NDR],
+	output wire [N:0] out_we,
 	output        disk_ready,
 
 	input         iec_atn_i,
@@ -55,7 +59,17 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input  [14:0] rom_addr,
 	input   [7:0] rom_data,
 	input         rom_wr,
-	input         rom_std
+	input         rom_std,
+
+	input         DDRAM_BUSY,
+	output  [7:0] DDRAM_BURSTCNT,
+	output [28:0] DDRAM_ADDR,
+	input  [63:0] DDRAM_DOUT,
+	input         DDRAM_DOUT_READY,
+	output        DDRAM_RD,
+	output        DDRAM_WE,
+	output [63:0] DDRAM_DIN,
+	output  [7:0] DDRAM_BE
 );
 
 localparam NDR = (DRIVES < 1) ? 1 : (DRIVES > 4) ? 4 : DRIVES;
@@ -207,6 +221,8 @@ generate
 
 			.drive_num(i),
 			.led(led_drv[i]),
+			.out_track(out_track[i]),
+			.out_we(out_we[i]),
 			.disk_ready(i_disk_ready[i]),
 
 			.iec_atn_i(iec_atn),
@@ -234,9 +250,90 @@ generate
 			.sd_buff_addr(sd_buff_addr),
 			.sd_buff_dout(sd_buff_dout),
 			.sd_buff_din(sd_buff_din[i]),
-			.sd_buff_wr(sd_buff_wr)
+			.sd_buff_wr(sd_buff_wr),
+
+			.DDRAM_BUSY(arb_ddram_busy[i]),
+			.DDRAM_DOUT(DDRAM_DOUT),
+			.DDRAM_DOUT_READY(arb_ddram_ready[i]),
+			.DDRAM_BURSTCNT(drv_ddram_burstcnt[i]),
+			.DDRAM_ADDR(drv_ddram_addr[i]),
+			.DDRAM_RD(drv_ddram_rd[i]),
+			.DDRAM_WE(drv_ddram_we[i]),
+			.DDRAM_DIN(drv_ddram_din[i]),
+			.DDRAM_BE(drv_ddram_be[i])
 		);
 	end
 endgenerate
+
+wire [7:0]  drv_ddram_burstcnt[NDR];
+wire [28:0] drv_ddram_addr[NDR];
+wire        arb_ddram_busy[NDR];
+wire        arb_ddram_ready[NDR];
+wire        drv_ddram_rd[NDR];
+wire        drv_ddram_we[NDR];
+wire [63:0] drv_ddram_din[NDR];
+wire  [7:0] drv_ddram_be[NDR];
+
+// ==============================================================================
+// DDRAM Round-Robin Arbiter (Supports Read Bursts)
+// ==============================================================================
+
+reg [1:0] arb_rr_state;
+reg       arb_is_locked;
+reg [7:0] burst_remaining;
+
+// MUX: Route signals for the currently polled/active drive
+assign DDRAM_ADDR     = drv_ddram_addr[arb_rr_state];
+assign DDRAM_DIN      = drv_ddram_din[arb_rr_state];
+assign DDRAM_BE       = drv_ddram_be[arb_rr_state];
+assign DDRAM_BURSTCNT = drv_ddram_burstcnt[arb_rr_state];
+
+// Only assert RD/WE if the bus isn't locked by an ongoing fetch
+assign DDRAM_RD = arb_is_locked ? 1'b0 : drv_ddram_rd[arb_rr_state];
+assign DDRAM_WE = arb_is_locked ? 1'b0 : drv_ddram_we[arb_rr_state];
+
+// BUSY Router: Drive must wait if it's not being polled, bus is locked, or RAM is busy
+generate
+	genvar arb_i;
+	for(arb_i=0; arb_i<NDR; arb_i=arb_i+1) begin : arb_routing_gen
+		// Force drive to wait if not polled, bus locked, or RAM busy
+		assign arb_ddram_busy[arb_i]  = (arb_rr_state != arb_i[1:0]) || arb_is_locked || DDRAM_BUSY;
+		// Only pass the ready pulse to the drive that currently owns the lock
+		assign arb_ddram_ready[arb_i] = (arb_rr_state == arb_i[1:0] && arb_is_locked) ? DDRAM_DOUT_READY : 1'b0;
+	end
+endgenerate
+
+// Polling and Burst-Lock FSM
+always @(posedge clk_sys) begin
+	if (&reset) begin
+		arb_is_locked   <= 1'b0;
+		arb_rr_state    <= 2'd0;
+		burst_remaining <= 8'd0;
+	end else begin
+		if (!arb_is_locked) begin
+			// POLLING: Check if the current drive wants the bus
+			if (!DDRAM_BUSY) begin
+				if (drv_ddram_rd[arb_rr_state]) begin
+					arb_is_locked   <= 1'b1; // Lock bus for the duration of the burst
+					burst_remaining <= drv_ddram_burstcnt[arb_rr_state];
+				end else if (!drv_ddram_we[arb_rr_state]) begin
+					// No request, move to next drive
+					arb_rr_state <= (arb_rr_state == N) ? 2'd0 : arb_rr_state + 2'd1;
+				end
+			end
+		end else begin
+			// LOCKED: Wait for the burst to complete
+			if (DDRAM_DOUT_READY) begin
+				if (burst_remaining <= 8'd1) begin
+					arb_is_locked <= 1'b0; // Unlock immediately
+					// Move to next drive to ensure fairness
+					arb_rr_state  <= (arb_rr_state == N) ? 2'd0 : arb_rr_state + 2'd1;
+				end else begin
+					burst_remaining <= burst_remaining - 8'd1;
+				end
+			end
+		end
+	end
+end
 
 endmodule
