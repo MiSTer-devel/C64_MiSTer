@@ -86,23 +86,98 @@ assign led       = act;
 assign out_track = track;
 assign out_we    = track_modified | busy_flushing_s;
 
+typedef enum bit [1:0] {
+	IDLE           = 2'd0,
+	// Disk Swap states
+	MOUNT_REMOVED  = 2'd1,
+	MOUNT_EMPTY    = 2'd2,
+} mount_fsm_t;
+
+mount_fsm_t state = IDLE;
+
 reg        readonly     = 0;
 reg        disk_present = 0;
-reg [24:0] ch_timeout;
+reg        present      = 0;
+reg        old_mounted  = 0;
+reg [21:0] phase_timer  = 0;
+reg        wps_reg      = 0;
+
 always @(posedge clk) begin
-	reg old_mounted;
-	reg present = 0;
-
-	if(ce && ch_timeout > 0) ch_timeout <= ch_timeout - 1'd1;
-	if(!ch_timeout) disk_present <= present;
-	disk_ready <= !ch_timeout;
-
 	old_mounted <= img_mounted;
+	disk_ready  <= (state == IDLE) && (phase_timer == 0);
+
 	if (~old_mounted & img_mounted) begin
-		ch_timeout <= '1;
 		readonly <= img_readonly;
-		present <= |img_size;
-		disk_present <= 0;
+		if (|img_size) begin
+			if (present) begin
+				// Mount -> Mount sequence starts by removing Disk
+				state        <= MOUNT_REMOVED;
+				disk_present <= 0;
+				wps_reg      <= 1;
+				// ~262ms removal  phase
+				phase_timer  <= 22'h3FFFFF;
+			end else begin
+				// Empty -> Mount sequence starts by adding empty
+				// phase before inserting, as a cautionary measure,
+				// if drive was just enabled.
+				state        <= MOUNT_EMPTY;
+				disk_present <= 0;
+				wps_reg      <= 0; // Drive empty.
+				phase_timer  <= 22'h3FFFFF;
+			end
+			present          <= 1;
+		end else begin
+			if (present) begin
+				// Mount -> Empty sequence just removes Disk
+				state        <= IDLE;
+				disk_present <= 0;
+				wps_reg      <= 1;
+				phase_timer  <= 22'h3FFFFF;
+			end else begin     // Already empty
+				// Do Nothing
+				state        <= IDLE;
+				disk_present <= 0;
+				wps_reg      <= 0;
+				phase_timer  <= 0;
+			end
+			present <= 0;
+		end
+	end else if (ce) begin
+		if (phase_timer > 0) begin
+			phase_timer <= phase_timer - 1'd1;
+		end else begin
+			// Phase transition dispatcher
+			case (state)
+				IDLE:          begin
+					// IDLE
+					// Is the final terminal state for all sequences.
+					// Applies the true, final write protect and
+					// disk_present status.
+					state        <= IDLE;
+					disk_present <= present;
+					wps_reg      <= present ? readonly : 1'b0;
+				end
+				MOUNT_REMOVED: begin
+					// Leave empty for a while
+					state        <= MOUNT_EMPTY;
+					phase_timer  <= 22'h3FFFFF;
+					disk_present <= 0;
+					wps_reg      <= 0;
+				end
+				MOUNT_EMPTY:  begin
+					// Insert Disk
+					state        <= IDLE;
+					phase_timer  <= 22'h3FFFFF;
+					disk_present <= 0;
+					wps_reg      <= 1;
+				end
+				default:      begin
+					state        <= IDLE;
+					disk_present <= present;
+					wps_reg      <= present ? readonly : 1'b0;
+				end
+			endcase
+		end
 	end
 end
 
@@ -111,7 +186,8 @@ wire [1:0] stp;
 wire       mtr;
 wire       act;
 wire [1:0] freq;
-wire       wps_n = ~readonly ^ ch_timeout[23];
+
+wire wps_n = ~wps_reg;
 
 c1541_logic c1541_logic
 (
