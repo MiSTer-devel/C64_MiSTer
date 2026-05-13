@@ -90,7 +90,7 @@ typedef enum bit [1:0] {
 	IDLE           = 2'd0,
 	// Disk Swap states
 	MOUNT_REMOVED  = 2'd1,
-	MOUNT_EMPTY    = 2'd2,
+	MOUNT_EMPTY    = 2'd2
 } mount_fsm_t;
 
 mount_fsm_t state = IDLE;

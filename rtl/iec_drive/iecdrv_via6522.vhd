@@ -276,7 +276,7 @@ begin
 
             -- Writes --
             if wen='1' and falling = '1' then
-                last_data <= data_in;
+                -- last_data <= data_in;
                 case addr is
                 when X"0" => -- ORB
                     pio_i.prb <= data_in;
