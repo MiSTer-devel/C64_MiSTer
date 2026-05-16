@@ -25,6 +25,9 @@ module c1581_drv
 	input   [1:0] drive_num,
 	output        act_led,
 	output        pwr_led,
+	// OSD
+	output  [7:0] track,
+	output        we,
 
 	input         iec_atn_i,
 	input         iec_data_i,
@@ -253,6 +256,7 @@ fdc1772 #(.IMG_TYPE(1), .EXT_MOTOR(1), .FD_NUM(1)) fdc
 
 	.img_mounted(img_mounted),
 	.img_size(img_size),
+
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
 	.sd_wr(sd_wr),
@@ -260,7 +264,10 @@ fdc1772 #(.IMG_TYPE(1), .EXT_MOTOR(1), .FD_NUM(1)) fdc
 	.sd_buff_addr(sd_buff_addr),
 	.sd_dout(sd_buff_dout),
 	.sd_din(sd_buff_din),
-	.sd_dout_strobe(sd_buff_wr)
+	.sd_dout_strobe(sd_buff_wr),
+
+	.track_out(track),
+	.we_out(we)
 );
 
 endmodule

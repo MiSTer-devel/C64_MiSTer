@@ -55,8 +55,13 @@ module fdc1772 (
 	input      [8:0] sd_buff_addr,
 	input      [7:0] sd_dout,
 	output     [7:0] sd_din,
-	input            sd_dout_strobe
+	input            sd_dout_strobe,
+	output     [7:0] track_out,   // track for OSD
+	output           we_out       // we for OSD
 );
+
+assign track_out = track;
+assign we_out = ((cmd[7:5] == 3'b101 || cmd[7:4] == 4'b1111) && busy) || (sd_state == SD_WRITE);
 
 
 parameter CLK_EN           = 16'd8000; // in kHz

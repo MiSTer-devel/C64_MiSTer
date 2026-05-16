@@ -23,6 +23,9 @@ module c1581_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 
 	output  [N:0] act_led,
 	output  [N:0] pwr_led,
+	// OSD
+	output wire [7:0] out_track[NDR],
+	output wire [N:0] out_we,
 
 	input         iec_atn_i,
 	input         iec_data_i,
@@ -160,6 +163,14 @@ wire [N:0] act_led_drv, pwr_led_drv;
 assign     act_led = act_led_drv & ~reset_drv;
 assign     pwr_led = pwr_led_drv & ~reset_drv;
 
+wire [7:0] track_drv[NDR];
+wire       we_drv[NDR];
+
+always_comb for(int j=0; j<NDR; j=j+1) begin
+	out_track[j] = track_drv[j] << 1;
+	out_we[j]    = we_drv[j];
+end
+
 generate
 	genvar i;
 	for(i=0; i<NDR; i=i+1) begin :drives
@@ -180,6 +191,8 @@ generate
 			.drive_num(i),
 			.act_led(act_led_drv[i]),
 			.pwr_led(pwr_led_drv[i]),
+			.track(track_drv[i]),
+			.we(we_drv[i]),
 
 			.iec_atn_i(iec_atn),
 			.iec_data_i(iec_data & iec_data_o),
@@ -212,3 +225,4 @@ generate
 endgenerate
 
 endmodule
+

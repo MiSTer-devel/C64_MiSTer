@@ -1039,7 +1039,7 @@ wire       drive_iec_data_o;
 wire       drive_reset = ~reset_n | status[6] | (load_c1581 & ioctl_download);
 
 wire [1:0] drive_led;
-wire [6:0] drive_track[2];
+wire [7:0] drive_track[2];
 wire [1:0] drive_we;
 wire       disk_ready;
 

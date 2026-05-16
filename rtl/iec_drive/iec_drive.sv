@@ -26,7 +26,7 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	input         drive_wobble,
 
 	output  [N:0] led,
-	output wire [6:0] out_track[NDR],
+	output wire [7:0] out_track[NDR],
 	output wire [N:0] out_we,
 	output        disk_ready,
 
@@ -94,10 +94,20 @@ end
 wire        c1541_iec_data, c1541_iec_clk, c1541_stb_o;
 wire  [7:0] c1541_par_o;
 wire  [N:0] c1541_led;
+wire  [6:0] c1541_out_track[NDR];
+wire  [N:0] c1541_out_we;
 wire  [7:0] c1541_sd_buff_dout[NDR];
 wire [31:0] c1541_sd_lba[NDR];
 wire  [N:0] c1541_sd_rd, c1541_sd_wr;
 wire  [5:0] c1541_sd_blk_cnt[NDR];
+
+wire  [7:0] c1581_out_track[NDR];
+wire  [N:0] c1581_out_we;
+
+always_comb for(int i=0; i<NDR; i=i+1) begin
+	out_track[i] = dtype[1][i] ? c1581_out_track[i] : {1'b0, c1541_out_track[i]};
+	out_we[i]    = dtype[1][i] ? c1581_out_we[i]    : c1541_out_we[i];
+end
 
 c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 (
@@ -114,8 +124,8 @@ c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 	.iec_clk_o (c1541_iec_clk),
 
 	.led(c1541_led),
-	.out_track(out_track),
-	.out_we(out_we),
+	.out_track(c1541_out_track),
+	.out_we(c1541_out_we),
 	.disk_ready(disk_ready),
 
 	.par_data_i(par_data_i),
@@ -180,6 +190,8 @@ c1581_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1581
 	.iec_clk_o (c1581_iec_clk),
 
 	.act_led(c1581_led),
+	.out_track(c1581_out_track),
+	.out_we(c1581_out_we),
 
 	.par_data_i(par_data_i),
 	.par_stb_i(par_stb_i),

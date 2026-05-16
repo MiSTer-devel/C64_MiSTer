@@ -263,8 +263,8 @@ wire valid_pixel_rd = dbg_area && active_row && debug_active && (dbg_px < 5) && 
 wire valid_pixel_wr = dbg_area && active_row && debug_active && (dbg_px < 5) && (dbg_py < 5) && (dbg_col >= 26) && (dbg_col < 51) && (dbg_col != 34);
 
 reg [4:0]  drv_char;
-wire [6:0] drv_track  = drv_row ? drive_track_1 : drive_track_0;
-wire [6:0] full_track = (drv_track >> 1) + 7'd1;
+wire [7:0] drv_track  = drv_row ? drive_track_1 : drive_track_0;
+wire [7:0] full_track = (drv_track >> 1) + 8'd1;
 wire       half_track = drv_track[0];
 
 wire [3:0] track_tens = (full_track >= 80) ? 4'd8 : (full_track >= 70) ? 4'd7 : (full_track >= 60) ? 4'd6 :
