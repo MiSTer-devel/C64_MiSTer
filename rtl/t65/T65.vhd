@@ -250,7 +250,7 @@ architecture rtl of T65 is
   signal NMI_entered    : std_logic;
 
 begin
-  NMI_ack <= NMIAct;
+  NMI_ack <= NMI_entered;
 
   -- gate Rdy with read/write to make an "OK, it's really OK to stop the processor 
   really_rdy <= Rdy or not(WRn_i);
@@ -587,9 +587,9 @@ begin
             BAH <= (others => '1');
             if RstCycle = '1' then
               BAL(2 downto 0) <= "100";
-            elsif NMICycle = '1' or (NMIAct = '1' and MCycle="100") or NMI_entered='1' then
+            elsif NMICycle = '1' or (NMIAct = '1' and MCycle="001") or NMI_entered='1' then
               BAL(2 downto 0) <= "010";
-              if MCycle="100" then
+              if MCycle="001" then
                 NMI_entered <= '1';
               end if;
             else
