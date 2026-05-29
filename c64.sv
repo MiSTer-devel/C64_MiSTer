@@ -147,6 +147,7 @@ localparam CONF_STR = {
 
 	"-;",
 	"O[3],Swap Joysticks,No,Yes;",
+	"O[88:87],SNAC Joystick,Disabled,Joy 1,Joy 2;",
 	"-;",
 	"O[47:46],Turbo mode,Off,C128,Smart;",
 	"d6O[49:48],Turbo speed,2x,3x,4x;",
@@ -540,8 +541,21 @@ wire [6:0] joyC_c64 = joy[8] ? 7'd0 : {joyC[6:4], joyC[0], joyC[1], joyC[2], joy
 wire [6:0] joyD_c64 = joy[8] ? 7'd0 : {joyD[6:4], joyD[0], joyD[1], joyD[2], joyD[3]};
 
 // swap joysticks if requested
-wire [6:0] joyA_c64 = status[3] ? joyB_int : joyA_int;
-wire [6:0] joyB_c64 = status[3] ? joyA_int : joyB_int;
+// SNAC DB9 joystick support - C64/Amiga/SMS standard pinout:
+//   Pin 1 Up     -> USER_IN[1]  (active low)
+//   Pin 2 Down   -> USER_IN[0]  (active low)
+//   Pin 3 Left   -> USER_IN[5]  (active low)
+//   Pin 4 Right  -> USER_IN[3]  (active low)
+//   Pin 5 NC     -> not used
+//   Pin 6 Fire A -> USER_IN[2]  (active low, Button 1)
+//   Pin 9 Fire B -> USER_IN[6]  (active low, Button 2)
+wire [1:0] snac_mode = status[88:87]; // 0=disabled, 1=Joy1, 2=Joy2
+wire [6:0] snac_joy  = {1'b0, ~USER_IN[6], ~USER_IN[2],
+                        ~USER_IN[3], ~USER_IN[5], ~USER_IN[0], ~USER_IN[1]};
+// format: {fire3=0, fireB(Pin9), fireA(Pin6), right(Pin4), left(Pin3), down(Pin2), up(Pin1)}
+
+wire [6:0] joyA_c64 = (snac_mode == 2'd1) ? snac_joy : (status[3] ? joyB_int : joyA_int);
+wire [6:0] joyB_c64 = (snac_mode == 2'd2) ? snac_joy : (status[3] ? joyA_int : joyB_int);
 
 wire [7:0] paddle_1 = status[3] ? pd3 : pd1;
 wire [7:0] paddle_2 = status[3] ? pd4 : pd2;
@@ -1155,13 +1169,13 @@ always @(posedge clk_sys) begin
 end
 
 wire ext_iec_en   = status[25];
-wire ext_iec_clk  = USER_IN[2] | ~ext_iec_en;
-wire ext_iec_data = USER_IN[4] | ~ext_iec_en;
+wire ext_iec_clk  = |snac_mode ? 1'b1 : (USER_IN[2] | ~ext_iec_en);
+wire ext_iec_data = |snac_mode ? 1'b1 : (USER_IN[4] | ~ext_iec_en);
 
-assign USER_OUT[2] = (c64_iec_clk & drive_iec_clk_o)  | ~ext_iec_en;
-assign USER_OUT[3] = (reset_n & ~status[6]) | ~ext_iec_en;
-assign USER_OUT[4] = (c64_iec_data & drive_iec_data_o) | ~ext_iec_en;
-assign USER_OUT[5] = c64_iec_atn | ~ext_iec_en;
+assign USER_OUT[2] = |snac_mode ? 1'b1 : ((c64_iec_clk & drive_iec_clk_o)  | ~ext_iec_en);
+assign USER_OUT[3] = |snac_mode ? 1'b1 : ((reset_n & ~status[6]) | ~ext_iec_en);
+assign USER_OUT[4] = |snac_mode ? 1'b1 : ((c64_iec_data & drive_iec_data_o) | ~ext_iec_en);
+assign USER_OUT[5] = |snac_mode ? 1'b1 : (c64_iec_atn | ~ext_iec_en);
 assign USER_OUT[6] = '1;
 
 
