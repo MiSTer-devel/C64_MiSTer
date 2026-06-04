@@ -16,6 +16,7 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - OPL2 sound expander
 - Pause option when OSD is opened
 - 4 joysticks mode
+- Snac DB9 joysticks support (via UserIO)
 - RS232 with VIC-1011 and UP9600 modes either internal or through USER_IO
 - Loadable Kernal/C1541 ROMs
 - Special reduced border mode for 16:9 display
