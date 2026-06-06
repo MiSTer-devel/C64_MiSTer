@@ -250,7 +250,12 @@ architecture rtl of T65 is
   signal NMI_entered    : std_logic;
 
 begin
-  NMI_ack <= NMIAct;
+  -- NMI_ack pulses one cycle during stack push so that an external cartridge that
+  -- watches it (e.g. a SIMCRT freezer state machine) can switch into ULTIMAX mode
+  -- in time for the $FFFA vector fetch at MCycle="101". Kept decoupled from the
+  -- internal NMI_entered signal so that the BAL elsif below can preserve the NMOS
+  -- 6502 "BRK / NMI hijack" quirk by keeping NMI_entered's assertion at MCycle="100".
+  NMI_ack <= '1' when (NMIAct = '1' and MCycle = "001") else '0';
 
   -- gate Rdy with read/write to make an "OK, it's really OK to stop the processor 
   really_rdy <= Rdy or not(WRn_i);
@@ -587,6 +592,11 @@ begin
             BAH <= (others => '1');
             if RstCycle = '1' then
               BAL(2 downto 0) <= "100";
+            -- NMOS 6502 "BRK / NMI hijack": if an /NMI is pending (NMIAct='1') by the
+            -- vector-fetch cycle of a real BRK opcode, the vector fetched is $FFFA
+            -- (NMI), not $FFFE (BRK). Keeping the MCycle="100" condition here is what
+            -- makes BAL force $FA at MCycle="100" so the cycle-5 fetch lands on $FFFA.
+            -- See NMI_ack above for the early cart-visible ack used by SIMCRT freezers.
             elsif NMICycle = '1' or (NMIAct = '1' and MCycle="100") or NMI_entered='1' then
               BAL(2 downto 0) <= "010";
               if MCycle="100" then
