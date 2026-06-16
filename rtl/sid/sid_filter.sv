@@ -46,6 +46,26 @@ function signed [17:0] clamp18(wire signed [18:0] x);
 	clamp18 = ^x[18:17] ? {x[18], {17{x[17]}}} : x[17:0];
 endfunction
 
+// 6581 output mixer/volume op-amp soft-knee compression on the filtered taps.
+// reSIDfp's filter-routed signal compresses with drive (gain ~halves toward a
+// fixed knee); the direct path stays linear. Models that as: unity below
+// COMP_KNEE, gain COMP_HG/16 above, centered at the tap DC operating point
+// (LP carries DC_LP; BP/HP block DC -> 0). 8580 left linear. Constants from
+// sw/filter_compressor.py (measured on the reSIDfp oracle).
+localparam [15:0]        COMP_KNEE = 16'd3000;
+localparam [4:0]         COMP_HG   = 5'd6;
+localparam signed [16:0] DC_LP     = -17'sd3840;
+function signed [15:0] compress(wire signed [15:0] x);
+	logic [15:0] ax, over, comp;
+	ax = x[15] ? 16'(-x) : x;
+	if (ax <= COMP_KNEE) compress = x;
+	else begin
+		over = ax - COMP_KNEE;
+		comp = COMP_KNEE + 16'((21'(over) * COMP_HG) >> 4);
+		compress = x[15] ? 16'(-comp) : comp;
+	end
+endfunction
+
 wire [10:0] _1_Q_lsl10_tbl[32] =
 '{
 	1448, 1324, 1219, 1129, 1052, 984, 925, 872, 826, 783, 745, 711, 679, 651, 624, 600,
@@ -72,6 +92,16 @@ reg signed [17:0] vbp, vbp2, vbp_next;
 reg signed [17:0] vhp, vhp2, vhp_next;
 reg signed [18:0] dv;
 
+// Filtered-tap mix and its compressed form. tmix_s / center_s are registered
+// snapshots: the compressor runs on these in state 6, OUT of the state-4->5
+// SVF MAC cycle (pipelined to keep the long path off the single MAC cycle).
+reg signed [16:0] tmix;
+reg signed [16:0] tmix_s;
+reg signed [16:0] center;
+reg signed [16:0] center_s;
+reg signed [15:0] tmix_c;
+reg signed [15:0] tmix_c_r;   // registered compressor output (extra pipe stage)
+
 always_comb begin
 	// Intermediate results for filter.
 	// Shifts -w0*vbp and -w0*vlp right by 17.
@@ -79,6 +109,19 @@ always_comb begin
 	vlp_next = clamp18(vlp + dv);
 	vbp_next = clamp18(vbp + dv);
 	vhp_next = clamp18(o[10 +: 19]);
+
+	// Filtered tap mix, narrowed >>2 from the 18-bit state back to 16-bit
+	// signal scale (audio mixer / master volume input, filter portion).
+	tmix = (Mode_Vol[4] ? 17'(vlp2     >>> 2) : '0) +
+	       (Mode_Vol[5] ? 17'(vbp2     >>> 2) : '0) +
+	       (Mode_Vol[6] ? 17'(vhp_next >>> 2) : '0);
+
+	// Compress about the tap DC: LP carries DC_LP, BP/HP block DC (~0).
+	// 8580 left linear. Compress the REGISTERED snapshot so compress() is
+	// pipelined out of the SVF MAC cycle (used in state 6).
+	center = (!mode && Mode_Vol[4]) ? DC_LP : 17'sd0;
+	tmix_c = mode ? clamp(tmix_s)
+	              : clamp(17'(compress(clamp(tmix_s - center_s))) + center_s);
 end
 
 
@@ -145,19 +188,26 @@ always @(posedge clk) begin
 		5: begin
 				// Result for vbp ready. See calculation of vhp_next above.
 				{ vhp, vhp2 } <= { vhp2, vhp_next };
-
-				// Audio output: aout = vol*amix
+				// Snapshot the raw tap mix + center; compress() runs on these
+				// next cycle (state 6), out of this SVF MAC cycle.
+				tmix_s   <= tmix;
+				center_s <= center;
+			end
+		6: begin
+				// Register the compressed mix. compress() runs THIS cycle,
+				// isolated from both the SVF MAC (state 4->5) and the audio
+				// MAC (state 7) -- splits the long path to close timing.
+				tmix_c_r <= tmix_c;
+			end
+		7: begin
+				// Audio output: aout = vol*amix; result ready at state 8.
 				// In the real SID, the signal is inverted first in the mixer
 				// op-amp, and then again in the volume control op-amp.
 				c <= 0;
 				s <= 0;
-				a <= {12'b0, Mode_Vol[3:0]}; // Master volume
-				// Narrow the 18-bit taps back to 16-bit signal scale (>>>2) so the
-				// audio / master-volume path downstream is unchanged.
-				b <= clamp(17'(vd) +         // Audio mixer / master volume input
-						(Mode_Vol[4] ? 17'(vlp2     >>> 2) : '0) +
-						(Mode_Vol[5] ? 17'(vbp2     >>> 2) : '0) +
-						(Mode_Vol[6] ? 17'(vhp_next >>> 2) : '0));
+				a <= {12'b0, Mode_Vol[3:0]};      // Master volume
+				// Direct path (vd) + DC-centered compressed filter taps.
+				b <= clamp(17'(vd) + 17'(tmix_c_r));
 			end
 	endcase
 end

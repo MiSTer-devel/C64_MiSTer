@@ -302,8 +302,11 @@ sid_filter sid_filter
 
 always @(posedge clk) begin
 	reg [17:0] audio0;
-	if(state == 6)  audio0 <= faudio;
-	if(state == 14) begin
+	// faudio is two states later than upstream (was 6) because sid_filter
+	// pipelines the compressor across filter-states 5-7 to close timing; the
+	// first-pass result lands at state 8 and the DUAL slot at 15 (was 14).
+	if(state == 8)  audio0 <= faudio;
+	if(state == 15) begin
 		audio[n] <= faudio;
 		audio[0] <= audio0;
 	end
