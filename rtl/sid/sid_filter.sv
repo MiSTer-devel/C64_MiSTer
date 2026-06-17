@@ -41,6 +41,31 @@ function signed [15:0] clamp(wire signed [16:0] x);
 	clamp = ^x[16:15] ? {x[16], {15{x[15]}}} : x[15:0];
 endfunction
 
+// Clamp to 18 bits, for the widened (+2 fractional bits) integrators.
+function signed [17:0] clamp18(wire signed [18:0] x);
+	clamp18 = ^x[18:17] ? {x[18], {17{x[17]}}} : x[17:0];
+endfunction
+
+// 6581 output mixer/volume op-amp soft-knee compression on the filtered taps.
+// reSIDfp's filter-routed signal compresses with drive (gain ~halves toward a
+// fixed knee); the direct path stays linear. Models that as: unity below
+// COMP_KNEE, gain COMP_HG/16 above, centered at the tap DC operating point
+// (LP carries DC_LP; BP/HP block DC -> 0). 8580 left linear. Constants from
+// sw/filter_compressor.py (measured on the reSIDfp oracle).
+localparam [15:0]        COMP_KNEE = 16'd3000;
+localparam [4:0]         COMP_HG   = 5'd6;
+localparam signed [16:0] DC_LP     = -17'sd3840;
+function signed [15:0] compress(wire signed [15:0] x);
+	logic [15:0] ax, over, comp;
+	ax = x[15] ? 16'(-x) : x;
+	if (ax <= COMP_KNEE) compress = x;
+	else begin
+		over = ax - COMP_KNEE;
+		comp = COMP_KNEE + 16'((21'(over) * COMP_HG) >> 4);
+		compress = x[15] ? 16'(-comp) : comp;
+	end
+endfunction
+
 wire [10:0] _1_Q_lsl10_tbl[32] =
 '{
 	1448, 1324, 1219, 1129, 1052, 984, 925, 872, 826, 783, 745, 711, 679, 651, 624, 600,
@@ -48,29 +73,55 @@ wire [10:0] _1_Q_lsl10_tbl[32] =
 };
 
 // o = c +- (a * b)
-reg signed  [31:0] c;
+// Integrator state widened 16->18b (+2 frac bits); b/m/o/c grow to suit, so
+// the multiply is 16x18 -- still one native 18x18 DSP (Cyclone III, ECP5).
+reg signed  [33:0] c;
 reg                s;
 reg signed  [15:0] a;
-reg signed  [15:0] b;
-wire signed [31:0] m = a * b;
-wire signed [31:0] o = s ? (c - m) : (c + m);
+reg signed  [17:0] b;
+wire signed [33:0] m = a * b;
+wire signed [33:0] o = s ? (c - m) : (c + m);
 
 // Filter states for two SID chips, updated as follows:
 // vlp = vlp - w0*vbp
 // vbp = vbp - w0*vhp
 // vhp = 1/Q*vbp - vlp - vi
-reg signed [15:0] vlp, vlp2, vlp_next;
-reg signed [15:0] vbp, vbp2, vbp_next;
-reg signed [15:0] vhp, vhp2, vhp_next;
-reg signed [16:0] dv;
+// Widened to 18 bits (+2 fractional bits) to cut low-cutoff LP quant noise.
+reg signed [17:0] vlp, vlp2, vlp_next;
+reg signed [17:0] vbp, vbp2, vbp_next;
+reg signed [17:0] vhp, vhp2, vhp_next;
+reg signed [18:0] dv;
+
+// Filtered-tap mix and its compressed form. tmix_s / center_s are registered
+// snapshots: the compressor runs on these in state 6, OUT of the state-4->5
+// SVF MAC cycle (pipelined to keep the long path off the single MAC cycle).
+reg signed [16:0] tmix;
+reg signed [16:0] tmix_s;
+reg signed [16:0] center;
+reg signed [16:0] center_s;
+reg signed [15:0] tmix_c;
+reg signed [15:0] tmix_c_r;   // registered compressor output (extra pipe stage)
 
 always_comb begin
 	// Intermediate results for filter.
 	// Shifts -w0*vbp and -w0*vlp right by 17.
-	dv       = 17'(o >>> 17);
-	vlp_next = clamp(vlp + dv);
-	vbp_next = clamp(vbp + dv);
-	vhp_next = clamp(o[10 +: 17]);
+	dv       = 19'(o >>> 17);
+	vlp_next = clamp18(vlp + dv);
+	vbp_next = clamp18(vbp + dv);
+	vhp_next = clamp18(o[10 +: 19]);
+
+	// Filtered tap mix, narrowed >>2 from the 18-bit state back to 16-bit
+	// signal scale (audio mixer / master volume input, filter portion).
+	tmix = (Mode_Vol[4] ? 17'(vlp2     >>> 2) : '0) +
+	       (Mode_Vol[5] ? 17'(vbp2     >>> 2) : '0) +
+	       (Mode_Vol[6] ? 17'(vhp_next >>> 2) : '0);
+
+	// Compress about the tap DC: LP carries DC_LP, BP/HP block DC (~0).
+	// 8580 left linear. Compress the REGISTERED snapshot so compress() is
+	// pipelined out of the SVF MAC cycle (used in state 6).
+	center = (!mode && Mode_Vol[4]) ? DC_LP : 17'sd0;
+	tmix_c = mode ? clamp(tmix_s)
+	              : clamp(17'(compress(clamp(tmix_s - center_s))) + center_s);
 end
 
 
@@ -78,7 +129,7 @@ end
 always @(posedge clk) begin
 	reg [10:0] _1_Q_lsl10;
 
-	reg signed [15:0] vi = 0;
+	reg signed [17:0] vi = 0;   // wide-scale (signal<<2) input for 18-bit state
 	reg signed [15:0] vd = 0;
 
 	case (state)
@@ -89,10 +140,11 @@ always @(posedge clk) begin
 
 				// Mux for filter path.
 				// Each voice is 22 bits, i.e. the sum of four voices is 24 bits.
-				vi <= 16'(((Res_Filt[0] ? 24'(voice1) : '0) +
+				// >>>5 (was >>>7) carries vi at the wide 18-bit scale (signal<<2).
+				vi <= 18'(((Res_Filt[0] ? 24'(voice1) : '0) +
 							  (Res_Filt[1] ? 24'(voice2) : '0) +
 							  (Res_Filt[2] ? 24'(voice3) : '0) +
-							  (Res_Filt[3] ? 24'(ext_in) : '0)) >>> 7);
+							  (Res_Filt[3] ? 24'(ext_in) : '0)) >>> 5);
 
 				// Mux for direct audio path.
 				// 3 OFF (Mode_Vol[7]) disconnects voice 3 from the direct audio path.
@@ -128,7 +180,7 @@ always @(posedge clk) begin
 				{ vbp, vbp2 } <= { vbp2, vbp_next };
 
 				// vhp = 1/Q*vbp - vlp - vi
-				c <= -(32'(vlp2) + 32'(vi)) << 10;
+				c <= -(34'(vlp2) + 34'(vi)) << 10;
 				s <= 0;
 				a <= _1_Q_lsl10; // 1/Q << 10
 				b <= vbp_next;   // vbp
@@ -136,17 +188,26 @@ always @(posedge clk) begin
 		5: begin
 				// Result for vbp ready. See calculation of vhp_next above.
 				{ vhp, vhp2 } <= { vhp2, vhp_next };
-
-				// Audio output: aout = vol*amix
+				// Snapshot the raw tap mix + center; compress() runs on these
+				// next cycle (state 6), out of this SVF MAC cycle.
+				tmix_s   <= tmix;
+				center_s <= center;
+			end
+		6: begin
+				// Register the compressed mix. compress() runs THIS cycle,
+				// isolated from both the SVF MAC (state 4->5) and the audio
+				// MAC (state 7) -- splits the long path to close timing.
+				tmix_c_r <= tmix_c;
+			end
+		7: begin
+				// Audio output: aout = vol*amix; result ready at state 8.
 				// In the real SID, the signal is inverted first in the mixer
 				// op-amp, and then again in the volume control op-amp.
 				c <= 0;
 				s <= 0;
-				a <= {12'b0, Mode_Vol[3:0]}; // Master volume
-				b <= clamp(17'(vd) +         // Audio mixer / master volume input
-						(Mode_Vol[4] ? 17'(vlp2)     : '0) +
-						(Mode_Vol[5] ? 17'(vbp2)     : '0) +
-						(Mode_Vol[6] ? 17'(vhp_next) : '0));
+				a <= {12'b0, Mode_Vol[3:0]};      // Master volume
+				// Direct path (vd) + DC-centered compressed filter taps.
+				b <= clamp(17'(vd) + 17'(tmix_c_r));
 			end
 	endcase
 end
