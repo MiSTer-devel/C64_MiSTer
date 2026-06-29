@@ -636,7 +636,7 @@ always@(posedge clk_sys) begin : fio_block
 	if(~fp_enable) begin
 		if(has_cmd && (cmd == FIO_FILE_TX)) begin
 			{ioctl_upload, ioctl_download} <= req_io;
-			skip_add <= req_io[0];
+			{ioctl_rd, skip_add} <= req_io;
 		end
 		has_cmd <= 0;
 	end
