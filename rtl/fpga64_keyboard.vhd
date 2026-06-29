@@ -196,6 +196,7 @@ begin
 			tape_ff <= '0';
 			tape_reset_counter <= '0';
 
+
 			-- reading A, scan pattern on B
 			pao(0) <= pai(0) and joyB(0) and
 				((not backwardsReadingEnabled) or
