@@ -63,7 +63,7 @@ assign HDMI_BOB_DEINT = 0;
 //
 // 6     7         8         9         10        11        12
 // 45678901234567890123456789012345 67890123456789012345678901234567
-// XXXXXXXXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXX
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -148,7 +148,6 @@ localparam CONF_STR = {
 	"-;",
 	"O[3],Swap Joysticks,No,Yes;",
 	"O[88:87],SNAC Joystick,Disabled,Joy 1,Joy 2;",
-	"O[90:89],SNAC Autofire,Off,Slow,Fast;",
 	"-;",
 	"O[47:46],Turbo mode,Off,C128,Smart;",
 	"d6O[49:48],Turbo speed,2x,3x,4x;",
@@ -541,6 +540,7 @@ wire [6:0] joyB_int = joy[8] ? 7'd0 : {joyB[6:4], joyB[0], joyB[1], joyB[2], joy
 wire [6:0] joyC_c64 = joy[8] ? 7'd0 : {joyC[6:4], joyC[0], joyC[1], joyC[2], joyC[3]};
 wire [6:0] joyD_c64 = joy[8] ? 7'd0 : {joyD[6:4], joyD[0], joyD[1], joyD[2], joyD[3]};
 
+// swap joysticks if requested
 // SNAC DB9 joystick support - C64/Amiga/SMS standard pinout:
 //   Pin 1 Up     -> USER_IN[1]  (active low)
 //   Pin 2 Down   -> USER_IN[0]  (active low)
@@ -550,23 +550,12 @@ wire [6:0] joyD_c64 = joy[8] ? 7'd0 : {joyD[6:4], joyD[0], joyD[1], joyD[2], joy
 //   Pin 6 Fire A -> USER_IN[2]  (active low, Button 1)
 //   Pin 9 Fire B -> USER_IN[6]  (active low, Button 2)
 wire [1:0] snac_mode = status[88:87]; // 0=disabled, 1=Joy1, 2=Joy2
-wire [6:0] snac_joy  = {1'b0, ~USER_IN[6], ~USER_IN[2], ~USER_IN[3], ~USER_IN[5], ~USER_IN[0], ~USER_IN[1]};
-
+wire [6:0] snac_joy  = {1'b0, ~USER_IN[6], ~USER_IN[2],
+                        ~USER_IN[3], ~USER_IN[5], ~USER_IN[0], ~USER_IN[1]};
 // format: {fire3=0, fireB(Pin9), fireA(Pin6), right(Pin4), left(Pin3), down(Pin2), up(Pin1)}
 
-// SNAC Autofire selectable on 2 speed (Fast and Slow)
-wire [1:0] snac_af_mode = status[90:89];
-reg [21:0] snac_af_cnt;
-always @(posedge clk_sys) snac_af_cnt <= snac_af_cnt + 1'd1;
-// Slow ~7.6 Hz | Fast ~15.3 Hz  (clk_sys = 32 MHz)
-wire snac_af_clk = (snac_af_mode == 2'd2) ? snac_af_cnt[20] : snac_af_cnt[21];
-wire [6:0] snac_joy_af = {snac_joy[6:5], snac_af_mode ? (snac_joy[4] & snac_af_clk) : snac_joy[4], snac_joy[3:0]};
-
-// swap joysticks if requested
-wire [6:0] joyA_base = status[3] ? joyB_int : joyA_int;
-wire [6:0] joyB_base = status[3] ? joyA_int : joyB_int;
-wire [6:0] joyA_c64  = (snac_mode == 2'd1 || snac_mode == 2'd3) ? snac_joy_af : joyA_base;
-wire [6:0] joyB_c64  = (snac_mode == 2'd2 || snac_mode == 2'd3) ? snac_joy_af : joyB_base;
+wire [6:0] joyA_c64 = (snac_mode == 2'd1) ? snac_joy : (status[3] ? joyB_int : joyA_int);
+wire [6:0] joyB_c64 = (snac_mode == 2'd2) ? snac_joy : (status[3] ? joyA_int : joyB_int);
 
 wire [7:0] paddle_1 = status[3] ? pd3 : pd1;
 wire [7:0] paddle_2 = status[3] ? pd4 : pd2;
