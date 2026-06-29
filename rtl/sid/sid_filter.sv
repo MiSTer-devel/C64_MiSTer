@@ -58,12 +58,9 @@ localparam signed [16:0] DC_LP     = -17'sd3840;
 function signed [15:0] compress(wire signed [15:0] x);
 	logic [15:0] ax, over, comp;
 	ax = x[15] ? 16'(-x) : x;
-	if (ax <= COMP_KNEE) compress = x;
-	else begin
-		over = ax - COMP_KNEE;
-		comp = COMP_KNEE + 16'((21'(over) * COMP_HG) >> 4);
-		compress = x[15] ? 16'(-comp) : comp;
-	end
+	over = ax - COMP_KNEE;
+	comp = COMP_KNEE + 16'((21'(over) * COMP_HG) >> 4);
+	compress = (ax <= COMP_KNEE) ? x : x[15] ? 16'(-comp) : comp;
 endfunction
 
 wire [10:0] _1_Q_lsl10_tbl[32] =
