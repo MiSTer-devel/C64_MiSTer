@@ -17,12 +17,14 @@ Based on FPGA64 by Peter Wendrich with heavy later modifications by different pe
 - Pause option when OSD is opened
 - 4 joysticks mode
 - Snac DB9 joysticks support (via UserIO)
+- Autofire with 2 different speed on DB9 Snac joysticks 
 - RS232 with VIC-1011 and UP9600 modes either internal or through USER_IO
 - Loadable Kernal/C1541 ROMs
 - Special reduced border mode for 16:9 display
 - C128/Smart Turbo mode up to 4x
 - Real-time clock
 - Drive OSD showing mount status, read/write activity and current track
+- Complete C1530 Datasette implementation with on screen Counter and shortcuts keys
 
 ## Installation
 Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
@@ -32,13 +34,17 @@ Copy the *.rbf to the root of the SD card. Copy disks/carts to C64 folder.
 ### Keyboard
 Note: F2, F4, F6, F8, Left/Up keys automatically activate Shift key.
 
-| Key       | Function                                     |
-|:---------:|----------------------------------------------|
-| F9        | Arrow-up key                                 |
-| F10       | = key                                        |
-| F11       | Restore key. Also special key in AR/FC carts |
-| Alt, Tab  | C= key                                       |
-| PgUp      | Tape play/pause                              |
+| Key                   | Function                                     |
+|:---------------------:|----------------------------------------------|
+| F9                    | Arrow-up key                                 |
+| F10                   | = key                                        |
+| F11                   | Restore key. Also special key in AR/FC carts |
+| Alt, Tab              | C= key                                       |
+| CTRL + Cursor Up      | Tape Play / Stop                             |
+| CTRL + Cursor Down    | Tape Stop                                    |
+| CTRL + Cursor Left    | Tape Rewind                                  |
+| CTRL + Cursor Right   | Tape Fast Forward                            |
+| CTRL + Canc (or Del)  | Tape Counter Reset                           |
 <br>
 
 ![keyboard-mapping](https://github.com/mister-devel/C64_MiSTer/blob/master/keymap.gif)
@@ -76,6 +82,9 @@ For **C1581** you can use separate ROM with size up to 32768 bytes.
 
 ### Autoload the cartridge
 In OSD->Hardware page you can choose Boot Cartridge, so every time a core is loaded, this cartridge will be loaded too.
+
+### C1530 and tape support
+In OSD->Load *.TAP and choose a TAP file. When a TAP is mounted, on OSD all the commands for managing the C1530 will appear and the keyboard shortcuts will also be enabled. For show counter on display (HDMI and CRT), enable Tape Counter on OSD and save settings. 
 
 ### Parallel port
 Are you tired of long loading times and fast loaders aren't really fast when comparing to other systems? 

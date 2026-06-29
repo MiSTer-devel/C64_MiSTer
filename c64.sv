@@ -63,7 +63,20 @@ assign HDMI_BOB_DEINT = 0;
 //
 // 6     7         8         9         10        11        12
 // 45678901234567890123456789012345 67890123456789012345678901234567
-// XXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXXXX  XXXX
+//                            ^^^^^ 91=Tape Counter Reset, 92=Tape Counter On/Off,
+//                                  93=Tape Rewind, 94=Tape Fast Forward, 95=Tape Stop
+//
+// Tape-related status bits:
+//   7  = Tape Play/Pause
+//   11 = Tape Sound
+//   23 = Tape Unload
+//   39 = Tape Autoplay
+//   91 = Tape Counter Reset
+//   92 = Tape Counter On/Off
+//   93 = Tape Rewind
+//   94 = Tape Fast Forward
+//   95 = Tape Stop
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -77,6 +90,11 @@ localparam CONF_STR = {
 	"hAO[62],Autosave,Off,On;",
 	"h3-;",
 	"h3R[7],Tape Play/Pause;",
+	"h3R[95],Tape Stop;",
+	"h3R[93],Tape Rewind;",
+	"h3R[94],Tape Fast Forward;",
+	"h3O[92],Tape Counter,Off,On;",
+	"h3R[91],Tape Counter Reset;",
 	"h3R[23],Tape Unload;",
 	"h3O[11],Tape Sound,Off,On;",
 	"-;",
@@ -148,6 +166,7 @@ localparam CONF_STR = {
 	"-;",
 	"O[3],Swap Joysticks,No,Yes;",
 	"O[88:87],SNAC Joystick,Disabled,Joy 1,Joy 2;",
+	"O[90:89],SNAC Autofire,Off,Slow,Fast;",
 	"-;",
 	"O[47:46],Turbo mode,Off,C128,Smart;",
 	"d6O[49:48],Turbo speed,2x,3x,4x;",
@@ -318,6 +337,7 @@ wire  [7:0] ioctl_din;
 wire  [7:0] ioctl_index;
 wire        ioctl_download;
 wire        ioctl_upload;
+wire        tap_scanner_wait;
 wire [31:0] ioctl_file_ext;
 
 wire [31:0] sd_lba[2];
@@ -392,7 +412,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.ioctl_upload(ioctl_upload),
 	.ioctl_din(ioctl_din),
 	.ioctl_rd(ioctl_rd),
-	.ioctl_wait(ioctl_req_wr|ioctl_req_rd|reset_wait)
+	.ioctl_wait(ioctl_req_wr|ioctl_req_rd|reset_wait|((ioctl_index == 'hC1) & tap_scanner_wait))
 );
 
 wire load_prg   = ioctl_index == 'h01;
@@ -540,7 +560,6 @@ wire [6:0] joyB_int = joy[8] ? 7'd0 : {joyB[6:4], joyB[0], joyB[1], joyB[2], joy
 wire [6:0] joyC_c64 = joy[8] ? 7'd0 : {joyC[6:4], joyC[0], joyC[1], joyC[2], joyC[3]};
 wire [6:0] joyD_c64 = joy[8] ? 7'd0 : {joyD[6:4], joyD[0], joyD[1], joyD[2], joyD[3]};
 
-// swap joysticks if requested
 // SNAC DB9 joystick support - C64/Amiga/SMS standard pinout:
 //   Pin 1 Up     -> USER_IN[1]  (active low)
 //   Pin 2 Down   -> USER_IN[0]  (active low)
@@ -550,12 +569,23 @@ wire [6:0] joyD_c64 = joy[8] ? 7'd0 : {joyD[6:4], joyD[0], joyD[1], joyD[2], joy
 //   Pin 6 Fire A -> USER_IN[2]  (active low, Button 1)
 //   Pin 9 Fire B -> USER_IN[6]  (active low, Button 2)
 wire [1:0] snac_mode = status[88:87]; // 0=disabled, 1=Joy1, 2=Joy2
-wire [6:0] snac_joy  = {1'b0, ~USER_IN[6], ~USER_IN[2],
-                        ~USER_IN[3], ~USER_IN[5], ~USER_IN[0], ~USER_IN[1]};
+wire [6:0] snac_joy  = {1'b0, ~USER_IN[6], ~USER_IN[2], ~USER_IN[3], ~USER_IN[5], ~USER_IN[0], ~USER_IN[1]};
+
 // format: {fire3=0, fireB(Pin9), fireA(Pin6), right(Pin4), left(Pin3), down(Pin2), up(Pin1)}
 
-wire [6:0] joyA_c64 = (snac_mode == 2'd1) ? snac_joy : (status[3] ? joyB_int : joyA_int);
-wire [6:0] joyB_c64 = (snac_mode == 2'd2) ? snac_joy : (status[3] ? joyA_int : joyB_int);
+// SNAC Autofire selectable on 2 speed (Fast and Slow)
+wire [1:0] snac_af_mode = status[90:89];
+reg [21:0] snac_af_cnt;
+always @(posedge clk_sys) snac_af_cnt <= snac_af_cnt + 1'd1;
+// Slow ~7.6 Hz | Fast ~15.3 Hz  (clk_sys = 32 MHz)
+wire snac_af_clk = (snac_af_mode == 2'd2) ? snac_af_cnt[20] : snac_af_cnt[21];
+wire [6:0] snac_joy_af = {snac_joy[6:5], snac_af_mode ? (snac_joy[4] & snac_af_clk) : snac_joy[4], snac_joy[3:0]};
+
+// swap joysticks if requested
+wire [6:0] joyA_base = status[3] ? joyB_int : joyA_int;
+wire [6:0] joyB_base = status[3] ? joyA_int : joyB_int;
+wire [6:0] joyA_c64  = (snac_mode == 2'd1 || snac_mode == 2'd3) ? snac_joy_af : joyA_base;
+wire [6:0] joyB_c64  = (snac_mode == 2'd2 || snac_mode == 2'd3) ? snac_joy_af : joyB_base;
 
 wire [7:0] paddle_1 = status[3] ? pd3 : pd1;
 wire [7:0] paddle_2 = status[3] ? pd4 : pd2;
@@ -695,7 +725,6 @@ always @(posedge clk_sys) begin
 		
 		if (load_tap) begin
 			if (ioctl_addr == 0)  ioctl_load_addr <= TAP_ADDR;
-			if (ioctl_addr == 12) tap_version <= ioctl_data[1:0];
 			ioctl_req_wr <= 1;
 		end
 
@@ -945,6 +974,10 @@ fpga64_sid_iec fpga64
 	.nmi_ack(nmi_ack),
 	.freeze_key(freeze_key),
 	.tape_play(tape_play),
+	.tape_rew(tape_key_rew),
+	.tape_stop(tape_key_stop),
+	.tape_ff(tape_key_ff),
+	.tape_reset_counter(tape_key_counter_reset),
 	.mod_key(mod_key),
 	.roml(romL),
 	.romh(romH),
@@ -1434,9 +1467,80 @@ drv_overlay drv_ovl (
 	.pixel_color(ovl_color)
 );
 
-reg [1:0] ovl_color_sync;
+wire       tape_play;
+wire       tape_key_rew;
+wire       tape_key_stop;
+wire       tape_key_ff;
+wire       tape_key_counter_reset;
+
+wire       cass_write;
+wire       cass_motor;
+wire       cass_sense;
+wire       cass_read;
+wire       cass_run;
+wire       cass_finish;
+
+wire       tap_loaded;
+wire [24:0] tap_play_addr;
+wire [24:0] tap_last_addr;
+wire [2:0]  tc_color;
+
+tape_subsystem tape_subsystem
+(
+	.clk(clk_sys),
+	.ce(ce_sys),
+	.reset_n(reset_n),
+	.hblank(hblank),
+	.vblank(vblank),
+	.ntsc(ntsc),
+
+	.ioctl_download(ioctl_download),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_data(ioctl_data),
+	.load_tap(load_tap),
+	.tap_scanner_wait(tap_scanner_wait),
+
+	.io_cycle(io_cycle),
+	.sdram_data(sdram_data),
+
+	.osd_play(status[7]),
+	.osd_stop(status[95]),
+	.osd_rew(status[93]),
+	.osd_ff(status[94]),
+	.osd_unload(status[23]),
+	.osd_counter_reset(status[91]),
+	.counter_enable(status[92]),
+	.tape_autoplay_off(status[39]),
+
+	.key_play(tape_play),
+	.key_stop(tape_key_stop),
+	.key_rew(tape_key_rew),
+	.key_ff(tape_key_ff),
+	.key_counter_reset(tape_key_counter_reset),
+
+	.cass_write(cass_write),
+	.cass_motor(cass_motor),
+	.cass_sense(cass_sense),
+	.cass_read(cass_read),
+	.cass_run(cass_run),
+	.cass_finish(cass_finish),
+
+	.tap_loaded(tap_loaded),
+	.tap_play_addr(tap_play_addr),
+	.tap_last_addr(tap_last_addr),
+
+	.pixel_color(tc_color)
+);
+
+wire cass_snd = cass_read & ~cass_run & status[11] & ~cass_finish;
+
+// Combina i due overlay: il contagiri ha priorita' dove disegna
+wire [2:0] ovl_mix = (tc_color != 3'd0) ? tc_color : {1'b0, ovl_color};
+
+reg [2:0] ovl_color_sync;
 always @(posedge CLK_VIDEO) begin
-    ovl_color_sync <= ovl_color;
+    ovl_color_sync <= ovl_mix;
 end
 
 video_mixer #(.GAMMA(1)) video_mixer
@@ -1448,10 +1552,12 @@ video_mixer #(.GAMMA(1)) video_mixer
 	.gamma_bus(gamma_bus),
 
 	.ce_pix(ce_pix),
-	 // overlay colors: 0=Transparent, 1=Green, 2=Yellow, 3=Red
-	.R((ovl_color_sync == 2 || ovl_color_sync == 3) ? 8'hFF : (ovl_color_sync == 1 ? 8'h00 : r)),
-	.G((ovl_color_sync == 1 || ovl_color_sync == 2) ? 8'hFF : (ovl_color_sync == 3 ? 8'h00 : g)),
-	.B((ovl_color_sync != 0) ? 8'h00 : b),
+	 // overlay colors: 0=Transparent, 1=Green, 2=Yellow, 3=Red, 4=Blue
+	.R((ovl_color_sync == 3'd2 || ovl_color_sync == 3'd3) ? 8'hFF :
+	   (ovl_color_sync == 3'd1 || ovl_color_sync == 3'd4) ? 8'h00 : r),
+	.G((ovl_color_sync == 3'd1 || ovl_color_sync == 3'd2) ? 8'hFF :
+	   (ovl_color_sync == 3'd3 || ovl_color_sync == 3'd4) ? 8'h00 : g),
+	.B((ovl_color_sync == 3'd4) ? 8'hFF : (ovl_color_sync != 3'd0) ? 8'h00 : b),
 	.HSync(hsync_out),
 	.VSync(vsync_out),
 	.HBlank(hblank),
@@ -1579,72 +1685,7 @@ assign AUDIO_R = aro;
 assign AUDIO_S = 1;
 assign AUDIO_MIX = status[19:18];
 
-//------------- TAP -------------------
-
-wire       tap_download = ioctl_download & load_tap;
-wire       tap_reset    = ~reset_n | tap_download | status[23] | !tap_last_addr | cass_finish | (cass_run & ((tap_last_addr - tap_play_addr) < 80));
-wire       tap_loaded   = (tap_play_addr < tap_last_addr);                                    // ^^ auto-unload if motor stopped at the very end ^^
-wire       tap_play_btn = status[7] | tape_play;
-wire       tape_play;
-
-reg [24:0] tap_play_addr;
-reg [24:0] tap_last_addr;
-reg  [1:0] tap_wrreq;
-wire       tap_wrfull;
-reg  [1:0] tap_version;
-reg        tap_start;
-
-always @(posedge clk_sys) begin
-	reg io_cycleD;
-	reg read_cyc;
-
-	io_cycleD <= io_cycle;
-	tap_wrreq <= tap_wrreq << 1;
-
-	if(tap_reset) begin
-		//C1530 module requires one more byte at the end due to fifo early check.
-		tap_last_addr <= tap_download ? ioctl_addr+2'd2 : 25'd0;
-		tap_play_addr <= 0;
-		tap_start     <= ~status[39] & tap_download;
-		read_cyc      <= 0;
-	end
-	else begin
-		tap_start <= 0;
-		if (~io_cycle & io_cycleD & ~tap_wrfull & tap_loaded) read_cyc <= 1;
-		if (io_cycle & io_cycleD & read_cyc) begin
-			tap_play_addr <= tap_play_addr + 1'd1;
-			read_cyc <= 0;
-			tap_wrreq[0] <= 1;
-		end
-	end
-end
-
-wire cass_write;
-wire cass_motor;
-wire cass_sense;
-wire cass_read;
-wire cass_run;
-wire cass_finish;
-wire cass_snd = cass_read & ~cass_run & status[11] & ~cass_finish;
-
-c1530 c1530
-(
-	.clk32(clk_sys),
-	.restart_tape(tap_reset),
-	.wav_mode(0),
-	.tap_version(tap_version),
-	.host_tap_in(sdram_data),
-	.host_tap_wrreq(tap_wrreq[1]),
-	.tap_fifo_wrfull(tap_wrfull),
-	.tap_fifo_error(cass_finish),
-	.cass_read(cass_read),
-	.cass_write(cass_write),
-	.cass_motor(cass_motor),
-	.cass_sense(cass_sense),
-	.cass_run(cass_run),
-	.osd_play_stop_toggle(tap_play_btn | tap_start),
-	.ear_input(0)
-);
+//------------- TAP handled by tape_subsystem -------------------
 
 reg use_tape;
 always @(posedge clk_sys) begin
