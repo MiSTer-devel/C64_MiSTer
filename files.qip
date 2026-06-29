@@ -20,4 +20,8 @@ set_global_assignment -name VHDL_FILE rtl/fpga64_keyboard.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_buslogic.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_sid_iec.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/drv_overlay.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/tap_scanner.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/tap_time_map.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/tape_counter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/tape_subsystem.sv
 set_global_assignment -name SYSTEMVERILOG_FILE c64.sv

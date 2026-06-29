@@ -63,7 +63,9 @@ assign HDMI_BOB_DEINT = 0;
 //
 // 6     7         8         9         10        11        12
 // 45678901234567890123456789012345 67890123456789012345678901234567
-// XXXXXXXXXXXXXXXXXXXXX
+// XXXXXXXXXXXXXXXXXXXXXXXXX  XXXXX
+//                            ^^^^^ 91=Counter Reset, 92=Counter,
+//                                  93=Rewind, 94=Fast Forward, 95=Stop
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -77,6 +79,11 @@ localparam CONF_STR = {
 	"hAO[62],Autosave,Off,On;",
 	"h3-;",
 	"h3R[7],Tape Play/Pause;",
+	"h3R[95],Tape Stop;",
+	"h3R[93],Tape Rewind;",
+	"h3R[94],Tape Fast Forward;",
+	"h3O[92],Tape Counter,Off,On;",
+	"h3R[91],Tape Counter Reset;",
 	"h3R[23],Tape Unload;",
 	"h3O[11],Tape Sound,Off,On;",
 	"-;",
@@ -318,6 +325,7 @@ wire  [7:0] ioctl_din;
 wire  [7:0] ioctl_index;
 wire        ioctl_download;
 wire        ioctl_upload;
+wire        tape_ioctl_wait;
 wire [31:0] ioctl_file_ext;
 
 wire [31:0] sd_lba[2];
@@ -337,6 +345,12 @@ wire [24:0] ps2_mouse;
 wire [10:0] ps2_key;
 wire  [1:0] buttons;
 wire [21:0] gamma_bus;
+
+wire        tape_play;
+wire        tape_key_rew;
+wire        tape_key_stop;
+wire        tape_key_ff;
+wire        tape_key_counter_reset;
 
 wire  [7:0] pd1,pd2,pd3,pd4;
 
@@ -392,7 +406,7 @@ hps_io #(.CONF_STR(CONF_STR), .VDNUM(2), .BLKSZ(1)) hps_io
 	.ioctl_upload(ioctl_upload),
 	.ioctl_din(ioctl_din),
 	.ioctl_rd(ioctl_rd),
-	.ioctl_wait(ioctl_req_wr|ioctl_req_rd|reset_wait)
+	.ioctl_wait(ioctl_req_wr|ioctl_req_rd|reset_wait|tape_ioctl_wait)
 );
 
 wire load_prg   = ioctl_index == 'h01;
@@ -695,7 +709,6 @@ always @(posedge clk_sys) begin
 		
 		if (load_tap) begin
 			if (ioctl_addr == 0)  ioctl_load_addr <= TAP_ADDR;
-			if (ioctl_addr == 12) tap_version <= ioctl_data[1:0];
 			ioctl_req_wr <= 1;
 		end
 
@@ -945,6 +958,10 @@ fpga64_sid_iec fpga64
 	.nmi_ack(nmi_ack),
 	.freeze_key(freeze_key),
 	.tape_play(tape_play),
+	.tape_rew(tape_key_rew),
+	.tape_stop(tape_key_stop),
+	.tape_ff(tape_key_ff),
+	.tape_reset_counter(tape_key_counter_reset),
 	.mod_key(mod_key),
 	.roml(romL),
 	.romh(romH),
@@ -1434,9 +1451,12 @@ drv_overlay drv_ovl (
 	.pixel_color(ovl_color)
 );
 
-reg [1:0] ovl_color_sync;
+wire [2:0] tape_ovl_color;
+wire [2:0] ovl_mix = (tape_ovl_color != 3'd0) ? tape_ovl_color : {1'b0, ovl_color};
+
+reg [2:0] ovl_color_sync;
 always @(posedge CLK_VIDEO) begin
-    ovl_color_sync <= ovl_color;
+    ovl_color_sync <= ovl_mix;
 end
 
 video_mixer #(.GAMMA(1)) video_mixer
@@ -1448,10 +1468,12 @@ video_mixer #(.GAMMA(1)) video_mixer
 	.gamma_bus(gamma_bus),
 
 	.ce_pix(ce_pix),
-	 // overlay colors: 0=Transparent, 1=Green, 2=Yellow, 3=Red
-	.R((ovl_color_sync == 2 || ovl_color_sync == 3) ? 8'hFF : (ovl_color_sync == 1 ? 8'h00 : r)),
-	.G((ovl_color_sync == 1 || ovl_color_sync == 2) ? 8'hFF : (ovl_color_sync == 3 ? 8'h00 : g)),
-	.B((ovl_color_sync != 0) ? 8'h00 : b),
+	 // overlay colors: 0=Transparent, 1=Green, 2=Yellow, 3=Red, 4=Blue
+	.R((ovl_color_sync == 3'd2 || ovl_color_sync == 3'd3) ? 8'hFF :
+	   (ovl_color_sync == 3'd1 || ovl_color_sync == 3'd4) ? 8'h00 : r),
+	.G((ovl_color_sync == 3'd1 || ovl_color_sync == 3'd2) ? 8'hFF :
+	   (ovl_color_sync == 3'd3 || ovl_color_sync == 3'd4) ? 8'h00 : g),
+	.B((ovl_color_sync == 3'd4) ? 8'hFF : (ovl_color_sync != 3'd0) ? 8'h00 : b),
 	.HSync(hsync_out),
 	.VSync(vsync_out),
 	.HBlank(hblank),
@@ -1579,71 +1601,66 @@ assign AUDIO_R = aro;
 assign AUDIO_S = 1;
 assign AUDIO_MIX = status[19:18];
 
-//------------- TAP -------------------
+//------------- TAP / C1530 Datassette -------------------
 
-wire       tap_download = ioctl_download & load_tap;
-wire       tap_reset    = ~reset_n | tap_download | status[23] | !tap_last_addr | cass_finish | (cass_run & ((tap_last_addr - tap_play_addr) < 80));
-wire       tap_loaded   = (tap_play_addr < tap_last_addr);                                    // ^^ auto-unload if motor stopped at the very end ^^
-wire       tap_play_btn = status[7] | tape_play;
-wire       tape_play;
+wire       cass_write;
+wire       cass_motor;
+wire       cass_sense;
+wire       cass_read;
+wire       cass_run;
+wire       cass_finish;
+wire       cass_snd = cass_read & ~cass_run & status[11] & ~cass_finish;
 
-reg [24:0] tap_play_addr;
-reg [24:0] tap_last_addr;
-reg  [1:0] tap_wrreq;
-wire       tap_wrfull;
-reg  [1:0] tap_version;
-reg        tap_start;
+wire       tap_loaded;
+wire [24:0] tap_play_addr;
+wire [24:0] tap_last_addr;
 
-always @(posedge clk_sys) begin
-	reg io_cycleD;
-	reg read_cyc;
-
-	io_cycleD <= io_cycle;
-	tap_wrreq <= tap_wrreq << 1;
-
-	if(tap_reset) begin
-		//C1530 module requires one more byte at the end due to fifo early check.
-		tap_last_addr <= tap_download ? ioctl_addr+2'd2 : 25'd0;
-		tap_play_addr <= 0;
-		tap_start     <= ~status[39] & tap_download;
-		read_cyc      <= 0;
-	end
-	else begin
-		tap_start <= 0;
-		if (~io_cycle & io_cycleD & ~tap_wrfull & tap_loaded) read_cyc <= 1;
-		if (io_cycle & io_cycleD & read_cyc) begin
-			tap_play_addr <= tap_play_addr + 1'd1;
-			read_cyc <= 0;
-			tap_wrreq[0] <= 1;
-		end
-	end
-end
-
-wire cass_write;
-wire cass_motor;
-wire cass_sense;
-wire cass_read;
-wire cass_run;
-wire cass_finish;
-wire cass_snd = cass_read & ~cass_run & status[11] & ~cass_finish;
-
-c1530 c1530
+tape_subsystem tape
 (
-	.clk32(clk_sys),
-	.restart_tape(tap_reset),
-	.wav_mode(0),
-	.tap_version(tap_version),
-	.host_tap_in(sdram_data),
-	.host_tap_wrreq(tap_wrreq[1]),
-	.tap_fifo_wrfull(tap_wrfull),
-	.tap_fifo_error(cass_finish),
-	.cass_read(cass_read),
+	.clk(clk_sys),
+	.ce(ce_sys),
+	.reset_n(reset_n),
+	.hblank(hblank),
+	.vblank(vblank),
+	.ntsc(ntsc),
+
+	.ioctl_download(ioctl_download),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_data(ioctl_data),
+	.load_tap(load_tap),
+	.ioctl_wait(tape_ioctl_wait),
+
+	.io_cycle(io_cycle),
+	.sdram_data(sdram_data),
+
+	.osd_play(status[7]),
+	.osd_stop(status[95]),
+	.osd_rew(status[93]),
+	.osd_ff(status[94]),
+	.osd_unload(status[23]),
+	.osd_counter_reset(status[91]),
+	.counter_enable(status[92]),
+	.tape_autoplay_off(status[39]),
+
+	.key_play(tape_play),
+	.key_stop(tape_key_stop),
+	.key_rew(tape_key_rew),
+	.key_ff(tape_key_ff),
+	.key_counter_reset(tape_key_counter_reset),
+
 	.cass_write(cass_write),
 	.cass_motor(cass_motor),
 	.cass_sense(cass_sense),
+	.cass_read(cass_read),
 	.cass_run(cass_run),
-	.osd_play_stop_toggle(tap_play_btn | tap_start),
-	.ear_input(0)
+	.cass_finish(cass_finish),
+
+	.tap_loaded(tap_loaded),
+	.tap_play_addr(tap_play_addr),
+	.tap_last_addr(tap_last_addr),
+
+	.pixel_color(tape_ovl_color)
 );
 
 reg use_tape;
