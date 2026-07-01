@@ -96,6 +96,10 @@ port(
 	freeze_key  : out std_logic;
 	mod_key     : out std_logic;
 	tape_play   : out std_logic;
+	tape_rew    : out std_logic;
+	tape_stop   : out std_logic;
+	tape_ff     : out std_logic;
+	tape_reset_counter : out std_logic;
 
 	-- dma access
 	dma_req     : in  std_logic := '0';
@@ -888,6 +892,10 @@ port map (
 
 	restore_key => freeze_key,
 	tape_play => tape_play,
+	tape_rew => tape_rew,
+	tape_stop => tape_stop,
+	tape_ff => tape_ff,
+	tape_reset_counter => tape_reset_counter,
 	mod_key => mod_key,
 	backwardsReadingEnabled => '1'
 );
