@@ -39,11 +39,11 @@ Note: F2, F4, F6, F8, Left/Up keys automatically activate Shift key.
 | F10                   | = key                                        |
 | F11                   | Restore key. Also special key in AR/FC carts |
 | Alt, Tab              | C= key                                       |
-| CTRL + Cursor Up      | Tape Play / Stop                             |
-| CTRL + Cursor Down    | Tape Stop                                    |
-| CTRL + Cursor Left    | Tape Rewind                                  |
-| CTRL + Cursor Right   | Tape Fast Forward                            |
-| CTRL + Canc (or Del)  | Tape Counter Reset                           |
+| WIN + Cursor Up       | Tape Play / Stop                             |
+| WIN + Cursor Down     | Tape Stop                                    |
+| WIN + Cursor Left     | Tape Rewind                                  |
+| WIN + Cursor Right    | Tape Fast Forward                            |
+| WIN + Canc (or Del)   | Tape Counter Reset                           |
 <br>
 
 ![keyboard-mapping](https://github.com/mister-devel/C64_MiSTer/blob/master/keymap.gif)
