@@ -425,36 +425,36 @@ begin
 					when X"5D" => key_pound <= pressed;
 					when X"66" => key_del <= pressed; 
 					when X"69" => if extended then key_equal   <= pressed; else key_1   <= pressed; end if;
-					when X"6B" =>
+				when X"6B" =>
 						if extended then
-							if key_ctrl = '1' and pressed = '1' then tape_rew <= '1'; else key_left <= pressed; end if;
+							if (mod_key1 = '1' or mod_key2 = '1') and pressed = '1' then tape_rew <= '1'; else key_left <= pressed; end if;
 						else
 							key_4 <= pressed;
 						end if;
 					when X"6C" => if extended then key_home    <= pressed; else key_7   <= pressed; end if;
 					when X"70" => if extended then key_inst    <= pressed; else key_0   <= pressed; end if;
-					when X"71" =>
+				when X"71" =>
 						if extended then
-							if key_ctrl = '1' and pressed = '1' then tape_reset_counter <= '1'; else key_del <= pressed; end if;
+							if (mod_key1 = '1' or mod_key2 = '1') and pressed = '1' then tape_reset_counter <= '1'; else key_del <= pressed; end if;
 						else
 							key_dot <= pressed;
 						end if;
-					when X"72" =>
+				when X"72" =>
 						if extended then
-							if key_ctrl = '1' and pressed = '1' then tape_stop <= '1'; else key_down <= pressed; end if;
+							if (mod_key1 = '1' or mod_key2 = '1') and pressed = '1' then tape_stop <= '1'; else key_down <= pressed; end if;
 						else
 							key_2 <= pressed;
 						end if;
 					when X"73" => key_5 <= pressed; 
-					when X"74" =>
+				when X"74" =>
 						if extended then
-							if key_ctrl = '1' and pressed = '1' then tape_ff <= '1'; else key_right <= pressed; end if;
+							if (mod_key1 = '1' or mod_key2 = '1') and pressed = '1' then tape_ff <= '1'; else key_right <= pressed; end if;
 						else
 							key_6 <= pressed;
 						end if;
-					when X"75" =>
+				when X"75" =>
 						if extended then
-							if key_ctrl = '1' and pressed = '1' then tape_play <= '1'; else key_up <= pressed; end if;
+							if (mod_key1 = '1' or mod_key2 = '1') and pressed = '1' then tape_play <= '1'; else key_up <= pressed; end if;
 						else
 							key_8 <= pressed;
 						end if;
