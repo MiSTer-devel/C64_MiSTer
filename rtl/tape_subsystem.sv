@@ -36,12 +36,17 @@ module tape_subsystem (
 	input   [7:0] sdram_data,
 
 	// OSD/key transport controls. Inputs are pulses except counter_enable.
-	input         cmd_play,
-	input         cmd_stop,
-	input         cmd_rew,
-	input         cmd_ff,
+	input         osd_play,
+	input         osd_stop,
+	input         osd_rew,
+	input         osd_ff,
 	input         cmd_unload,
-	input         cmd_counter_reset,
+	input         osd_counter_reset,
+	input         key_play,
+	input         key_stop,
+	input         key_rew,
+	input         key_ff,
+	input         key_counter_reset,
 	input         counter_enable,
 	input         tape_autoplay_off,
 	input         tape_autounload_off,
@@ -83,6 +88,23 @@ always @(posedge clk) begin
 	if (tap_reset) tap_ready_gated <= 1'b0;
 	else           tap_ready_gated <= tap_ready;
 end
+
+// Some hps_io/firmware versions leave OSD T-trigger bits high for multiple
+// cycles, while keyboard shortcuts are already one-cycle pulses. Synthesize
+// clean one-cycle command pulses from the OSD level inputs before combining.
+reg osd_play_d = 0, osd_stop_d = 0, osd_rew_d = 0, osd_ff_d = 0, osd_counter_reset_d = 0;
+always @(posedge clk) begin
+	osd_play_d <= osd_play;
+	osd_stop_d <= osd_stop;
+	osd_rew_d  <= osd_rew;
+	osd_ff_d   <= osd_ff;
+	osd_counter_reset_d <= osd_counter_reset;
+end
+wire cmd_play = (osd_play & ~osd_play_d) | key_play;
+wire cmd_stop = (osd_stop & ~osd_stop_d) | key_stop;
+wire cmd_rew  = (osd_rew  & ~osd_rew_d)  | key_rew;
+wire cmd_ff   = (osd_ff   & ~osd_ff_d)   | key_ff;
+wire cmd_counter_reset = (osd_counter_reset & ~osd_counter_reset_d) | key_counter_reset;
 
 // TAP version is needed by c1530 while playing back from SDRAM.
 reg [1:0] tap_version;
