@@ -44,6 +44,10 @@ entity fpga64_keyboard is
 		
 		shift_mod: in std_logic_vector(1 downto 0);
 
+		-- symbolic layouts (c64_keyboard_sym): replace the mapping below
+		sym_en   : in std_logic := '0';
+		sym_keys : in std_logic_vector(63 downto 0) := (others => '0');
+
 		pai     : in unsigned(7 downto 0);
 		pbi     : in unsigned(7 downto 0);
 		pao     : out unsigned(7 downto 0);
@@ -458,6 +462,83 @@ begin
 			-- shift-0 to shift-9
 		    key_9  <= (phys_9 and not key_shift) or (phys_0 and key_shift);
 			key_0  <=  phys_0 and not key_shift;
+
+			-- symbolic layout (OSD "Keyboard Layout" US / UK / DE): the keys come
+			-- from c64_keyboard_sym, SHIFT already pressed or released for them
+			if sym_en = '1' then
+				key_del <= sym_keys(0);
+				key_return <= sym_keys(1);
+				key_right <= sym_keys(2);
+				key_F7 <= sym_keys(3);
+				key_F1 <= sym_keys(4);
+				key_F3 <= sym_keys(5);
+				key_F5 <= sym_keys(6);
+				key_down <= sym_keys(7);
+				key_3 <= sym_keys(8);
+				key_W <= sym_keys(9);
+				key_A <= sym_keys(10);
+				key_4 <= sym_keys(11);
+				key_Z <= sym_keys(12);
+				key_S <= sym_keys(13);
+				key_E <= sym_keys(14);
+				key_shiftl <= sym_keys(15);
+				key_5 <= sym_keys(16);
+				key_R <= sym_keys(17);
+				key_D <= sym_keys(18);
+				key_6 <= sym_keys(19);
+				key_C <= sym_keys(20);
+				key_F <= sym_keys(21);
+				key_T <= sym_keys(22);
+				key_X <= sym_keys(23);
+				key_7 <= sym_keys(24);
+				key_Y <= sym_keys(25);
+				key_G <= sym_keys(26);
+				key_8 <= sym_keys(27);
+				key_B <= sym_keys(28);
+				key_H <= sym_keys(29);
+				key_U <= sym_keys(30);
+				key_V <= sym_keys(31);
+				key_9 <= sym_keys(32);
+				key_I <= sym_keys(33);
+				key_J <= sym_keys(34);
+				key_0 <= sym_keys(35);
+				key_M <= sym_keys(36);
+				key_K <= sym_keys(37);
+				key_O <= sym_keys(38);
+				key_N <= sym_keys(39);
+				key_plus <= sym_keys(40);
+				key_P <= sym_keys(41);
+				key_L <= sym_keys(42);
+				key_minus <= sym_keys(43);
+				key_dot <= sym_keys(44);
+				key_colon <= sym_keys(45);
+				key_at <= sym_keys(46);
+				key_comma <= sym_keys(47);
+				key_pound <= sym_keys(48);
+				key_star <= sym_keys(49);
+				key_semicolon <= sym_keys(50);
+				key_home <= sym_keys(51);
+				key_shiftr <= sym_keys(52);
+				key_equal <= sym_keys(53);
+				key_arrowup <= sym_keys(54);
+				key_slash <= sym_keys(55);
+				key_1 <= sym_keys(56);
+				key_arrowleft <= sym_keys(57);
+				key_ctrl <= sym_keys(58);
+				key_2 <= sym_keys(59);
+				key_space <= sym_keys(60);
+				key_commodore <= sym_keys(61);
+				key_Q <= sym_keys(62);
+				key_runstop <= sym_keys(63);
+				key_left <= '0';
+				key_up <= '0';
+				key_inst <= '0';
+				key_F2 <= '0';
+				key_F4 <= '0';
+				key_F6 <= '0';
+				key_F8 <= '0';
+				key_8s <= '0';
+			end if;
 
 			if reset = '1' then
 					key_F1        <= '0';

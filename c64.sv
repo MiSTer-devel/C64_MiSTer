@@ -128,6 +128,7 @@ localparam CONF_STR = {
 	"P2O[29:28],Pot 3/4,Joy 2 Fire 2/3,Mouse,Paddles 3/4;",
 	"P2-;",
 	"P2O[60:59],Key modifier,L+R Shift,L Shift,R Shift;",
+	"P2O[98:97],Keyboard Layout,Original,US,UK,DE;",
 	"P2-;",
 	"P2O[1],Release Keys on Reset,Yes,No;",
 	"P2O[24],Clear RAM on Reset,Yes,No;",
@@ -922,6 +923,17 @@ wire  [7:0] r,g,b;
 
 wire        ntsc_req = status[2];
 
+// symbolic keyboard layouts (OSD "Keyboard Layout"): the key cap legend is what the C64 gets
+wire [63:0] sym_keys;
+c64_keyboard_sym kbd_sym
+(
+	.clk(clk_sys),
+	.reset((~reset_n & ~status[1]) | reset_keys),
+	.layout(status[98:97]),
+	.ps2_key(key),
+	.keys_out(sym_keys)
+);
+
 fpga64_sid_iec fpga64
 (
 	.clk32(clk_sys),
@@ -936,6 +948,8 @@ fpga64_sid_iec fpga64
 	.ps2_key(key),
 	.kbd_reset((~reset_n & ~status[1]) | reset_keys),
 	.shift_mod(~status[60:59]),
+	.sym_en(|status[98:97]),
+	.sym_keys(sym_keys),
 
 	.ramAddr(c64_addr),
 	.ramDout(c64_data_out),

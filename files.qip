@@ -16,6 +16,7 @@ set_global_assignment -name VERILOG_FILE rtl/c1351.v
 set_global_assignment -name VHDL_FILE rtl/video_sync.vhd
 set_global_assignment -name VHDL_FILE rtl/video_vicII_656x.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_rgbcolor.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/c64_keyboard_sym.sv
 set_global_assignment -name VHDL_FILE rtl/fpga64_keyboard.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_buslogic.vhd
 set_global_assignment -name VHDL_FILE rtl/fpga64_sid_iec.vhd
