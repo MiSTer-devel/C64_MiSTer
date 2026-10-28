@@ -2,6 +2,7 @@
 -- Title      : VIA 6522
 -------------------------------------------------------------------------------
 -- Author     : Gideon Zweijtzer  <gideon.zweijtzer@gmail.com>
+-- Changes    : 2026 Videodr0me - Restrict CA2 interrupt detection to input mode.
 -------------------------------------------------------------------------------
 -- Description: This module implements the 6522 VIA chip.
 --              A LOT OF REVERSE ENGINEERING has been done to make this module
@@ -163,7 +164,8 @@ begin
     write_t2c_h <= '1' when addr = X"9" and wen='1' and falling = '1' else '0';
 
     ca1_event <= (ca1_d1 xor ca1_d2) and (ca1_d2 xor ca1_edge_select);
-    ca2_event <= (ca2_d1 xor ca2_d2) and (ca2_d2 xor ca2_edge_select);
+    -- In output mode, transitions must not set the CA2 interrupt flag.
+    ca2_event <= (ca2_d1 xor ca2_d2) and (ca2_d2 xor ca2_edge_select) and not ca2_is_output;
     cb1_event <= (cb1_d1 xor cb1_d2) and (cb1_d2 xor cb1_edge_select);
     cb2_event <= (cb2_d1 xor cb2_d2) and (cb2_d2 xor cb2_edge_select);
 
