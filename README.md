@@ -85,18 +85,18 @@ In OSD->Hardware page you can choose Boot Cartridge, so every time a core is loa
 ### C1530 and tape support
 In OSD->Load *.TAP and choose a TAP file. When a TAP is mounted, on OSD all the commands for managing the C1530 will appear and the keyboard shortcuts will also be enabled. For show counter on display (HDMI and CRT), enable Tape Counter on OSD and save settings. 
 
-### Parallel port
-Are you tired of long loading times and fast loaders aren't really fast when comparing to other systems? 
+### Parallel Cable
 
-In OSD->Hardware set **System ROM: Loadable**. Then load the provided [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom) via OSD->Hardware->**System ROM: C64+C1541**. Also make sure that OSD-Drives->**Parallel Port: Enabled**. You will get about **20x times faster** loading from disks!
+A parallel disk cable allows much faster loading with DolphinDOS or SpeedDOS. The cable, RS232 modems, and extra joystick adapters share the C64 User Port, so they generally cannot use it at the same time. The core has a smart auto mode, which allows limited sharing: select **OSD->Drives->Parallel Cable** to control how the disk cable shares the C64 User Port with RS232 and extra joysticks:
 
-The C64 User Port is a historical bottleneck because the Parallel Disk cable, RS232 modems, and 4-Player Joystick adapters all require exclusive access to it. The MiSTer tries to be smart about this:
-* If the core detects activity on the disk serial lines, it assumes a fast loader is engaging and instantly grants the User Port to the Parallel Disk drive.
-* Once disk activity stops for exactly 0.5 seconds, the User Port is automatically handed back to the RS232 module or the 4-Player Joystick adapter. 
+* **Auto** (default): enables automatic sharing when a loaded **32 KB 1541 drive ROM** is selected, such as the supplied DolphinDOS or SpeedDOS ROM. Serial or parallel disk activity connects the cable. Otherwise, about half a second without disk activity returns the port to the selected expansion device. This allows using additional user port joysticks while still using fast loading.
+* **On**: keeps the cable connected continuously, regardless of drive ROM size or whether the standard drive ROM is selected. RS232 and extra User Port joysticks are unavailable while On is selected.
+* **Off**: disconnects the cable and leaves the User Port available to the selected expansion device. Serial IEC disk access remains available.
 
-Caution: The parallel port for disk drives is only enabled if you load a C64+Drive ROM where the Drive ROM portion is exactly **32KB** (like with the provided Dolphin DOS or Speed DOS). The standard kernal and e.g. JiffyDOS do not have special Drive ROMs (16KB), and thus the parallel port will be disabled (regardless of setting in drives).
+Select **On** to use a parallel cable with the standard KERNAL or other KERNALs without a 32 KB drive ROM, or for software using unusual 1541/C64 handshakes (e.g. FCOPY).
 
-JiffyDOS is a fast-serial replacement for standard kernal and achieves fast loading without the parallel port.
+For DolphinDOS fast loading, set **OSD->Hardware->System ROM: Loadable**, load the provided [DolphinDOS_2.0.rom](releases/DolphinDOS_2.0.rom) through **System ROM: C64+C1541**, and select **Auto** or **On**. JiffyDOS uses fast serial transfers and does not require the parallel cable.
+
 ### Turbo modes
 
 **C128 mode:** this is C128 compatible turbo mode available in C64 mode on Commodore 128 and can be controlled from software, so games written with this turbo mode support will take advantage of this.
@@ -147,7 +147,9 @@ Advanced C1541 features:
 * AGC flux events (weak bits)
 * Drive Overlay: an optional OSD showing current track and read/write activity
 
-Images mounted from inside zip files are strictly read only. For regular files, you can force write protection via the menu or by changing the file's read-only attribute. Caution: Changing the write-protect option for a drive only takes effect the next time you mount an image. Use the supplied empty disks for saving or copying to. Saving to a mounted (and writeable) image is done seamlessly in the background, there is no need to open the F12 Menu to force a save. You can monitor drive activity directly on-screen for both disk drives. The available modes are configurable via the drives menu: **Activity Only** (pops up only on activity), **If Mounted** (always visible if a disk is inserted),  and **Off**. The overlay shows the current track number and uses color coding to indicate reads (yellow), writes (red) and no activity (green).
+Images mounted from inside zip files are strictly read only. For regular files, you can force write protection via the menu or by changing the file's read-only attribute. Caution: Changing the write-protect option for a drive only takes effect the next time you mount an image.
+Use the supplied empty disks for saving or copying to. Saving to a mounted (and writeable) image is done seamlessly in the background, there is no need to open the F12 Menu to force a save.
+You can monitor drive activity directly on-screen for both disk drives. The available modes are configurable via the drives menu: **Activity Only** (pops up only on activity), **If Mounted** (always visible if a disk is inserted),  and **Off**. The overlay shows the current track number and uses color coding to indicate reads (yellow), writes (red) and no activity (green).
 
 The G64 format can accurately represent over 90% of original copy-protected software. However, getting protected software to load can sometimes be tricky. Always mount write protected, as some devious protections try to format your disk if they detect a copy and others even require being write protected to load. If a game fails to load, try the following steps:
 * Use the standard C64 kernal (disable fast loaders).

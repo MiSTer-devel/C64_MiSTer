@@ -37,6 +37,7 @@ module iec_drive #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	output        iec_clk_o,
 
 	// parallel bus
+	input         par_force,
 	input   [7:0] par_data_i,
 	input         par_stb_i,
 	output  [7:0] par_data_o,
@@ -128,6 +129,7 @@ c1541_multi #(.PARPORT(PARPORT), .DUALROM(DUALROM), .DRIVES(DRIVES)) c1541
 	.out_we(c1541_out_we),
 	.disk_ready(disk_ready),
 
+	.par_force(par_force),
 	.par_data_i(par_data_i),
 	.par_stb_i(par_stb_i),
 	.par_data_o(c1541_par_o),
