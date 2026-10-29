@@ -90,6 +90,18 @@ random_xor lfsr(
 	.lfsr(random_data)
 );
 
+reg [8:0] reload_flux  = 9'd288;
+reg [8:0] reload_noise = 9'd32;
+
+// Precompute random noise delays so flux events load the timer.
+always @(posedge clk) begin
+	if (random_data[20:16] < 5'd31)
+		reload_flux <= 9'd288 + {4'd0, random_data[20:16]};
+
+	if (random_data[24:16] < 9'd367)
+		reload_noise <= 9'd32 + random_data[24:16];
+end
+
 // 1541 part designations are based on the schematics in:
 // "Commodore 1541 Troubleshooting & Repair Guide – M. Peltier".
 // the UC1 chip integrates several discrete 1540 parts,
@@ -105,6 +117,11 @@ reg  [2:0] UD3_bit_cnt_w;      // 74LS165 (UC1)
 reg  [9:0] flux_cnt;
 reg        hf;                 // data from head
 reg        ht;                 // data to head
+
+// Three wraps without SYNC request a byte-alignment step.
+reg  [1:0] align_revs;
+wire       align_step = mode && mtr && disk_present &&
+                        (&align_revs) && (UE3_bit_cnt == 3'd0);
 
 // clks per bitcell in relation to track length:
 // = (CLK_FREQ / (8 * (BASE_RPM/60))) / track_len
@@ -133,6 +150,8 @@ wire [12:0] track_new_adj = (track_new > 'd6000) ? track_new : len_valid;
 wire [12:0] track_len_adj = (track_len > 'd6000) ? track_len : len_valid;
 wire [13:0] recip = rec[track_len_adj-6000];
 wire buff_do_adj = (track_len > 'd6000) ? buff_do : buff_addr[0];
+wire flux_real = mode && disk_present &&
+                 (rot_clk_cnt >= rot_target) && buff_do_adj;
 
 // precalc reciprocals for track_len_adj = 6000 .. 8047
 reg  [13:0] rec[0:2191] = '{default:0};
@@ -153,6 +172,7 @@ always @(posedge clk) begin
 		buff_addr           <= 16;
 		UE3_bit_cnt         <= 0;
 		UD3_bit_cnt_w       <= 0;
+		align_revs          <= 0;
 		shreg               <= 0;
 		hf                  <= 0;
 		ht                  <= 0;
@@ -175,9 +195,10 @@ always @(posedge clk) begin
 			if(rot_clk_cnt >= rot_target) begin
 				rot_clk_cnt <=  rot_clk_cnt - rot_target + track_len_adj;
 				if (track_new_adj == track_len_adj) begin
-					if(buff_addr >= {track_len_adj + 1'd1, 3'b111})
+					if(buff_addr >= {track_len_adj + 1'd1, 3'b111}) begin
 						buff_addr <= 16'd16;
-					else begin
+						if (!(&align_revs)) align_revs <= align_revs + 2'd1;
+					end else begin
 						buff_addr <=  buff_addr + 1'd1;
 					end
 				end
@@ -191,17 +212,15 @@ always @(posedge clk) begin
 			end
 
 		// drivers of hf (flux reversals from data, or random flux reversals)
-		if(!mode)                                          hf <= 0;
-		else if(!flux_cnt)                                 hf <= 1;
-		else if(disk_present && rot_clk_cnt >= rot_target) hf <= buff_do_adj;
-		else                                               hf <= 0;  // demux dogma
+		hf <= mode && (flux_real || !flux_cnt);
 
 		// random flux reversal counter (weak bits/bad gcr)
-		if(!flux_cnt)
-		   flux_cnt <= random_data[6:0] + 10'd40;
-		else if((rot_clk_cnt >= rot_target) && buff_do_adj)
-		   flux_cnt <= random_data[5:0] + 10'd256;
-		   else flux_cnt <= flux_cnt - 1'b1;
+		// Delay noise after real flux, then reload the timer between noise pulses.
+		case ({flux_real, !flux_cnt})
+			2'b00:   flux_cnt <= flux_cnt - 10'd1;
+			2'b01:   flux_cnt <= {1'b0, reload_noise};
+			default: flux_cnt <= {1'b0, reload_flux};
+		endcase
 
 		// encoder-decoder clock, divider based on freq
 		// flux reversals reset UE6 and UF4 counters
@@ -219,12 +238,13 @@ always @(posedge clk) begin
 		// a one bit will be clocked into the shift register in phase b0010.
 		// if the allowed time window expires without a flux reversal 0 bits
 		// will be clocked into the shift register (phases b0110, b1010 etc.)
-		if(&UE6_enc_clk_cnt) begin
+		if(&UE6_enc_clk_cnt && !hf) begin
 			// transition into phase bxx10
 			if(UF4_enc_phase_cnt[1:0] == 2'b01) begin
 				shreg          <= {shreg[8:0], ~|UF4_enc_phase_cnt[3:2]}; // UE5a (UC1)
-				UE3_bit_cnt    <= UE3_bit_cnt   + 1'b1;
+				UE3_bit_cnt    <= align_step ? 3'd2 : UE3_bit_cnt + 3'd1;
 				UD3_bit_cnt_w  <= UD3_bit_cnt_w + 1'b1;
+				if (align_step) align_revs <= 0;
 			end
 			// transition into phase bxx11
 			else if((UF4_enc_phase_cnt[1:0] == 2'b10) && (&UE3_bit_cnt)) begin
@@ -241,6 +261,7 @@ always @(posedge clk) begin
 		end
 
 		if(~sync_n) UE3_bit_cnt <= 0;
+		if (!mode || !mtr || !disk_present || !sync_n) align_revs <= 0;
 
 		// drive wobble
 		if(wbl_step_cnt >= WBL_CLKS_PER_STP) begin
