@@ -38,6 +38,7 @@ module c1541_multi #(parameter PARPORT=1,DUALROM=1,DRIVES=2)
 	output        iec_clk_o,
 
 	// parallel bus
+	input         par_force,
 	input   [7:0] par_data_i,
 	input         par_stb_i,
 	output  [7:0] par_data_o,
@@ -184,7 +185,8 @@ wire [N:0] iec_data_d, iec_clk_d;
 assign     iec_clk_o  = &{iec_clk_d  | reset_drv};
 assign     iec_data_o = &{iec_data_d | reset_drv};
 
-wire [N:0] ext_en = {NDR{rom_sz[1] & ~stdrom & |PARPORT}} & ~reset_drv;
+// Parallel Cable: On bypasses the 32 KB loadable drive ROM requirement.
+wire [N:0] ext_en = {NDR{((rom_sz[1] & ~stdrom) | par_force) & |PARPORT}} & ~reset_drv;
 wire [7:0] par_data_d[NDR];
 wire [N:0] par_stb_d;
 assign     par_stb_o = &{par_stb_d | ~ext_en};
